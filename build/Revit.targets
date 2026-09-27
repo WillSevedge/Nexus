@@ -1,0 +1,54 @@
+<Project>
+  <!--
+    Imported by the Revit agent project.
+    - References RevitAPI/RevitAPIUI from the default install path with Private=false.
+      If Revit is not installed on the build machine (e.g. CI), falls back to the
+      compile-only Nice3point reference package. Neither is ever copied to the output.
+    - After Build on Windows, deploys to %APPDATA%\Autodesk\Revit\Addins\{year}\.
+      Set /p:DeployToHost=false to skip.
+  -->
+  <PropertyGroup>
+    <UseInstalledRevitApi Condition="Exists('$(RevitInstallDir)RevitAPI.dll')">true</UseInstalledRevitApi>
+    <RevitAddinsDir>$(UserAppData)\Autodesk\Revit\Addins\$(HostYear)\</RevitAddinsDir>
+    <RevitAddinFolder>$(RevitAddinsDir)AecHub\</RevitAddinFolder>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(UseInstalledRevitApi)' == 'true'">
+    <Reference Include="RevitAPI">
+      <HintPath>$(RevitInstallDir)RevitAPI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="RevitAPIUI">
+      <HintPath>$(RevitInstallDir)RevitAPIUI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseInstalledRevitApi)' != 'true'">
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPI" Version="$(RevitApiPackageVersion)" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPIUI" Version="$(RevitApiPackageVersion)" PrivateAssets="all" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <Target Name="AecHubRevitApiNotice" BeforeTargets="Build">
+    <Message Importance="high" Condition="'$(UseInstalledRevitApi)' == 'true'" Text="AecHub: Revit $(HostYear) API from $(RevitInstallDir)" />
+    <Warning Condition="'$(UseInstalledRevitApi)' != 'true' and '$(OS)' == 'Windows_NT'"
+             Text="AecHub: Revit $(HostYear) not found at '$(RevitInstallDir)'. Compiling against the reference package instead. Set RevitInstallDir if Revit is installed elsewhere." />
+  </Target>
+
+  <Target Name="AecHubDeployRevit" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
+    <ItemGroup>
+      <_AecHubRevitFiles Include="$(TargetDir)**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_AecHubRevitFiles)"
+          DestinationFiles="@(_AecHubRevitFiles->'$(RevitAddinFolder)%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" Retries="0" ContinueOnError="WarnAndContinue" />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\deploy\revit\AecHub.addin" DestinationFolder="$(RevitAddinsDir)"
+          SkipUnchangedFiles="true" ContinueOnError="WarnAndContinue" />
+    <Message Importance="high" Text="AecHub: deployed Revit $(HostYear) add-in to $(RevitAddinFolder) (if copy warnings appeared above, close Revit and rebuild)" />
+  </Target>
+
+  <Target Name="AecHubCleanRevit" AfterTargets="Clean" Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
+    <RemoveDir Directories="$(RevitAddinFolder)" ContinueOnError="true" />
+    <Delete Files="$(RevitAddinsDir)AecHub.addin" ContinueOnError="true" />
+  </Target>
+</Project>

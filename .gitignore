@@ -361,3 +361,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# ---- AecHub ----
+# Test workbooks contain client financial data: never commit.
+samples/
+/samples/
+*.xlsm

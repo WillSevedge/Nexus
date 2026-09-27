@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- UI-free hub logic: agent discovery, pipe client, result flattening, export.
+       Shared by the WPF hub, the CLI and (later) the MCP server. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>AecHub.Hub.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AecHub.Contracts\AecHub.Contracts.csproj" />
+  </ItemGroup>
+</Project>

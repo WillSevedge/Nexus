@@ -1,0 +1,38 @@
+<Project>
+  <!--
+    Imported by the AutoCAD-family agent projects.
+    - References the AutoCAD .NET API from the default install path with Private=false.
+      Falls back to Autodesk's compile-only AutoCAD.NET package when AutoCAD is
+      not installed on the build machine (e.g. CI). Never copied to the output.
+    - Set IsAcadModule=true (Civil 3D and future vertical modules) to also reference
+      the vertical's API and deploy into the core bundle folder.
+  -->
+  <PropertyGroup>
+    <UseInstalledAutoCadApi Condition="Exists('$(AutoCadInstallDir)accoremgd.dll')">true</UseInstalledAutoCadApi>
+    <AcadBundleDir>$(UserAppData)\Autodesk\ApplicationPlugins\AecHub.bundle\</AcadBundleDir>
+    <AcadBundleContentDir>$(AcadBundleDir)Contents\$(HostYear)\</AcadBundleContentDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>HostYear</_Parameter1>
+      <_Parameter2>$(HostYear)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseInstalledAutoCadApi)' == 'true'">
+    <Reference Include="accoremgd"><HintPath>$(AutoCadInstallDir)accoremgd.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="acdbmgd"><HintPath>$(AutoCadInstallDir)acdbmgd.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="acmgd"><HintPath>$(AutoCadInstallDir)acmgd.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseInstalledAutoCadApi)' != 'true'">
+    <PackageReference Include="AutoCAD.NET" Version="$(AutoCadApiPackageVersion)" PrivateAssets="all" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <Target Name="AecHubAutoCadApiNotice" BeforeTargets="Build">
+    <Message Importance="high" Condition="'$(UseInstalledAutoCadApi)' == 'true'" Text="AecHub: AutoCAD $(HostYear) API from $(AutoCadInstallDir)" />
+    <Warning Condition="'$(UseInstalledAutoCadApi)' != 'true' and '$(OS)' == 'Windows_NT'"
+             Text="AecHub: AutoCAD $(HostYear) not found at '$(AutoCadInstallDir)'. Compiling against the reference package instead. Set AutoCadInstallDir if it is installed elsewhere." />
+  </Target>
+</Project>

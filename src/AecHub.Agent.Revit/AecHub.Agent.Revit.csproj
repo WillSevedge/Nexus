@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(HostTargetFramework)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>AecHub.Agent.Revit</RootNamespace>
+    <AssemblyName>AecHub.Agent.Revit</AssemblyName>
+    <!-- Plugin-style output: our own dependencies are copied next to the add-in. -->
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AecHub.Agent.Shared\AecHub.Agent.Shared.csproj" />
+    <ProjectReference Include="..\AecHub.Contracts\AecHub.Contracts.csproj" />
+  </ItemGroup>
+
+  <Import Project="..\..\build\Revit.targets" />
+</Project>

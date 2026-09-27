@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Command-line client for testing agents without the WPF hub. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>aechub</AssemblyName>
+    <RootNamespace>AecHub.Cli</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AecHub.Hub.Core\AecHub.Hub.Core.csproj" />
+  </ItemGroup>
+</Project>
