@@ -21,6 +21,7 @@ public sealed class MainViewModel : Observable
     private ItemNode? _selectedItem;
     private string _columnFilter = "";
     private bool _busy;
+    private bool _refreshing;
 
     // The table as shown: the flattened results, the grid's DataTable, and which
     // grid column ("c7") holds which property column ("Group › Name").
@@ -94,6 +95,9 @@ public sealed class MainViewModel : Observable
     public RelayCommand CheckAllColumnsCommand { get; }
     public RelayCommand UncheckAllColumnsCommand { get; }
     public RelayCommand OpenLogFolderCommand { get; }
+
+    /// <summary>Raised after each refresh with a one-line summary (tray tooltip).</summary>
+    public event Action<string>? HostsChanged;
 
     /// <summary>Raised before edits are collected; the window commits any cell still being edited.</summary>
     public event Action? CommitGridEdits;
@@ -192,8 +196,31 @@ public sealed class MainViewModel : Observable
         RebuildReaders();
         int docs = Agents.Sum(a => a.Documents.Count);
         Status = found.Count == 0
-            ? "No hosts found. Start Revit/AutoCAD/Civil 3D with the Nexus add-in loaded, then Refresh."
+            ? "No hosts found. Start Revit, AutoCAD or Civil 3D with the Nexus add-in loaded; they appear here automatically."
             : $"{found.Count} host(s), {docs} document(s).";
+        HostsChanged?.Invoke(found.Count == 0
+            ? "waiting for Revit, AutoCAD or Civil 3D"
+            : string.Join(", ", Agents.Select(a => $"{a.Connection.Host.Product} {a.Connection.Host.Version}")));
+    }
+
+    /// <summary>Cheap poll (reads the registration files): refreshes only when a host started or stopped.</summary>
+    public async Task RefreshIfHostsChangedAsync()
+    {
+        if (_busy || _refreshing) return;
+        var pids = AgentDiscovery.Discover().Select(r => r.Host.ProcessId).ToHashSet();
+        if (pids.SetEquals(_agents.Keys)) return;
+        _refreshing = true;
+        try { await RefreshAsync(); }
+        finally { _refreshing = false; }
+    }
+
+    /// <summary>Asks before exiting with unapplied edits.</summary>
+    public bool ConfirmExit()
+    {
+        CommitGridEdits?.Invoke();
+        if (_pendingEdits == 0) return true;
+        return MessageBox.Show($"You have {_pendingEdits} edit(s) that have not been applied. Exit Nexus anyway?",
+            "Nexus", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
     }
 
     private static async Task RefreshAgentAsync(AgentNode node, AgentRegistration reg)

@@ -137,7 +137,7 @@ public class EditingTests
         var row = t.Rows[0];
         Assert.Null(Editing.Blocker(row, "Identity Data › Sheet Name"));
         Assert.Equal("Borrowed by Bob", Editing.Blocker(row, "Identity Data › Drawn By"));
-        Assert.Contains("refer to other elements", Editing.Blocker(row, "Identity Data › Material"));
+        Assert.Contains("refer to other objects", Editing.Blocker(row, "Identity Data › Material"));
         Assert.Contains("Computed", Editing.Blocker(row, "Identity Data › Workset"));
         Assert.NotNull(Editing.Blocker(row, "Identity Data › Nope"));
 

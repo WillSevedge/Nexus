@@ -131,6 +131,11 @@ public sealed class ObjectPropertyReader
                 if (ext.AppliesTo(obj)) ext.Extend(obj, tr, item, options, blocker);
             });
         }
+
+        // Edits are sent to the object that owns each property (this one unless set, e.g. attributes).
+        foreach (var g in item.Groups)
+            foreach (var p in g.Properties)
+                if (p.OwnerId is null && p.Source != PropertySource.Derived) p.OwnerId = item.Id;
         return item;
     }
 
@@ -176,6 +181,7 @@ public sealed class ObjectPropertyReader
                 {
                     Name = ar.Tag,
                     Id = ar.ObjectId.Handle.ToString(),
+                    OwnerId = ar.ObjectId.Handle.ToString(),
                     Source = PropertySource.Attribute,
                     StorageType = "String",
                     DataType = ar.IsMTextAttribute ? "Multiline attribute" : "Attribute",
@@ -198,6 +204,7 @@ public sealed class ObjectPropertyReader
                 custom.Properties.Add(new PropertyValue
                 {
                     Name = p.PropertyName,
+                    Id = "Dyn:" + p.PropertyName,
                     Source = PropertySource.DynamicBlock,
                     StorageType = f.StorageType,
                     DataType = p.UnitsType.ToString(),
@@ -255,6 +262,7 @@ public sealed class ObjectPropertyReader
                 g.Properties.Add(new PropertyValue
                 {
                     Name = $"R{r + 1}C{c + 1}",
+                    Id = TableCellId(r, c),
                     Source = PropertySource.Managed,
                     StorageType = "String",
                     Value = text,
@@ -266,6 +274,9 @@ public sealed class ObjectPropertyReader
         }
         item.Groups.Add(g);
     }
+
+    /// <summary>Property id of a table cell (zero-based row and column).</summary>
+    public static string TableCellId(int row, int column) => FormattableString.Invariant($"Cell:{row},{column}");
 
     public static string? EntityBlocker(DBObject obj, Transaction tr)
     {

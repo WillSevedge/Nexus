@@ -1,12 +1,11 @@
 # Nexus
 
-Nexus connects running **Revit**, **AutoCAD** and **Civil 3D** sessions to a standalone
-**hub** application. Each host runs a small agent that answers requests over a named pipe;
-the hub finds every running agent, lists the open documents, runs *readers* against them
-and exports the results.
+Nexus connects running **Revit**, **AutoCAD** and **Civil 3D** sessions to a **hub** that runs in
+the background (tray icon, starts with Windows). Each host runs a small agent that answers requests
+over a named pipe; the hub finds every running agent, lists the open documents, runs *readers*
+against them, lets you edit values and write them back, and exports the results.
 
-Current phase: **read-only**. Excel import/export, write-back (with dry-run diff),
-two-way sync and the MCP server come in later phases.
+Later phases: Excel import/export, two-way sync and the MCP server.
 
 ## Solution layout
 
@@ -79,16 +78,12 @@ Runtime files (all under `%LOCALAPPDATA%\Nexus\`):
 **Load**
 1. Build (see above), then start Revit 2026.
 2. Revit asks about the unsigned add-in "Nexus Agent": choose **Always Load**.
-3. A **Nexus** ribbon tab appears with a **Hub Link** panel.
-   **Open Hub** starts the hub, or brings it to the front if it is already running. It uses the
-   location recorded in `%LOCALAPPDATA%\Nexus\hub-location.txt`, which is written when `Nexus.Hub`
-   is built and each time the hub starts.
-   The **Hub** button shows the connection state:
+3. A **Nexus** ribbon tab appears with a **Hub Link** panel. The **Hub** button shows the connection state:
    - grey **Hub: Starting** until Revit is idle,
    - blue **Hub: Waiting** while listening for the hub,
    - green **Hub: Connected** while the hub is connected,
    - red **Hub: Error**.
-   Click it for details (pipe name, requests handled, last error, log folder).
+   Click it for details (pipe name, requests handled, last error), **Show the Nexus hub**, or the log folder.
 
 **Readers**
 - `revit.sheets`: one item per sheet (placeholders optional).
@@ -133,9 +128,11 @@ error instead of waiting forever.
 2. The bundle in `%APPDATA%\Autodesk\ApplicationPlugins` loads automatically.
    - AutoCAD asks about loading `Nexus.Agent.Acad.dll` from a non-trusted location: choose **Always Load**.
    - Or add `%APPDATA%\Autodesk\ApplicationPlugins\Nexus.bundle\...` to `TRUSTEDPATHS`.
-3. Type `NEXUSSTATUS` to see the agent state, host, loaded modules, pipe and log file.
+3. A **Nexus** ribbon tab appears with a **Hub Link** panel. Its **Hub** button shows the connection
+   state with the same colors as in Revit. Click it (or type `NEXUS`) for details and **Show the Nexus hub**.
+   The tab comes back after a workspace switch. `NEXUSSTATUS` prints the same details on the command line.
 
-In Civil 3D, `NEXUSSTATUS` shows `Modules: Civil3D`, and the hub lists the host as **Civil 3D 2026**.
+In Civil 3D the status shows `Modules: Civil3D`, and the hub lists the host as **Civil 3D 2026**.
 
 The core detects Civil 3D after startup, on the first idle. It looks for any of:
 - `/product C3D` on the command line,
@@ -173,6 +170,17 @@ If AutoCAD dies during a read, the next start moves that property to
 `acad-probe-denied.txt` and never reads it again. The first read of a new object type is
 slightly slower because of this; later reads are not.
 
+**Editing.** The agent accepts edits from the hub (see *Hub › Editing*):
+- block attributes (constant ones excepted), table cells, dynamic block properties (checked against the allowed values);
+- Properties palette (COM) properties and .NET API properties with a setter: text, numbers, Yes/No, choices (enums),
+  points as `x, y, z`, and colors (`ByLayer`, `ByBlock`, `1`-`255`, `Red`…, or `R,G,B`);
+- drawing settings, and system variables of the active drawing.
+
+Values that refer to other objects (layer/style ids, COM objects) are not editable yet; the `Layer`
+property (text) is. A value is skipped when its layer is locked, the drawing is read-only, or it changed in
+the drawing since it was read. Edits run with the document locked from the application context, so they are
+recorded in AutoCAD's undo history (`U`).
+
 **Threading.** Requests are marshaled to AutoCAD's main thread and run only in the
 application context, never while a command is running. If a command stays active for more
 than 30 s the hub gets `HostBusy`. Reads lock the document and use read-only transactions.
@@ -185,9 +193,21 @@ The agent handles "no active document" and reads non-active drawings too.
 
 ## Hub
 
-Click **Open Hub** on Revit's Nexus tab, run `src\Nexus.Hub\bin\Debug\net10.0-windows\Nexus.exe`,
-or set `Nexus.Hub` as the startup project. The host list refreshes when you switch back to the hub
-(at most every 15 s).
+Nexus runs in the background, like Autodesk Access: one per Windows user, with an **N** icon in the
+notification area (next to the clock), and it starts when you sign in to Windows.
+
+- **Install.** Building `Nexus.Hub` installs it to `%LOCALAPPDATA%\Nexus\Hub` and restarts it there in the
+  background (the running hub is asked to exit first, so the files can be replaced). Set
+  `/p:DeployToHost=false` to skip.
+- **Open it.** Click the tray icon, or **Hub → Show the Nexus hub** in Revit/AutoCAD/Civil 3D, or run `Nexus.exe` again.
+- **Close vs exit.** Closing the window hides it; Nexus keeps running. Right-click the tray icon →
+  **Exit Nexus** to stop it.
+- **Start with Windows.** On by default; toggle it in the tray menu (a per-user `Run` entry that starts
+  `%LOCALAPPDATA%\Nexus\Hub\Nexus.exe --background`).
+- **Hosts.** Revit, AutoCAD and Civil 3D sessions are picked up within a few seconds of starting or closing,
+  even while the window is hidden. **Refresh hosts** also re-lists the open documents.
+- **Debugging.** F5 on `Nexus.Hub` uses the `--replace` launch profile: the background hub exits and the
+  debugger's copy takes over. Other switches: `--background`, `--shutdown`, `--install`.
 
 1. **Hosts and open documents.** Every running agent, with product, year, modules and pid, and its open documents flagged active, read-only, workshared, linked or family. The active document of each host is pre-checked. Click **Refresh hosts** after opening or closing files or hosts.
 2. **Readers.** Readers from all agents. Expand one to change its options. Placeholders are greyed out and return `NotImplemented`.
@@ -196,7 +216,7 @@ or set `Nexus.Hub` as the startup project. The host list refreshes when you swit
 5. **Table.** One row per item (children indented), one column per checked property.
 6. **Items.** Browse the selected result's item tree. Select an item to see every property with value, read-only flag and reason, source, storage type, data type, units and id.
 7. **Columns.** Choose which groups and properties go into the table and exports. You can filter by name.
-8. **Editing.** Double-click a value in the table (or select it and start typing) to change it.
+8. **Editing** (Revit, AutoCAD, Civil 3D). Double-click a value in the **Table** tab (or select it and start typing) to change it. Paper space objects, title block attributes and other child items are rows in the table too. The **Items** tab is for browsing.
    - Edited cells turn yellow; the tooltip shows the old value.
    - Grey cells cannot be edited; the tooltip says why (read-only parameter, borrowed element, host without editing, …).
    - **Apply N change(s)…** shows every edit (document, item, property, old → new). **Apply to the model** writes them and shows each outcome: *Applied*, *Unchanged*, *Skipped* (with why) or *Failed* (with why). Closing the window re-reads the changed results so the table shows the model's values.
@@ -220,7 +240,7 @@ cd src\Nexus.Cli\bin\Debug\net10.0
 
 ## Troubleshooting
 
-- **The hub shows no hosts.** Check the host loaded the add-in (Revit: Nexus tab; AutoCAD: `NEXUSSTATUS`), and check `%LOCALAPPDATA%\Nexus\agents\`. The hub and the hosts must run as the same Windows user, and both elevated or both not elevated.
+- **The hub shows no hosts.** Check the host loaded the add-in (Revit and AutoCAD: Nexus tab, or `NEXUSSTATUS`), check that Nexus is running (tray icon), and check `%LOCALAPPDATA%\Nexus\agents\`. The hub and the hosts must run as the same Windows user, and both elevated or both not elevated.
 - **`HostBusy`.** Close dialogs, finish the active command or edit mode, then run again.
 - **An error in the hub.** The full stack trace is in the host's log (`%LOCALAPPDATA%\Nexus\logs`).
 - **A property disappeared from AutoCAD results.** Check `acad-probe-denied.txt`. Delete the line (or the file) to try that property again.

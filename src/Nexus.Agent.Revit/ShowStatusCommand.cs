@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Nexus.Agent;
 using Nexus.Contracts;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
@@ -27,9 +28,19 @@ public sealed class ShowStatusCommand : IExternalCommand
                       (status.LastError is null ? "" : $"Last error: {status.LastError}\n"),
                 FooterText = "Log: " + (app?.Log.FilePath ?? NexusPaths.LogsDir),
             };
-            dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Open log folder");
-            if (dialog.Show() == TaskDialogResult.CommandLink1)
-                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{NexusPaths.LogsDir}\"") { UseShellExecute = true });
+            dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Show the Nexus hub",
+                "Nexus runs in the background (tray icon next to the clock).");
+            dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Open log folder");
+            switch (dialog.Show())
+            {
+                case TaskDialogResult.CommandLink1:
+                    var error = HubControl.Show(app?.Log ?? new AgentLog("revit"));
+                    if (error is not null) TaskDialog.Show("Nexus", error);
+                    break;
+                case TaskDialogResult.CommandLink2:
+                    Process.Start(new ProcessStartInfo("explorer.exe", $"\"{NexusPaths.LogsDir}\"") { UseShellExecute = true });
+                    break;
+            }
             return Result.Succeeded;
         }
         catch (Exception ex)
@@ -38,4 +49,10 @@ public sealed class ShowStatusCommand : IExternalCommand
             return Result.Failed;
         }
     }
+}
+
+/// <summary>Keeps the ribbon button enabled with no document open (e.g. on the Home screen).</summary>
+public sealed class AlwaysAvailable : IExternalCommandAvailability
+{
+    public bool IsCommandAvailable(UIApplication applicationData, CategorySet selectedCategories) => true;
 }

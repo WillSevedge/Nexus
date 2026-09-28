@@ -1,24 +1,28 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Standalone hub application (WPF). -->
+  <!-- The hub: a background (tray) application, one per Windows user. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <!-- For the tray icon (NotifyIcon). -->
+    <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>Nexus.Hub</RootNamespace>
     <AssemblyName>Nexus</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <!-- WPF types (Application, MessageBox, Color...) win; WinForms is only used by name. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Nexus.Hub.Core\Nexus.Hub.Core.csproj" />
   </ItemGroup>
 
-  <!-- Record where Nexus.exe was built so the Revit/AutoCAD "Open Hub" button can start it.
-       The hub also records its location each time it starts. -->
-  <Target Name="NexusRecordHubLocation" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT'">
-    <PropertyGroup>
-      <_NexusRoot>$([System.Environment]::GetFolderPath(SpecialFolder.LocalApplicationData))\Nexus</_NexusRoot>
-    </PropertyGroup>
-    <MakeDir Directories="$(_NexusRoot)" ContinueOnError="true" />
-    <WriteLinesToFile File="$(_NexusRoot)\hub-location.txt" Lines="$(TargetDir)$(AssemblyName).exe"
-                      Overwrite="true" WriteOnlyWhenDifferent="true" ContinueOnError="true" />
+  <!-- Install the hub to %LOCALAPPDATA%\Nexus\Hub and (re)start it in the background.
+       The running hub is asked to exit first, so its files can be replaced.
+       Set /p:DeployToHost=false to skip. -->
+  <Target Name="NexusInstallHub" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
+    <Exec Command="&quot;$(TargetDir)$(AssemblyName).exe&quot; --install" ContinueOnError="WarnAndContinue" />
+    <Message Importance="high" Text="Nexus: installed the hub to $([System.Environment]::GetFolderPath(SpecialFolder.LocalApplicationData))\Nexus\Hub and started it in the background (tray icon)." />
   </Target>
 </Project>

@@ -25,8 +25,10 @@ public sealed class AgentExtension : IExtensionApplication
     internal AgentLog Log { get; } = new("acad");
     internal AgentServer<Document>? Server { get; private set; }
     internal HostInfo? Host { get; private set; }
+    internal AcadRibbon? Ribbon => _ribbon;
 
     private AcadDispatcher? _dispatcher;
+    private AcadRibbon? _ribbon;
     private ReaderRegistry<Document>? _readers;
     private ObjectPropertyReader? _objects;
 
@@ -50,7 +52,18 @@ public sealed class AgentExtension : IExtensionApplication
             _readers.Register(new LayoutsReader(_objects));
 
             _dispatcher = new AcadDispatcher(Log);
-            Server = new AgentServer<Document>(Host, _dispatcher.Queue, new AcadDocumentProvider(), _readers, Log);
+            Server = new AgentServer<Document>(Host, _dispatcher.Queue, new AcadDocumentProvider(), _readers, Log,
+                writer: new AcadWriter());
+            try
+            {
+                _ribbon = new AcadRibbon(Log, () => Server?.Status, () => Host);
+                Server.StatusChanged += _ribbon.OnStatusChanged;
+            }
+            catch (System.Exception ex)
+            {
+                // The agent still works without the ribbon (e.g. AutoCAD Core Console).
+                Log.Warn("Could not set up the Nexus ribbon tab.", ex);
+            }
             Server.Start();
 
             // Vertical products finish loading their own modules after us; detect on first idle.
@@ -89,6 +102,7 @@ public sealed class AgentExtension : IExtensionApplication
         {
             Server?.Dispose();
             _dispatcher?.Dispose();
+            _ribbon?.Dispose();
         }
         catch (System.Exception ex)
         {
@@ -118,5 +132,19 @@ public sealed class AgentCommands
                         $"\n  Hub connections: {s.Clients}  Requests: {s.RequestsHandled}" +
                         (s.LastError is null ? "" : $"\n  Last error: {s.LastError}") +
                         $"\n  Log: {app.Log.FilePath}\n");
+    }
+
+    /// <summary>NEXUS: status window with a button to show the Nexus hub (same as the ribbon button).</summary>
+    [CommandMethod("NEXUS", CommandFlags.Modal)]
+    public void ShowWindow()
+    {
+        var app = AgentExtension.Instance;
+        if (app?.Ribbon is { } ribbon)
+        {
+            ribbon.ShowStatusWindow();
+            return;
+        }
+        var error = HubControl.Show(app?.Log ?? new AgentLog("acad"));
+        if (error is not null) AcApp.DocumentManager.MdiActiveDocument?.Editor.WriteMessage("\n" + error);
     }
 }

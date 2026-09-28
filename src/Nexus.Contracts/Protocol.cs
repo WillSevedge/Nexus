@@ -12,6 +12,12 @@ public static class Protocol
     /// <summary>Largest frame either side will accept (256 MB).</summary>
     public const int MaxFrameBytes = 256 * 1024 * 1024;
 
+    /// <summary>
+    /// The running hub listens here for one-line commands: "show", "refresh", "exit".
+    /// Hosts use it to bring the hub forward; the build uses it to restart the hub.
+    /// </summary>
+    public const string HubControlPipe = "Nexus.Hub.Control";
+
     public static string PipeName(string hostKind, int processId) => $"{PipePrefix}{hostKind}.{processId}";
 }
 

@@ -9,7 +9,7 @@ using Autodesk.Revit.UI.Events;
 namespace Nexus.Agent.Revit;
 
 /// <summary>
-/// "Nexus" ribbon tab with an "Open Hub" button and a button that shows connection status. The pipe
+/// "Nexus" ribbon tab with one button that shows the hub connection status. The pipe
 /// server reports changes from background threads; the ribbon is updated from
 /// Revit's Idling event (UI thread).
 /// </summary>
@@ -32,22 +32,13 @@ internal sealed class StatusRibbon : IDisposable
         var panel = app.CreateRibbonPanel(TabName, "Hub Link");
         string assembly = Assembly.GetExecutingAssembly().Location;
 
-        var openIcon = CreateIcon(Color.FromRgb(0x1F, 0x4E, 0x8C), "N");
-        panel.AddItem(new PushButtonData("NexusOpenHub", "Open\nHub", assembly, typeof(OpenHubCommand).FullName)
-        {
-            ToolTip = "Open the Nexus hub to view and edit this model's data. Brings it to the front if it is already open.",
-            LargeImage = openIcon,
-            Image = openIcon,
-            AvailabilityClassName = typeof(AlwaysAvailable).FullName,
-        });
-
         foreach (AgentState s in Enum.GetValues<AgentState>())
-            _icons[s] = CreateIcon(StateColor(s), "H");
+            _icons[s] = CreateIcon(StateColor(s), "N");
 
         var data = new PushButtonData("NexusStatus", "Hub:\nStarting", assembly, typeof(ShowStatusCommand).FullName)
         {
             AvailabilityClassName = typeof(AlwaysAvailable).FullName,
-            ToolTip = "Nexus agent status. Click for details.",
+            ToolTip = "Nexus agent status. Click for details or to show the Nexus hub.",
             LargeImage = _icons[AgentState.Stopped],
             Image = _icons[AgentState.Stopped],
         };

@@ -35,6 +35,12 @@ public sealed class CellEdit
 
 public static class Editing
 {
+    /// <summary>Value kinds that refer to other objects or are not plain values; Nexus cannot edit them yet.</summary>
+    private static readonly HashSet<string> ReferenceStorageTypes = new(StringComparer.Ordinal)
+    {
+        "ElementId", "ObjectId", "Handle", "COM", "Collection", "Extents3d", "Matrix3d",
+    };
+
     /// <summary>Why a table cell cannot be edited, or null if it can.</summary>
     public static string? Blocker(TableRow row, string columnId)
     {
@@ -43,7 +49,8 @@ public static class Editing
         if (!host.Features.Contains(AgentFeatures.Write)) return $"{host.Product} does not support editing yet.";
         if (p.Source == PropertySource.Derived) return "Computed by Nexus (not a parameter).";
         if (p.IsReadOnly) return p.ReadOnlyReason ?? "Read-only.";
-        if (p.StorageType == "ElementId") return "Values that refer to other elements (materials, types, levels...) cannot be edited yet.";
+        if (p.StorageType is { } st && ReferenceStorageTypes.Contains(st))
+            return "Values that refer to other objects (materials, types, levels, layers by id, styles...) cannot be edited yet.";
         return null;
     }
 

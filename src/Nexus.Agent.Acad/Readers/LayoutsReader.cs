@@ -214,7 +214,11 @@ internal sealed class LayoutsReader : IHostDataReader<Document>
         if (overall is not null)
         {
             var view = new PropertyGroup("Paper space view");
-            view.Properties.AddRange(_objects.Managed.ReadNamed(overall, tr, PaperViewProps, docBlocker));
+            foreach (var pv in _objects.Managed.ReadNamed(overall, tr, PaperViewProps, docBlocker))
+            {
+                pv.OwnerId = overall.ObjectId.Handle.ToString();
+                view.Properties.Add(pv);
+            }
             item.Groups.Insert(1, view);
         }
         else if (!layout.ModelType)

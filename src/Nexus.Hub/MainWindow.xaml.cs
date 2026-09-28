@@ -1,11 +1,9 @@
 using System.Data;
 using System.Globalization;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
-using Nexus.Contracts;
 using Nexus.Hub.Core;
 using Nexus.Hub.ViewModels;
 
@@ -15,11 +13,12 @@ public partial class MainWindow : Window
 {
     private static readonly TimeSpan AutoRefreshInterval = TimeSpan.FromSeconds(15);
 
-    private readonly MainViewModel _vm = new();
-    private DateTime _lastRefresh = DateTime.MinValue;
+    private readonly MainViewModel _vm;
+    private DateTime _lastRefresh = DateTime.UtcNow;
 
-    public MainWindow()
+    public MainWindow(MainViewModel vm)
     {
+        _vm = vm;
         InitializeComponent();
         DataContext = _vm;
         _vm.TableReady += OnTableReady;
@@ -30,36 +29,13 @@ public partial class MainWindow : Window
             if (e.EditAction == DataGridEditAction.Commit)
                 Dispatcher.BeginInvoke(() => TableGrid.CommitEdit(DataGridEditingUnit.Row, true));
         };
-        Loaded += async (_, _) =>
-        {
-            HubLog.Info("Hub started. Log: " + HubLog.FilePath);
-            RecordLocation();
-            _lastRefresh = DateTime.UtcNow;
-            await _vm.RefreshAsync();
-        };
-        // Coming back to the hub (e.g. from Revit's Open Hub button): pick up newly opened hosts and documents.
+        // Coming back to the hub: pick up newly opened documents.
         Activated += async (_, _) =>
         {
             if (DateTime.UtcNow - _lastRefresh < AutoRefreshInterval || !_vm.RefreshCommand.CanExecute(null)) return;
             _lastRefresh = DateTime.UtcNow;
             await _vm.RefreshAsync();
         };
-    }
-
-    /// <summary>Lets the host add-ins' "Open Hub" button find this executable.</summary>
-    private static void RecordLocation()
-    {
-        try
-        {
-            var exe = Environment.ProcessPath;
-            if (string.IsNullOrEmpty(exe)) return;
-            Directory.CreateDirectory(NexusPaths.Root);
-            File.WriteAllText(NexusPaths.HubLocationFile, exe);
-        }
-        catch (Exception ex)
-        {
-            HubLog.Warn("Could not record the hub location.", ex);
-        }
     }
 
     private void OnTableReady(DataTable table, IReadOnlyList<(string Column, string Header)> headers)
