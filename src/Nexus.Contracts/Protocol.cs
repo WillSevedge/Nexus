@@ -23,6 +23,7 @@ public static class MessageTypes
     public const string ListDocuments = "listDocuments";
     public const string ListReaders = "listReaders";
     public const string Read = "read";
+    public const string Write = "write";
 
     public const string Result = "result";
     public const string Error = "error";

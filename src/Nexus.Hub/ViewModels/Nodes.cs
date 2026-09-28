@@ -137,6 +137,9 @@ public sealed class ResultRun : Observable
     public required HostInfo Host { get; init; }
     public required string DocumentTitle { get; init; }
     public required string ReaderId { get; init; }
+    /// <summary>Where the result came from, so it can be read again after edits.</summary>
+    public AgentNode? Agent { get; init; }
+    public ReadRequest? Request { get; init; }
     public ReadResult? Result { get; init; }
     public ErrorInfo? Error { get; init; }
 
@@ -162,6 +165,7 @@ public sealed class ResultRun : Observable
         Host = Host,
         DocumentTitle = DocumentTitle,
         Result = Result,
+        Tag = this,
     };
 }
 

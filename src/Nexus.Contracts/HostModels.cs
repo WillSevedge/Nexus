@@ -26,6 +26,8 @@ public sealed class HostInfo
     public string Runtime { get; set; } = "";
     /// <summary>Optional modules loaded by the agent, e.g. "Civil3D".</summary>
     public List<string> Modules { get; set; } = new();
+    /// <summary>Optional capabilities, see <see cref="AgentFeatures"/>.</summary>
+    public List<string> Features { get; set; } = new();
     public string? LogFile { get; set; }
 
     public string DisplayName => $"{Product} {Version} (pid {ProcessId})";

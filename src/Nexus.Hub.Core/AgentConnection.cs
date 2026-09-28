@@ -49,14 +49,23 @@ public sealed class AgentConnection : IAsyncDisposable
         }
     }
 
-    public async Task<ReadResult> ReadAsync(ReadRequest request, CancellationToken ct = default)
+    /// <summary>True when the agent accepts edits.</summary>
+    public bool CanWrite => Host.Features.Contains(AgentFeatures.Write);
+
+    public async Task<ReadResult> ReadAsync(ReadRequest request, CancellationToken ct = default) =>
+        await (await ConnectedAsync(ct).ConfigureAwait(false)).ReadAsync(request, ct).ConfigureAwait(false);
+
+    public async Task<WriteResult> WriteAsync(WriteRequest request, CancellationToken ct = default) =>
+        await (await ConnectedAsync(ct).ConfigureAwait(false)).WriteAsync(request, ct).ConfigureAwait(false);
+
+    private async Task<AgentClient> ConnectedAsync(CancellationToken ct)
     {
         if (Client is null || !Client.IsConnected)
         {
             if (Client is not null) await Client.DisposeAsync().ConfigureAwait(false);
             Client = await AgentClient.ConnectAsync(Registration.PipeName, TimeSpan.FromSeconds(3), ct).ConfigureAwait(false);
         }
-        return await Client.ReadAsync(request, ct).ConfigureAwait(false);
+        return Client;
     }
 
     public async ValueTask DisposeAsync()

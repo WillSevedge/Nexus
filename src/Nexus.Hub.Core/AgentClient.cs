@@ -66,6 +66,9 @@ public sealed class AgentClient : IAsyncDisposable
     public Task<ReadResult> ReadAsync(ReadRequest request, CancellationToken ct = default) =>
         RequestAsync<ReadResult>(MessageTypes.Read, request, ReadTimeout, ct);
 
+    public Task<WriteResult> WriteAsync(WriteRequest request, CancellationToken ct = default) =>
+        RequestAsync<WriteResult>(MessageTypes.Write, request, ReadTimeout, ct);
+
     public async Task<TResponse> RequestAsync<TResponse>(string type, object payload, TimeSpan timeout, CancellationToken ct,
         int? protocolVersion = null)
     {

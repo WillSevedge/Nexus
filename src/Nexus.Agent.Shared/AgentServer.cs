@@ -34,6 +34,7 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
     private readonly IHostDispatcher _dispatcher;
     private readonly IDocumentProvider<TDoc> _documents;
     private readonly ReaderRegistry<TDoc> _readers;
+    private readonly IHostDataWriter<TDoc>? _writer;
     private readonly AgentLog _log;
     private readonly AgentServerOptions _options;
     private readonly CancellationTokenSource _stop = new();
@@ -45,9 +46,11 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
     private AgentState _state = AgentState.Stopped;
 
     public AgentServer(HostInfo host, IHostDispatcher dispatcher, IDocumentProvider<TDoc> documents,
-        ReaderRegistry<TDoc> readers, AgentLog log, AgentServerOptions? options = null)
+        ReaderRegistry<TDoc> readers, AgentLog log, AgentServerOptions? options = null,
+        IHostDataWriter<TDoc>? writer = null)
     {
-        _host = host;
+        _writer = writer;
+        _host = WithFeatures(host);
         _dispatcher = dispatcher;
         _documents = documents;
         _readers = readers;
@@ -82,8 +85,15 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
     /// <summary>Update host info (e.g. after optional modules load) and re-publish the registration.</summary>
     public void UpdateHost(HostInfo host)
     {
-        _host = host;
+        _host = WithFeatures(host);
         WriteRegistration();
+    }
+
+    private HostInfo WithFeatures(HostInfo host)
+    {
+        if (_writer is not null && !host.Features.Contains(AgentFeatures.Write))
+            host.Features.Add(AgentFeatures.Write);
+        return host;
     }
 
     private void WriteRegistration()
@@ -216,6 +226,7 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
                         () => _documents.ListDocuments().ToList(), _options.HostStartTimeout, ct).ConfigureAwait(false),
                 },
                 MessageTypes.Read => await ReadAsync(request.PayloadAs<ReadRequest>(), ct).ConfigureAwait(false),
+                MessageTypes.Write => await WriteAsync(request.PayloadAs<WriteRequest>(), ct).ConfigureAwait(false),
                 _ => throw new AgentException(ErrorCodes.UnknownMessage, $"Unknown message type '{request.Type}'."),
             };
             return Envelope.Result(request.Id, result);
@@ -267,6 +278,33 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
                 Warnings = context.Warnings,
                 Truncated = context.Truncated,
             };
+        }, _options.HostStartTimeout, ct).ConfigureAwait(false);
+    }
+
+    private async Task<WriteResult> WriteAsync(WriteRequest? request, CancellationToken ct)
+    {
+        if (_writer is null)
+            throw new AgentException(ErrorCodes.NotImplemented, $"{_host.Product} does not support editing yet.");
+        if (request is null || string.IsNullOrWhiteSpace(request.DocumentId) || request.Changes.Count == 0)
+            throw new AgentException(ErrorCodes.BadRequest, "A write request needs a documentId and at least one change.");
+
+        return await _dispatcher.InvokeAsync(() =>
+        {
+            var doc = _documents.Find(request.DocumentId)
+                      ?? throw new AgentException(ErrorCodes.DocumentNotFound, $"Document '{request.DocumentId}' is not open (it may have been closed).");
+            var info = _documents.Describe(doc);
+            _log.Info($"Write {request.Changes.Count} change(s) to '{info.Title}'");
+
+            var sw = Stopwatch.StartNew();
+            var result = _writer.Write(doc, request, _log, ct);
+            sw.Stop();
+            result.DocumentId = info.Id;
+            result.DocumentTitle = info.Title;
+            result.ElapsedMs = sw.ElapsedMilliseconds;
+
+            var counts = result.Results.GroupBy(r => r.Status).Select(g => $"{g.Count()} {g.Key.ToString().ToLowerInvariant()}");
+            _log.Info($"Write to '{info.Title}': {(result.Committed ? "committed" : "not committed")}, {string.Join(", ", counts)}, {sw.ElapsedMilliseconds} ms");
+            return result;
         }, _options.HostStartTimeout, ct).ConfigureAwait(false);
     }
 

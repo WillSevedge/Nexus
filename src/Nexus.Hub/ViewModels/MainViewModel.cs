@@ -22,16 +22,37 @@ public sealed class MainViewModel : Observable
     private string _columnFilter = "";
     private bool _busy;
 
+    // The table as shown: the flattened results, the grid's DataTable, and which
+    // grid column ("c7") holds which property column ("Group › Name").
+    private const string RowIndexColumn = "__row";
+    private ResultTable? _table;
+    private DataTable? _grid;
+    private readonly Dictionary<string, string> _gridColumnIds = new(StringComparer.Ordinal);
+    private int _pendingEdits;
+
     public MainViewModel()
     {
         RefreshCommand = new RelayCommand(RefreshAsync);
         RunCommand = new RelayCommand(RunAsync, () => !_busy);
-        ShowTableCommand = new RelayCommand(() => { RebuildColumns(); BuildTable(); return Task.CompletedTask; });
+        ShowTableCommand = new RelayCommand(() =>
+        {
+            if (!ConfirmDiscardEdits()) return Task.CompletedTask;
+            RebuildColumns();
+            BuildTable();
+            return Task.CompletedTask;
+        });
+        ApplyChangesCommand = new RelayCommand(ReviewAndApplyAsync, () => _pendingEdits > 0 && !_busy);
+        DiscardChangesCommand = new RelayCommand(() =>
+        {
+            DiscardEdits();
+            return Task.CompletedTask;
+        }, () => _pendingEdits > 0 && !_busy);
         ExportWideCommand = new RelayCommand(() => Export("wide"));
         ExportLongCommand = new RelayCommand(() => Export("long"));
         ExportJsonCommand = new RelayCommand(() => Export("json"));
         ClearResultsCommand = new RelayCommand(() =>
         {
+            if (!ConfirmDiscardEdits()) return Task.CompletedTask;
             Results.Clear();
             Items.Clear();
             RebuildColumns();
@@ -64,6 +85,8 @@ public sealed class MainViewModel : Observable
     public RelayCommand RefreshCommand { get; }
     public RelayCommand RunCommand { get; }
     public RelayCommand ShowTableCommand { get; }
+    public RelayCommand ApplyChangesCommand { get; }
+    public RelayCommand DiscardChangesCommand { get; }
     public RelayCommand ExportWideCommand { get; }
     public RelayCommand ExportLongCommand { get; }
     public RelayCommand ExportJsonCommand { get; }
@@ -72,8 +95,23 @@ public sealed class MainViewModel : Observable
     public RelayCommand UncheckAllColumnsCommand { get; }
     public RelayCommand OpenLogFolderCommand { get; }
 
+    /// <summary>Raised before edits are collected; the window commits any cell still being edited.</summary>
+    public event Action? CommitGridEdits;
+
     /// <summary>Raised when the wide table is rebuilt; the window builds the grid columns.</summary>
     public event Action<DataTable, IReadOnlyList<(string Column, string Header)>>? TableReady;
+
+    /// <summary>Number of edited cells not yet sent to the hosts.</summary>
+    public int PendingEdits
+    {
+        get => _pendingEdits;
+        private set
+        {
+            if (Set(ref _pendingEdits, value)) Raise(nameof(ApplyLabel));
+        }
+    }
+
+    public string ApplyLabel => _pendingEdits == 0 ? "Apply changes" : $"Apply {_pendingEdits} change(s)…";
 
     public string Status
     {
@@ -200,6 +238,7 @@ public sealed class MainViewModel : Observable
 
     private async Task RunAsync()
     {
+        if (!ConfirmDiscardEdits()) return;
         var docs = Agents.SelectMany(a => a.Documents).Where(d => d.IsChecked).ToList();
         var readers = Readers.Where(r => r.IsChecked).ToList();
         if (docs.Count == 0 || readers.Count == 0)
@@ -237,32 +276,43 @@ public sealed class MainViewModel : Observable
         Status = $"{Results.Count} result(s){(failed > 0 ? $", {failed} failed (see the Results list)" : "")}.";
     }
 
-    private static async Task<ResultRun> ReadOneAsync(AgentNode agent, DocumentNode doc, ReaderNode reader)
+    private static Task<ResultRun> ReadOneAsync(AgentNode agent, DocumentNode doc, ReaderNode reader) =>
+        ReadOneAsync(agent, doc.Info.Title, new ReadRequest
+        {
+            DocumentId = doc.Info.Id,
+            ReaderId = reader.Descriptor.Id,
+            Options = reader.OptionValues(),
+        });
+
+    private static async Task<ResultRun> ReadOneAsync(AgentNode agent, string documentTitle, ReadRequest request)
     {
         var host = agent.Connection.Host;
         try
         {
-            var result = await agent.Connection.ReadAsync(new ReadRequest
+            var result = await agent.Connection.ReadAsync(request);
+            HubLog.Info($"{host.DisplayName}: {request.ReaderId} on {documentTitle}: {result.Items.Count} items in {result.ElapsedMs} ms");
+            return new ResultRun
             {
-                DocumentId = doc.Info.Id,
-                ReaderId = reader.Descriptor.Id,
-                Options = reader.OptionValues(),
-            });
-            HubLog.Info($"{host.DisplayName}: {reader.Descriptor.Id} on {doc.Info.Title}: {result.Items.Count} items in {result.ElapsedMs} ms");
-            return new ResultRun { Host = host, DocumentTitle = doc.Info.Title, ReaderId = reader.Descriptor.Id, Result = result };
+                Host = host, DocumentTitle = documentTitle, ReaderId = request.ReaderId,
+                Agent = agent, Request = request, Result = result,
+            };
         }
         catch (AgentRequestException ex)
         {
-            HubLog.Warn($"{host.DisplayName}: {reader.Descriptor.Id} on {doc.Info.Title}: {ex.Error}");
-            return new ResultRun { Host = host, DocumentTitle = doc.Info.Title, ReaderId = reader.Descriptor.Id, Error = ex.Error };
+            HubLog.Warn($"{host.DisplayName}: {request.ReaderId} on {documentTitle}: {ex.Error}");
+            return new ResultRun
+            {
+                Host = host, DocumentTitle = documentTitle, ReaderId = request.ReaderId,
+                Agent = agent, Request = request, Error = ex.Error,
+            };
         }
         catch (Exception ex)
         {
-            HubLog.Error($"{host.DisplayName}: {reader.Descriptor.Id} on {doc.Info.Title} failed", ex);
+            HubLog.Error($"{host.DisplayName}: {request.ReaderId} on {documentTitle} failed", ex);
             return new ResultRun
             {
-                Host = host, DocumentTitle = doc.Info.Title, ReaderId = reader.Descriptor.Id,
-                Error = new ErrorInfo(ErrorCodes.Disconnected, ex.Message),
+                Host = host, DocumentTitle = documentTitle, ReaderId = request.ReaderId,
+                Agent = agent, Request = request, Error = new ErrorInfo(ErrorCodes.Disconnected, ex.Message),
             };
         }
     }
@@ -311,28 +361,207 @@ public sealed class MainViewModel : Observable
         var selected = CheckedColumnIds();
         var cols = table.Columns.Where(c => selected.Contains(c.Id)).Take(MaxGridColumns).ToList();
 
+        if (_grid is not null) _grid.ColumnChanged -= OnGridValueChanged;
+        _gridColumnIds.Clear();
+
         var dt = new DataTable();
+        dt.Columns.Add(RowIndexColumn, typeof(int));
         var headers = new List<(string, string)>();
-        void AddCol(string header)
+        string AddCol(string header)
         {
-            string name = "c" + dt.Columns.Count;
+            string name = "c" + (dt.Columns.Count - 1);
             dt.Columns.Add(name, typeof(string));
             headers.Add((name, header));
+            return name;
         }
 
         foreach (var h in new[] { "Host", "Document", "Reader", "Item Type", "Item", "Key" }) AddCol(h);
-        foreach (var c in cols) AddCol(c.Id);
+        foreach (var c in cols) _gridColumnIds[AddCol(c.Id)] = c.Id;
 
-        foreach (var r in table.Rows)
+        for (int i = 0; i < table.Rows.Count; i++)
         {
-            var values = new List<object?> { r.Host, r.Document, r.Reader, r.ItemType, new string(' ', r.Depth * 3) + r.Item, r.Key };
+            var r = table.Rows[i];
+            var values = new List<object?> { i, r.Host, r.Document, r.Reader, r.ItemType, new string(' ', r.Depth * 3) + r.Item, r.Key };
             values.AddRange(cols.Select(c => r.Values.TryGetValue(c.Id, out var v) ? v.Value : null));
             dt.Rows.Add(values.ToArray());
         }
+        dt.AcceptChanges();
+        dt.ColumnChanged += OnGridValueChanged;
 
+        _table = table;
+        _grid = dt;
+        PendingEdits = 0;
         TableReady?.Invoke(dt, headers);
         if (selected.Count > MaxGridColumns)
             Status = $"Showing the first {MaxGridColumns} of {selected.Count} checked columns (exports include all).";
+    }
+
+    // ---------------------------------------------------------------- editing
+
+    /// <summary>True for grid columns that hold a property (not Host, Document, Item...).</summary>
+    public bool IsPropertyColumn(string gridColumn) => _gridColumnIds.ContainsKey(gridColumn);
+
+    private TableRow? RowOf(DataRowView view) =>
+        _table is not null && view.Row.Table == _grid && view.Row[RowIndexColumn] is int i && i < _table.Rows.Count
+            ? _table.Rows[i]
+            : null;
+
+    /// <summary>Why this cell cannot be edited, or null if it can.</summary>
+    public string? EditBlocker(DataRowView view, string gridColumn)
+    {
+        if (!_gridColumnIds.TryGetValue(gridColumn, out var columnId)) return "Only property values can be edited.";
+        var row = RowOf(view);
+        return row is null ? "This row is out of date: show the table again." : Editing.Blocker(row, columnId);
+    }
+
+    /// <summary>The value the cell had when the table was built, if the user has changed it.</summary>
+    public bool IsEdited(DataRowView view, string gridColumn, out string? original)
+    {
+        original = null;
+        var row = view.Row;
+        if (row.RowState != DataRowState.Modified || !_gridColumnIds.ContainsKey(gridColumn)) return false;
+        original = row[gridColumn, DataRowVersion.Original] as string;
+        return !Editing.SameValue(original, row[gridColumn, DataRowVersion.Current] as string);
+    }
+
+    private void OnGridValueChanged(object sender, DataColumnChangeEventArgs e) => PendingEdits = CollectEdits().Count;
+
+    private List<CellEdit> CollectEdits()
+    {
+        var edits = new List<CellEdit>();
+        if (_grid is null || _table is null) return edits;
+        foreach (DataRow row in _grid.Rows)
+        {
+            if (row.RowState != DataRowState.Modified) continue;
+            var tableRow = _table.Rows[(int)row[RowIndexColumn]];
+            foreach (var (gridColumn, columnId) in _gridColumnIds)
+            {
+                string? now = row[gridColumn, DataRowVersion.Current] as string;
+                if (Editing.SameValue(row[gridColumn, DataRowVersion.Original] as string, now)) continue;
+                if (!tableRow.Values.ContainsKey(columnId)) continue;
+                edits.Add(new CellEdit(tableRow, columnId, now ?? ""));
+            }
+        }
+        return edits;
+    }
+
+    private void DiscardEdits()
+    {
+        _grid?.RejectChanges();
+        PendingEdits = 0;
+        Status = "Edits discarded.";
+    }
+
+    /// <summary>Asks before throwing away unapplied edits. True when there are none or the user agrees.</summary>
+    private bool ConfirmDiscardEdits()
+    {
+        CommitGridEdits?.Invoke();
+        if (_pendingEdits == 0) return true;
+        var answer = MessageBox.Show(
+            $"You have {_pendingEdits} edit(s) that have not been applied. Discard them?",
+            "Nexus", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.Yes) return false;
+        DiscardEdits();
+        return true;
+    }
+
+    private async Task ReviewAndApplyAsync()
+    {
+        CommitGridEdits?.Invoke();
+        var edits = CollectEdits();
+        PendingEdits = edits.Count;
+        if (edits.Count == 0) return;
+
+        var review = new ApplyChangesWindow(new ApplyChangesViewModel(edits, ApplyAsync))
+        {
+            Owner = Application.Current.MainWindow,
+        };
+        review.ShowDialog();
+
+        var changed = review.ViewModel.ChangedRuns;
+        if (changed.Count > 0) await RereadAsync(changed);
+    }
+
+    /// <summary>Sends the edits, one request per host document, and fills in each row's outcome.</summary>
+    private async Task<List<ResultRun>> ApplyAsync(IReadOnlyList<ChangeRow> rows)
+    {
+        _busy = true;
+        var changedRuns = new List<ResultRun>();
+        try
+        {
+            var byEdit = rows.ToDictionary(r => r.Edit);
+            foreach (var (pid, request, edits) in Editing.Plan(rows.Select(r => r.Edit)))
+            {
+                var planned = edits.Select(e => byEdit[e]).ToList();
+                foreach (var r in rows.Where(r => r.Status == "" && r.Edit.ProcessId == pid && r.Edit.DocumentId == request.DocumentId && !planned.Contains(r)))
+                    r.SetOutcome("Skipped", "The same property is edited in another row; that edit is used.", null);
+
+                var run = edits[0].Row.Source.Tag as ResultRun;
+                var agent = run?.Agent;
+                if (agent is null)
+                {
+                    foreach (var r in planned) r.SetOutcome("Failed", "The host for this result is no longer connected.", null);
+                    continue;
+                }
+
+                Status = $"Applying {request.Changes.Count} change(s) to {edits[0].Row.Document}…";
+                try
+                {
+                    var result = await agent.Connection.WriteAsync(request);
+                    foreach (var cr in result.Results)
+                    {
+                        if (cr.Index < 0 || cr.Index >= planned.Count) continue;
+                        planned[cr.Index].SetOutcome(cr.Status.ToString(), cr.Message, cr.NewValue);
+                    }
+                    foreach (var w in result.Warnings) HubLog.Warn($"{result.DocumentTitle}: {w}");
+                    HubLog.Info($"{result.DocumentTitle}: {(result.Committed ? "committed" : "nothing committed")} " +
+                                $"({result.Results.Count(c => c.Status == ChangeStatus.Applied)} applied) in {result.ElapsedMs} ms");
+                    if (result.Committed)
+                        changedRuns.AddRange(Results.Where(x => x.Agent == agent && x.Result?.DocumentId == request.DocumentId));
+                    if (result.Warnings.Count > 0)
+                        foreach (var r in planned.Where(r => r.Status == "Applied"))
+                            r.Message = "Revit warning: " + string.Join("; ", result.Warnings);
+                }
+                catch (AgentRequestException ex)
+                {
+                    foreach (var r in planned) r.SetOutcome("Failed", ex.Error.Message, null);
+                    HubLog.Warn($"Write to {edits[0].Row.Document} failed: {ex.Error}");
+                }
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+        int applied = rows.Count(r => r.Status == "Applied");
+        Status = $"{applied} of {rows.Count} change(s) applied.";
+        return changedRuns.Distinct().ToList();
+    }
+
+    /// <summary>Reads changed results again so the table shows what the host now has.</summary>
+    private async Task RereadAsync(IReadOnlyList<ResultRun> runs)
+    {
+        _busy = true;
+        try
+        {
+            foreach (var old in runs)
+            {
+                if (old.Agent is null || old.Request is null) continue;
+                Status = $"Refreshing {old.Title}…";
+                var fresh = await ReadOneAsync(old.Agent, old.DocumentTitle, old.Request);
+                fresh.IsIncluded = old.IsIncluded;
+                int index = Results.IndexOf(old);
+                if (index >= 0) Results[index] = fresh;
+                if (SelectedRun == old) SelectedRun = fresh;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+        RebuildColumns();
+        BuildTable();
+        Status = $"Applied. Refreshed {runs.Count} result(s) from the host. Use Undo in Revit to revert.";
     }
 
     // ---------------------------------------------------------------- export

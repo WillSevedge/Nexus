@@ -33,7 +33,9 @@ internal static class ParameterReader
                 byName[groupName] = group;
                 groups.Add(group);
             }
-            group.Properties.Add(Read(doc, p, editBlocker));
+            var pv = Read(doc, p, editBlocker);
+            pv.OwnerId = element.UniqueId;
+            group.Properties.Add(pv);
         }
 
         IList<Parameter>? ordered = null;
@@ -83,6 +85,14 @@ internal static class ParameterReader
             pv.IsReadOnly = true;
             pv.ReadOnlyReason = "Could not read parameter";
         }
+        return pv;
+    }
+
+    /// <summary>The parameter's current value and raw value, formatted exactly as <see cref="Read"/> does.</summary>
+    public static PropertyValue CurrentValue(Document doc, Parameter p)
+    {
+        var pv = new PropertyValue { Name = p.Definition?.Name ?? "" };
+        FillValue(doc, p, pv);
         return pv;
     }
 

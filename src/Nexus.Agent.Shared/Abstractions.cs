@@ -40,3 +40,16 @@ public interface IHostDataReader<in TDoc> where TDoc : class
     /// <summary>Always called on the host thread.</summary>
     void Read(TDoc document, ReadContext context);
 }
+
+/// <summary>
+/// Applies property edits to a document. One per host; optional (agents without
+/// one answer write requests with NotImplemented and do not advertise the feature).
+/// </summary>
+public interface IHostDataWriter<in TDoc> where TDoc : class
+{
+    /// <summary>
+    /// Always called on the host thread. Apply all changes as one undoable operation,
+    /// fill one <see cref="ChangeResult"/> per change, and never throw for a single bad change.
+    /// </summary>
+    WriteResult Write(TDoc document, WriteRequest request, AgentLog log, CancellationToken ct);
+}

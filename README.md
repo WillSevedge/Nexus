@@ -79,7 +79,11 @@ Runtime files (all under `%LOCALAPPDATA%\Nexus\`):
 **Load**
 1. Build (see above), then start Revit 2026.
 2. Revit asks about the unsigned add-in "Nexus Agent": choose **Always Load**.
-3. An **Nexus** ribbon tab appears with a **Hub Link** panel. The button shows the connection state:
+3. A **Nexus** ribbon tab appears with a **Hub Link** panel.
+   **Open Hub** starts the hub, or brings it to the front if it is already running. It uses the
+   location recorded in `%LOCALAPPDATA%\Nexus\hub-location.txt`, which is written when `Nexus.Hub`
+   is built and each time the hub starts.
+   The **Hub** button shows the connection state:
    - grey **Hub: Starting** until Revit is idle,
    - blue **Hub: Waiting** while listening for the hub,
    - green **Hub: Connected** while the hub is connected,
@@ -100,6 +104,18 @@ Every parameter carries:
 - storage type, spec (data type) and display units,
 - display value and raw value (internal units),
 - read-only flag and reason: read-only parameter, not user-modifiable, document read-only or linked, element borrowed by another user, changed in central, or workset owned by someone else.
+
+**Editing.** The agent accepts edits from the hub (see *Hub › Editing*). All edits to one
+document go into one transaction, `Nexus: edit N values`, so one **Undo** in Revit reverts the
+batch. Per value:
+- text: set as typed; whole numbers; Yes/No accepts yes/no, true/false, 1/0;
+- numbers with units (lengths, areas, angles…): typed in project units, e.g. `10' 6"` or `3200`;
+- values that refer to other elements (materials, types, levels…): not editable yet.
+
+A value is skipped when the element is not editable (see the read-only reasons above) or when it
+has changed in Revit since it was read. If Revit reports an error when committing, the whole batch
+is rolled back. Revit warnings (e.g. a duplicate mark) are passed back to the hub instead of
+showing a dialog. Editing a title block **type** parameter changes every sheet that uses that type.
 
 **Threading.** Pipe requests never touch the Revit API. They are queued and run by an
 `IExternalEventHandler` on Revit's main thread. If Revit cannot run them within 30 s
@@ -169,8 +185,9 @@ The agent handles "no active document" and reads non-active drawings too.
 
 ## Hub
 
-Run `src\Nexus.Hub\bin\Debug\net10.0-windows\Nexus.exe`, or set `Nexus.Hub` as the
-startup project.
+Click **Open Hub** on Revit's Nexus tab, run `src\Nexus.Hub\bin\Debug\net10.0-windows\Nexus.exe`,
+or set `Nexus.Hub` as the startup project. The host list refreshes when you switch back to the hub
+(at most every 15 s).
 
 1. **Hosts and open documents.** Every running agent, with product, year, modules and pid, and its open documents flagged active, read-only, workshared, linked or family. The active document of each host is pre-checked. Click **Refresh hosts** after opening or closing files or hosts.
 2. **Readers.** Readers from all agents. Expand one to change its options. Placeholders are greyed out and return `NotImplemented`.
@@ -179,7 +196,12 @@ startup project.
 5. **Table.** One row per item (children indented), one column per checked property.
 6. **Items.** Browse the selected result's item tree. Select an item to see every property with value, read-only flag and reason, source, storage type, data type, units and id.
 7. **Columns.** Choose which groups and properties go into the table and exports. You can filter by name.
-8. **Export.**
+8. **Editing.** Double-click a value in the table (or select it and start typing) to change it.
+   - Edited cells turn yellow; the tooltip shows the old value.
+   - Grey cells cannot be edited; the tooltip says why (read-only parameter, borrowed element, host without editing, …).
+   - **Apply N change(s)…** shows every edit (document, item, property, old → new). **Apply to the model** writes them and shows each outcome: *Applied*, *Unchanged*, *Skipped* (with why) or *Failed* (with why). Closing the window re-reads the changed results so the table shows the model's values.
+   - **Discard changes** puts the table back. Re-running readers or rebuilding the table asks before discarding unapplied edits.
+9. **Export.**
    - *CSV one row per item*: the table as shown, all rows.
    - *CSV one row per property*: includes read-only flags, sources and units.
    - *JSON*: the raw results.

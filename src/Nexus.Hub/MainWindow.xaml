@@ -10,6 +10,10 @@
       <Button Content="Run readers" Command="{Binding RunCommand}" FontWeight="SemiBold" />
       <Button Content="Show table" Command="{Binding ShowTableCommand}" />
       <Separator Margin="6,0" />
+      <Button Content="{Binding ApplyLabel}" Command="{Binding ApplyChangesCommand}" FontWeight="SemiBold"
+              ToolTip="Review your edits (old → new) and write them to the model." />
+      <Button Content="Discard changes" Command="{Binding DiscardChangesCommand}" />
+      <Separator Margin="6,0" />
       <Button Content="Export CSV (one row per item)" Command="{Binding ExportWideCommand}" />
       <Button Content="Export CSV (one row per property)" Command="{Binding ExportLongCommand}" />
       <Button Content="Export JSON" Command="{Binding ExportJsonCommand}" />
@@ -162,10 +166,12 @@
         <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" />
 
         <TabControl Grid.Column="2">
-          <TabItem Header="Table">
-            <DataGrid x:Name="TableGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True"
+          <TabItem Header="Table (double-click a value to edit)">
+            <DataGrid x:Name="TableGrid" AutoGenerateColumns="False" IsReadOnly="False" CanUserSortColumns="True"
+                      CanUserAddRows="False" CanUserDeleteRows="False" SelectionUnit="Cell"
                       EnableRowVirtualization="True" EnableColumnVirtualization="True" FrozenColumnCount="5"
-                      HeadersVisibility="Column" GridLinesVisibility="Vertical" />
+                      HeadersVisibility="Column" GridLinesVisibility="Vertical"
+                      BeginningEdit="OnBeginningEdit" />
           </TabItem>
 
           <TabItem Header="Items (selected result)">

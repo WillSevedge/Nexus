@@ -126,4 +126,9 @@ public sealed class PropertyValue
     public bool HasValue { get; set; } = true;
     public bool IsReadOnly { get; set; }
     public string? ReadOnlyReason { get; set; }
+    /// <summary>
+    /// Host id of the object that owns this property, when it is not the item itself
+    /// (e.g. a sheet's title block). Edits are sent to this object.
+    /// </summary>
+    public string? OwnerId { get; set; }
 }

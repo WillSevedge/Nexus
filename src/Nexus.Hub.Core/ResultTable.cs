@@ -8,6 +8,8 @@ public sealed class ResultSource
     public required HostInfo Host { get; init; }
     public required string DocumentTitle { get; init; }
     public required ReadResult Result { get; init; }
+    /// <summary>Whatever the caller wants to find this source again by (the hub stores its result run).</summary>
+    public object? Tag { get; init; }
 }
 
 public sealed record ColumnKey(string Group, string Name)
@@ -26,6 +28,7 @@ public sealed class TableRow
     public string Item { get; init; } = "";
     public string Key { get; init; } = "";
     public string ItemId { get; init; } = "";
+    public required ResultSource Source { get; init; }
     public Dictionary<string, PropertyValue> Values { get; } = new(StringComparer.Ordinal);
 }
 
@@ -63,6 +66,7 @@ public sealed class ResultTable
             Item = item.Name,
             Key = item.Key ?? "",
             ItemId = item.Id,
+            Source = s,
         };
 
         foreach (var group in item.Groups)

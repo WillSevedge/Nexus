@@ -106,3 +106,28 @@ internal sealed class ThrowingReader : IHostDataReader<FakeDoc>
     public ReaderDescriptor Descriptor { get; } = new() { Id = "fake.boom", DisplayName = "Boom" };
     public void Read(FakeDoc document, ReadContext context) => throw new InvalidOperationException("kaboom");
 }
+
+/// <summary>Records edits; the value "bad" is rejected.</summary>
+internal sealed class FakeWriter : IHostDataWriter<FakeDoc>
+{
+    public int WriteThread { get; private set; }
+    public List<(string Doc, PropertyChange Change)> Applied { get; } = new();
+
+    public WriteResult Write(FakeDoc document, WriteRequest request, AgentLog log, CancellationToken ct)
+    {
+        WriteThread = Environment.CurrentManagedThreadId;
+        var result = new WriteResult { Committed = true, UndoName = "Fake edit" };
+        for (int i = 0; i < request.Changes.Count; i++)
+        {
+            var c = request.Changes[i];
+            if (c.Value == "bad")
+            {
+                result.Results.Add(new ChangeResult { Index = i, Status = ChangeStatus.Failed, Message = "not a number" });
+                continue;
+            }
+            Applied.Add((document.Id, c));
+            result.Results.Add(new ChangeResult { Index = i, Status = ChangeStatus.Applied, NewValue = c.Value.ToUpperInvariant() });
+        }
+        return result;
+    }
+}

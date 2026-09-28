@@ -20,5 +20,8 @@ public static class NexusPaths
     public static string LogsDir => Path.Combine(Root, "logs");
     public static string ExportsDir => Path.Combine(Root, "exports");
 
+    /// <summary>Text file holding the full path of the hub executable (written by the hub and its build).</summary>
+    public static string HubLocationFile => Path.Combine(Root, "hub-location.txt");
+
     public static string RegistrationFile(int processId) => Path.Combine(AgentsDir, $"{processId}.json");
 }

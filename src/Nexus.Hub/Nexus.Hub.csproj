@@ -10,4 +10,15 @@
   <ItemGroup>
     <ProjectReference Include="..\Nexus.Hub.Core\Nexus.Hub.Core.csproj" />
   </ItemGroup>
+
+  <!-- Record where Nexus.exe was built so the Revit/AutoCAD "Open Hub" button can start it.
+       The hub also records its location each time it starts. -->
+  <Target Name="NexusRecordHubLocation" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT'">
+    <PropertyGroup>
+      <_NexusRoot>$([System.Environment]::GetFolderPath(SpecialFolder.LocalApplicationData))\Nexus</_NexusRoot>
+    </PropertyGroup>
+    <MakeDir Directories="$(_NexusRoot)" ContinueOnError="true" />
+    <WriteLinesToFile File="$(_NexusRoot)\hub-location.txt" Lines="$(TargetDir)$(AssemblyName).exe"
+                      Overwrite="true" WriteOnlyWhenDifferent="true" ContinueOnError="true" />
+  </Target>
 </Project>
