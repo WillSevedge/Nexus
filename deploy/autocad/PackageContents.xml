@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  AecHub autoloader bundle. Generated into
-  %APPDATA%\Autodesk\ApplicationPlugins\AecHub.bundle\PackageContents.xml by the build.
+  Nexus autoloader bundle. Generated into
+  %APPDATA%\Autodesk\ApplicationPlugins\Nexus.bundle\PackageContents.xml by the build.
   Platform="AutoCAD*" loads the core agent in AutoCAD and every AutoCAD-based
   vertical (Civil 3D, Map 3D, ...). Vertical modules (e.g. Civil 3D) are loaded
   by the core at runtime, only when the vertical is detected.
@@ -10,18 +10,18 @@
 <ApplicationPackage SchemaVersion="1.0"
                     AutodeskProduct="AutoCAD"
                     ProductType="Application"
-                    Name="AecHub Agent"
-                    Description="Connects AutoCAD and Civil 3D to the AecHub hub application."
+                    Name="Nexus Agent"
+                    Description="Connects AutoCAD and Civil 3D to the Nexus hub application."
                     AppVersion="0.1.0"
-                    Author="AecHub"
+                    Author="Nexus"
                     ProductCode="{8C2B6F40-3E1D-4B7A-9E52-6A0F1D3C7B21}"
                     UpgradeCode="{1F9E3A57-2C4B-4D8E-A6B1-7E0C5D2F9A34}">
-  <CompanyDetails Name="AecHub" />
+  <CompanyDetails Name="Nexus" />
   <Components Description="AutoCAD 2026 family">
     <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R25.1" SeriesMax="R25.1" />
-    <ComponentEntry AppName="AecHubAgent2026"
-                    ModuleName="./Contents/2026/AecHub.Agent.Acad.dll"
-                    AppDescription="AecHub agent (AutoCAD 2026 family)"
+    <ComponentEntry AppName="NexusAgent2026"
+                    ModuleName="./Contents/2026/Nexus.Agent.Acad.dll"
+                    AppDescription="Nexus agent (AutoCAD 2026 family)"
                     LoadOnAutoCADStartup="True" />
   </Components>
   <!-- Next release: copy the block above, change the year, SeriesMin/SeriesMax

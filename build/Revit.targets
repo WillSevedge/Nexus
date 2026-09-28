@@ -10,7 +10,7 @@
   <PropertyGroup>
     <UseInstalledRevitApi Condition="Exists('$(RevitInstallDir)RevitAPI.dll')">true</UseInstalledRevitApi>
     <RevitAddinsDir>$(UserAppData)\Autodesk\Revit\Addins\$(HostYear)\</RevitAddinsDir>
-    <RevitAddinFolder>$(RevitAddinsDir)AecHub\</RevitAddinFolder>
+    <RevitAddinFolder>$(RevitAddinsDir)Nexus\</RevitAddinFolder>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(UseInstalledRevitApi)' == 'true'">
@@ -29,26 +29,33 @@
     <PackageReference Include="Nice3point.Revit.Api.RevitAPIUI" Version="$(RevitApiPackageVersion)" PrivateAssets="all" ExcludeAssets="runtime" />
   </ItemGroup>
 
-  <Target Name="AecHubRevitApiNotice" BeforeTargets="Build">
-    <Message Importance="high" Condition="'$(UseInstalledRevitApi)' == 'true'" Text="AecHub: Revit $(HostYear) API from $(RevitInstallDir)" />
+  <Target Name="NexusRevitApiNotice" BeforeTargets="Build">
+    <Message Importance="high" Condition="'$(UseInstalledRevitApi)' == 'true'" Text="Nexus: Revit $(HostYear) API from $(RevitInstallDir)" />
     <Warning Condition="'$(UseInstalledRevitApi)' != 'true' and '$(OS)' == 'Windows_NT'"
-             Text="AecHub: Revit $(HostYear) not found at '$(RevitInstallDir)'. Compiling against the reference package instead. Set RevitInstallDir if Revit is installed elsewhere." />
+             Text="Nexus: Revit $(HostYear) not found at '$(RevitInstallDir)'. Compiling against the reference package instead. Set RevitInstallDir if Revit is installed elsewhere." />
   </Target>
 
-  <Target Name="AecHubDeployRevit" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
+  <Target Name="NexusDeployRevit" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
     <ItemGroup>
-      <_AecHubRevitFiles Include="$(TargetDir)**\*.*" />
+      <_NexusRevitFiles Include="$(TargetDir)**\*.*" />
     </ItemGroup>
-    <Copy SourceFiles="@(_AecHubRevitFiles)"
-          DestinationFiles="@(_AecHubRevitFiles->'$(RevitAddinFolder)%(RecursiveDir)%(Filename)%(Extension)')"
+    <Copy SourceFiles="@(_NexusRevitFiles)"
+          DestinationFiles="@(_NexusRevitFiles->'$(RevitAddinFolder)%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" Retries="0" ContinueOnError="WarnAndContinue" />
-    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\deploy\revit\AecHub.addin" DestinationFolder="$(RevitAddinsDir)"
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\deploy\revit\Nexus.addin" DestinationFolder="$(RevitAddinsDir)"
           SkipUnchangedFiles="true" ContinueOnError="WarnAndContinue" />
-    <Message Importance="high" Text="AecHub: deployed Revit $(HostYear) add-in to $(RevitAddinFolder) (if copy warnings appeared above, close Revit and rebuild)" />
+    <Message Importance="high" Text="Nexus: deployed Revit $(HostYear) add-in to $(RevitAddinFolder) (if copy warnings appeared above, close Revit and rebuild)" />
   </Target>
 
-  <Target Name="AecHubCleanRevit" AfterTargets="Clean" Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
-    <RemoveDir Directories="$(RevitAddinFolder)" ContinueOnError="true" />
+  <!-- The project was called AecHub before. Remove that deployment: it has the same AddInId. -->
+  <Target Name="NexusRemoveLegacyRevit" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false' and Exists('$(RevitAddinsDir)AecHub.addin')">
     <Delete Files="$(RevitAddinsDir)AecHub.addin" ContinueOnError="true" />
+    <RemoveDir Directories="$(RevitAddinsDir)AecHub\" ContinueOnError="true" />
+    <Message Importance="high" Text="Nexus: removed the old AecHub add-in from $(RevitAddinsDir)" />
+  </Target>
+
+  <Target Name="NexusCleanRevit" AfterTargets="Clean" Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
+    <RemoveDir Directories="$(RevitAddinFolder)" ContinueOnError="true" />
+    <Delete Files="$(RevitAddinsDir)Nexus.addin" ContinueOnError="true" />
   </Target>
 </Project>

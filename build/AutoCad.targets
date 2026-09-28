@@ -9,7 +9,7 @@
   -->
   <PropertyGroup>
     <UseInstalledAutoCadApi Condition="Exists('$(AutoCadInstallDir)accoremgd.dll')">true</UseInstalledAutoCadApi>
-    <AcadBundleDir>$(UserAppData)\Autodesk\ApplicationPlugins\AecHub.bundle\</AcadBundleDir>
+    <AcadBundleDir>$(UserAppData)\Autodesk\ApplicationPlugins\Nexus.bundle\</AcadBundleDir>
     <AcadBundleContentDir>$(AcadBundleDir)Contents\$(HostYear)\</AcadBundleContentDir>
   </PropertyGroup>
 
@@ -30,9 +30,9 @@
     <PackageReference Include="AutoCAD.NET" Version="$(AutoCadApiPackageVersion)" PrivateAssets="all" ExcludeAssets="runtime" />
   </ItemGroup>
 
-  <Target Name="AecHubAutoCadApiNotice" BeforeTargets="Build">
-    <Message Importance="high" Condition="'$(UseInstalledAutoCadApi)' == 'true'" Text="AecHub: AutoCAD $(HostYear) API from $(AutoCadInstallDir)" />
+  <Target Name="NexusAutoCadApiNotice" BeforeTargets="Build">
+    <Message Importance="high" Condition="'$(UseInstalledAutoCadApi)' == 'true'" Text="Nexus: AutoCAD $(HostYear) API from $(AutoCadInstallDir)" />
     <Warning Condition="'$(UseInstalledAutoCadApi)' != 'true' and '$(OS)' == 'Windows_NT'"
-             Text="AecHub: AutoCAD $(HostYear) not found at '$(AutoCadInstallDir)'. Compiling against the reference package instead. Set AutoCadInstallDir if it is installed elsewhere." />
+             Text="Nexus: AutoCAD $(HostYear) not found at '$(AutoCadInstallDir)'. Compiling against the reference package instead. Set AutoCadInstallDir if it is installed elsewhere." />
   </Target>
 </Project>

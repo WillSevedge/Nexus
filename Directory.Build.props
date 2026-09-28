@@ -7,8 +7,8 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Company>AecHub</Company>
-    <Product>AecHub</Product>
+    <Company>Nexus</Company>
+    <Product>Nexus</Product>
     <Version>0.1.0</Version>
     <Deterministic>true</Deterministic>
     <!-- Lets the Windows-only projects compile on non-Windows build agents (CI). -->

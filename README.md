@@ -1,6 +1,6 @@
-# AecHub
+# Nexus
 
-AecHub connects running **Revit**, **AutoCAD** and **Civil 3D** sessions to a standalone
+Nexus connects running **Revit**, **AutoCAD** and **Civil 3D** sessions to a standalone
 **hub** application. Each host runs a small agent that answers requests over a named pipe;
 the hub finds every running agent, lists the open documents, runs *readers* against them
 and exports the results.
@@ -12,15 +12,15 @@ two-way sync and the MCP server come in later phases.
 
 | Project | Target | What it is |
 |---|---|---|
-| `src/AecHub.Contracts` | net10.0 | *Shared.Contracts*: message envelope, DTOs (host, document, reader, item, property), pipe framing. No dependencies. |
-| `src/AecHub.Agent.Shared` | net10.0 | *Shared.Agent*: pipe server, discovery file, request dispatch, host-thread work queue, reader registry, logging. No NuGet dependencies (loaded inside the hosts). |
-| `src/AecHub.Agent.Revit` | net10.0-windows | Revit add-in (`IExternalApplication`), ribbon status button, `ExternalEvent` request queue, readers. |
-| `src/AecHub.Agent.Acad` | net10.0-windows | AutoCAD-family core agent (`IExtensionApplication`), autoloader bundle, generic "Properties palette" reader, layouts reader, module loader. Loads in every AutoCAD-based product. |
-| `src/AecHub.Agent.Acad.Civil3D` | net10.0-windows | Civil 3D module. The only project that references the Civil 3D API. Loaded by the core only when Civil 3D is detected. |
-| `src/AecHub.Hub.Core` | net10.0 | UI-free hub logic: discovery, pipe client, result flattening, CSV/JSON export. |
-| `src/AecHub.Hub` | net10.0-windows (WPF) | The hub application (`AecHub.exe`). |
-| `src/AecHub.Cli` | net10.0 | `aechub` command-line client, for testing agents without the GUI. |
-| `tests/AecHub.Tests` | net10.0 | xUnit tests (no Autodesk product needed): pipe round trip with a fake host, threading, errors, busy-host handling, flattening, CSV. |
+| `src/Nexus.Contracts` | net10.0 | *Shared.Contracts*: message envelope, DTOs (host, document, reader, item, property), pipe framing. No dependencies. |
+| `src/Nexus.Agent.Shared` | net10.0 | *Shared.Agent*: pipe server, discovery file, request dispatch, host-thread work queue, reader registry, logging. No NuGet dependencies (loaded inside the hosts). |
+| `src/Nexus.Agent.Revit` | net10.0-windows | Revit add-in (`IExternalApplication`), ribbon status button, `ExternalEvent` request queue, readers. |
+| `src/Nexus.Agent.Acad` | net10.0-windows | AutoCAD-family core agent (`IExtensionApplication`), autoloader bundle, generic "Properties palette" reader, layouts reader, module loader. Loads in every AutoCAD-based product. |
+| `src/Nexus.Agent.Acad.Civil3D` | net10.0-windows | Civil 3D module. The only project that references the Civil 3D API. Loaded by the core only when Civil 3D is detected. |
+| `src/Nexus.Hub.Core` | net10.0 | UI-free hub logic: discovery, pipe client, result flattening, CSV/JSON export. |
+| `src/Nexus.Hub` | net10.0-windows (WPF) | The hub application (`Nexus.exe`). |
+| `src/Nexus.Cli` | net10.0 | `nexus` command-line client, for testing agents without the GUI. |
+| `tests/Nexus.Tests` | net10.0 | xUnit tests (no Autodesk product needed): pipe round trip with a fake host, threading, errors, busy-host handling, flattening, CSV. |
 
 Build settings: `Directory.Build.props` (common), `build/HostVersions.props` (host version
 matrix), `build/Revit.targets` and `build/AutoCad.targets` (API references and deployment).
@@ -44,28 +44,28 @@ prints which one it used. To point at a different install folder, pass
 Close Revit, AutoCAD and Civil 3D first: they lock the DLLs. (If one is open, the build
 still succeeds but prints copy warnings and the old version stays deployed.)
 
-Visual Studio: open `AecHub.sln`, choose **Debug**, **Build > Build Solution**.
+Visual Studio: open `Nexus.sln`, choose **Debug**, **Build > Build Solution**.
 
 Command line:
 
 ```powershell
-dotnet build AecHub.sln -c Debug
-dotnet test tests\AecHub.Tests
+dotnet build Nexus.sln -c Debug
+dotnet test tests\Nexus.Tests
 ```
 
 On Windows, every build deploys automatically:
 
 | What | Where |
 |---|---|
-| Revit manifest | `%APPDATA%\Autodesk\Revit\Addins\2026\AecHub.addin` |
-| Revit add-in files | `%APPDATA%\Autodesk\Revit\Addins\2026\AecHub\` |
-| AutoCAD bundle manifest | `%APPDATA%\Autodesk\ApplicationPlugins\AecHub.bundle\PackageContents.xml` |
-| AutoCAD core + Civil 3D module | `%APPDATA%\Autodesk\ApplicationPlugins\AecHub.bundle\Contents\2026\` |
-| Hub | `src\AecHub.Hub\bin\Debug\net10.0-windows\AecHub.exe` (not deployed; run it from there) |
+| Revit manifest | `%APPDATA%\Autodesk\Revit\Addins\2026\Nexus.addin` |
+| Revit add-in files | `%APPDATA%\Autodesk\Revit\Addins\2026\Nexus\` |
+| AutoCAD bundle manifest | `%APPDATA%\Autodesk\ApplicationPlugins\Nexus.bundle\PackageContents.xml` |
+| AutoCAD core + Civil 3D module | `%APPDATA%\Autodesk\ApplicationPlugins\Nexus.bundle\Contents\2026\` |
+| Hub | `src\Nexus.Hub\bin\Debug\net10.0-windows\Nexus.exe` (not deployed; run it from there) |
 
 Add `/p:DeployToHost=false` to build without deploying. `dotnet clean` removes the deployed files.
 
-Runtime files (all under `%LOCALAPPDATA%\AecHub\`):
+Runtime files (all under `%LOCALAPPDATA%\Nexus\`):
 
 | Path | Contents |
 |---|---|
@@ -78,8 +78,8 @@ Runtime files (all under `%LOCALAPPDATA%\AecHub\`):
 
 **Load**
 1. Build (see above), then start Revit 2026.
-2. Revit asks about the unsigned add-in "AecHub Agent": choose **Always Load**.
-3. An **AecHub** ribbon tab appears with a **Hub Link** panel. The button shows the connection state:
+2. Revit asks about the unsigned add-in "Nexus Agent": choose **Always Load**.
+3. An **Nexus** ribbon tab appears with a **Hub Link** panel. The button shows the connection state:
    - grey **Hub: Starting** until Revit is idle,
    - blue **Hub: Waiting** while listening for the hub,
    - green **Hub: Connected** while the hub is connected,
@@ -107,7 +107,7 @@ Every parameter carries:
 error instead of waiting forever.
 
 **Debug**
-- Set `AecHub.Agent.Revit` as the startup project and press F5. The "Revit 2026" launch profile starts Revit.
+- Set `Nexus.Agent.Revit` as the startup project and press F5. The "Revit 2026" launch profile starts Revit.
 - Or attach to a running Revit: **Debug > Attach to Process…**, pick `Revit.exe`, code type **Managed (.NET Core, .NET 5+)**.
 
 ## AutoCAD 2026 / Civil 3D 2026
@@ -115,11 +115,11 @@ error instead of waiting forever.
 **Load**
 1. Build, then start AutoCAD 2026 or Civil 3D 2026.
 2. The bundle in `%APPDATA%\Autodesk\ApplicationPlugins` loads automatically.
-   - AutoCAD asks about loading `AecHub.Agent.Acad.dll` from a non-trusted location: choose **Always Load**.
-   - Or add `%APPDATA%\Autodesk\ApplicationPlugins\AecHub.bundle\...` to `TRUSTEDPATHS`.
-3. Type `AECHUBSTATUS` to see the agent state, host, loaded modules, pipe and log file.
+   - AutoCAD asks about loading `Nexus.Agent.Acad.dll` from a non-trusted location: choose **Always Load**.
+   - Or add `%APPDATA%\Autodesk\ApplicationPlugins\Nexus.bundle\...` to `TRUSTEDPATHS`.
+3. Type `NEXUSSTATUS` to see the agent state, host, loaded modules, pipe and log file.
 
-In Civil 3D, `AECHUBSTATUS` shows `Modules: Civil3D`, and the hub lists the host as **Civil 3D 2026**.
+In Civil 3D, `NEXUSSTATUS` shows `Modules: Civil3D`, and the hub lists the host as **Civil 3D 2026**.
 
 The core detects Civil 3D after startup, on the first idle. It looks for any of:
 - `/product C3D` on the command line,
@@ -143,7 +143,7 @@ The detection rules are in `modules.json` next to the core DLL.
   - pipe networks, with pipes and structures as children,
   - corridors.
 
-**How the generic property reader works** (`src/AecHub.Agent.Acad/PropertyEngine`)
+**How the generic property reader works** (`src/Nexus.Agent.Acad/PropertyEngine`)
 1. **COM/ActiveX properties.** It enumerates the object's `ITypeInfo`, the same properties the Properties palette shows. Each property is put in the palette's own category by asking the object's `ICategorizeProperties` interface.
 2. **.NET API properties.** It reflects the managed object's public properties. Any the COM layer did not already show go into `.NET · <Type>` groups.
 3. **Fallback categories.** Properties without a category use `property-categories.json`, which you can edit.
@@ -163,13 +163,13 @@ than 30 s the hub gets `HostBusy`. Reads lock the document and use read-only tra
 The agent handles "no active document" and reads non-active drawings too.
 
 **Debug**
-- Set `AecHub.Agent.Acad` as the startup project. Pick the launch profile "AutoCAD 2026" or "Civil 3D 2026 (Imperial)" and press F5.
+- Set `Nexus.Agent.Acad` as the startup project. Pick the launch profile "AutoCAD 2026" or "Civil 3D 2026 (Imperial)" and press F5.
 - Or attach to a running `acad.exe` (code type **Managed (.NET Core, .NET 5+)**).
 - To debug the Civil 3D module, attach to or launch Civil 3D. Its PDB is deployed next to it.
 
 ## Hub
 
-Run `src\AecHub.Hub\bin\Debug\net10.0-windows\AecHub.exe`, or set `AecHub.Hub` as the
+Run `src\Nexus.Hub\bin\Debug\net10.0-windows\Nexus.exe`, or set `Nexus.Hub` as the
 startup project.
 
 1. **Hosts and open documents.** Every running agent, with product, year, modules and pid, and its open documents flagged active, read-only, workshared, linked or family. The active document of each host is pre-checked. Click **Refresh hosts** after opening or closing files or hosts.
@@ -188,19 +188,19 @@ startup project.
 ### CLI
 
 ```powershell
-cd src\AecHub.Cli\bin\Debug\net10.0
-.\aechub agents
-.\aechub docs <pid>
-.\aechub readers <pid>
-.\aechub read <pid> revit.sheets --csv sheets.csv
-.\aechub read <pid> acad.layouts --opt modelThroughViewports=true --long layouts.csv --json layouts.json
+cd src\Nexus.Cli\bin\Debug\net10.0
+.\nexus agents
+.\nexus docs <pid>
+.\nexus readers <pid>
+.\nexus read <pid> revit.sheets --csv sheets.csv
+.\nexus read <pid> acad.layouts --opt modelThroughViewports=true --long layouts.csv --json layouts.json
 ```
 
 ## Troubleshooting
 
-- **The hub shows no hosts.** Check the host loaded the add-in (Revit: AecHub tab; AutoCAD: `AECHUBSTATUS`), and check `%LOCALAPPDATA%\AecHub\agents\`. The hub and the hosts must run as the same Windows user, and both elevated or both not elevated.
+- **The hub shows no hosts.** Check the host loaded the add-in (Revit: Nexus tab; AutoCAD: `NEXUSSTATUS`), and check `%LOCALAPPDATA%\Nexus\agents\`. The hub and the hosts must run as the same Windows user, and both elevated or both not elevated.
 - **`HostBusy`.** Close dialogs, finish the active command or edit mode, then run again.
-- **An error in the hub.** The full stack trace is in the host's log (`%LOCALAPPDATA%\AecHub\logs`).
+- **An error in the hub.** The full stack trace is in the host's log (`%LOCALAPPDATA%\Nexus\logs`).
 - **A property disappeared from AutoCAD results.** Check `acad-probe-denied.txt`. Delete the line (or the file) to try that property again.
 
 ## Extending
@@ -212,7 +212,7 @@ cd src\AecHub.Cli\bin\Debug\net10.0
 The hub, IPC and export code do not change.
 
 **Add an AutoCAD vertical (e.g. Map 3D).**
-1. Create `AecHub.Agent.Acad.<Vertical>` like the Civil 3D project and implement `IAcadAgentModule`.
+1. Create `Nexus.Agent.Acad.<Vertical>` like the Civil 3D project and implement `IAcadAgentModule`.
 2. Add an entry with detection rules to `modules.json`.
 
 The core never references the vertical's API.
