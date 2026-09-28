@@ -1,8 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="..\..\build\Revit.props" />
-
   <PropertyGroup>
-    <TargetFramework>$(RevitTargetFramework)</TargetFramework>
+    <TargetFramework>$(HostTargetFramework)</TargetFramework>
     <UseWPF>true</UseWPF>
     <PlatformTarget>x64</PlatformTarget>
     <RootNamespace>AecHub.Agent.Revit</RootNamespace>

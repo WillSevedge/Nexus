@@ -2,7 +2,7 @@
   <!-- Standalone hub application (WPF). -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <RootNamespace>AecHub.Hub</RootNamespace>
     <AssemblyName>AecHub</AssemblyName>

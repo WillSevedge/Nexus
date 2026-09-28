@@ -12,15 +12,15 @@ two-way sync and the MCP server come in later phases.
 
 | Project | Target | What it is |
 |---|---|---|
-| `src/AecHub.Contracts` | net8.0 | *Shared.Contracts*: message envelope, DTOs (host, document, reader, item, property), pipe framing. No dependencies. |
-| `src/AecHub.Agent.Shared` | net8.0 | *Shared.Agent*: pipe server, discovery file, request dispatch, host-thread work queue, reader registry, logging. No NuGet dependencies (loaded inside the hosts). |
-| `src/AecHub.Agent.Revit` | net8.0-windows or net10.0-windows (matches the installed RevitAPI.dll; see `build/Revit.props`) | Revit add-in (`IExternalApplication`), ribbon status button, `ExternalEvent` request queue, readers. |
-| `src/AecHub.Agent.Acad` | net8.0-windows | AutoCAD-family core agent (`IExtensionApplication`), autoloader bundle, generic "Properties palette" reader, layouts reader, module loader. Loads in every AutoCAD-based product. |
-| `src/AecHub.Agent.Acad.Civil3D` | net8.0-windows | Civil 3D module. The only project that references the Civil 3D API. Loaded by the core only when Civil 3D is detected. |
-| `src/AecHub.Hub.Core` | net8.0 | UI-free hub logic: discovery, pipe client, result flattening, CSV/JSON export. |
-| `src/AecHub.Hub` | net8.0-windows (WPF) | The hub application (`AecHub.exe`). |
-| `src/AecHub.Cli` | net8.0 | `aechub` command-line client, for testing agents without the GUI. |
-| `tests/AecHub.Tests` | net8.0 | xUnit tests (no Autodesk product needed): pipe round trip with a fake host, threading, errors, busy-host handling, flattening, CSV. |
+| `src/AecHub.Contracts` | net10.0 | *Shared.Contracts*: message envelope, DTOs (host, document, reader, item, property), pipe framing. No dependencies. |
+| `src/AecHub.Agent.Shared` | net10.0 | *Shared.Agent*: pipe server, discovery file, request dispatch, host-thread work queue, reader registry, logging. No NuGet dependencies (loaded inside the hosts). |
+| `src/AecHub.Agent.Revit` | net10.0-windows | Revit add-in (`IExternalApplication`), ribbon status button, `ExternalEvent` request queue, readers. |
+| `src/AecHub.Agent.Acad` | net10.0-windows | AutoCAD-family core agent (`IExtensionApplication`), autoloader bundle, generic "Properties palette" reader, layouts reader, module loader. Loads in every AutoCAD-based product. |
+| `src/AecHub.Agent.Acad.Civil3D` | net10.0-windows | Civil 3D module. The only project that references the Civil 3D API. Loaded by the core only when Civil 3D is detected. |
+| `src/AecHub.Hub.Core` | net10.0 | UI-free hub logic: discovery, pipe client, result flattening, CSV/JSON export. |
+| `src/AecHub.Hub` | net10.0-windows (WPF) | The hub application (`AecHub.exe`). |
+| `src/AecHub.Cli` | net10.0 | `aechub` command-line client, for testing agents without the GUI. |
+| `tests/AecHub.Tests` | net10.0 | xUnit tests (no Autodesk product needed): pipe round trip with a fake host, threading, errors, busy-host handling, flattening, CSV. |
 
 Build settings: `Directory.Build.props` (common), `build/HostVersions.props` (host version
 matrix), `build/Revit.targets` and `build/AutoCad.targets` (API references and deployment).
@@ -28,7 +28,7 @@ Deployment templates are in `deploy/`.
 
 ## Prerequisites
 
-- Windows, Visual Studio 2022 17.8+ / Visual Studio 2026, .NET 8 SDK. Revit 2026 updated to API 26.5 or later runs on .NET 10, so the Revit agent then builds for `net10.0-windows` and needs the .NET 10 SDK (included with Visual Studio 2026).
+- Windows, Visual Studio 2026 (includes the .NET 10 SDK). The 2026 hosts (Revit 2026 with API 26.5+, AutoCAD 2026, Civil 3D 2026) run on .NET 10, so every project targets .NET 10.
 - Revit 2026 and/or AutoCAD 2026 / Civil 3D 2026 installed in the default folders
   (`C:\Program Files\Autodesk\Revit 2026\`, `C:\Program Files\Autodesk\AutoCAD 2026\`).
 
@@ -61,7 +61,7 @@ On Windows, every build deploys automatically:
 | Revit add-in files | `%APPDATA%\Autodesk\Revit\Addins\2026\AecHub\` |
 | AutoCAD bundle manifest | `%APPDATA%\Autodesk\ApplicationPlugins\AecHub.bundle\PackageContents.xml` |
 | AutoCAD core + Civil 3D module | `%APPDATA%\Autodesk\ApplicationPlugins\AecHub.bundle\Contents\2026\` |
-| Hub | `src\AecHub.Hub\bin\Debug\net8.0-windows\AecHub.exe` (not deployed; run it from there) |
+| Hub | `src\AecHub.Hub\bin\Debug\net10.0-windows\AecHub.exe` (not deployed; run it from there) |
 
 Add `/p:DeployToHost=false` to build without deploying. `dotnet clean` removes the deployed files.
 
@@ -169,7 +169,7 @@ The agent handles "no active document" and reads non-active drawings too.
 
 ## Hub
 
-Run `src\AecHub.Hub\bin\Debug\net8.0-windows\AecHub.exe`, or set `AecHub.Hub` as the
+Run `src\AecHub.Hub\bin\Debug\net10.0-windows\AecHub.exe`, or set `AecHub.Hub` as the
 startup project.
 
 1. **Hosts and open documents.** Every running agent, with product, year, modules and pid, and its open documents flagged active, read-only, workshared, linked or family. The active document of each host is pre-checked. Click **Refresh hosts** after opening or closing files or hosts.
@@ -188,7 +188,7 @@ startup project.
 ### CLI
 
 ```powershell
-cd src\AecHub.Cli\bin\Debug\net8.0
+cd src\AecHub.Cli\bin\Debug\net10.0
 .\aechub agents
 .\aechub docs <pid>
 .\aechub readers <pid>
@@ -218,7 +218,7 @@ The hub, IPC and export code do not change.
 The core never references the vertical's API.
 
 **Add a host version (e.g. 2027).**
-1. Add a row to `build/HostVersions.props`. A commented 2027 row is there: Revit 2027 and AutoCAD 2027 (R26.0) move to .NET 10, so the row sets `net10.0-windows` and adds `net10.0` to the shared frameworks.
+1. Add a row to `build/HostVersions.props`. A commented 2027 row is there; set its API package versions and AutoCAD R-number (it stays on `net10.0-windows`).
 2. Add `Debug.2027;Release.2027` to `Directory.Build.props` and to the solution configurations.
 3. Add a `<Components>` block for R26.0 in `deploy/autocad/PackageContents.xml`.
 

@@ -8,26 +8,26 @@
          and to the solution's configuration list.
       2. Add a PropertyGroup below for 2027 with its target framework, API
          package versions and AutoCAD release number (R-number).
-      3. If the new framework differs (e.g. net10.0), add it to
+      3. If the new framework differs (e.g. net11.0), add it to
          SharedTargetFrameworks so the shared libraries multi-target.
     Nothing else in the code changes.
 
     Verified (from Autodesk's published API packages):
-      Revit 2025/2026     -> .NET 8   (Revit 2026 updates with API 26.5+ and Revit 2027 -> .NET 10;
-                                       the Revit agent detects this, see build/Revit.props)
-      AutoCAD 2025/2026   -> .NET 8   (AutoCAD 2027 = R26.0 -> .NET 10)
-      Civil 3D 2026       -> .NET 8   (Civil3D.NET 13.8.x)
+      The supported 2026 hosts (Revit 2026 with API 26.5+, AutoCAD 2026,
+      Civil 3D 2026) run on .NET 10, so every project targets .NET 10.
+      The compile-only reference packages below are built for .NET 8; that is
+      fine, a net10.0 project can reference them.
   -->
   <PropertyGroup>
     <DefaultHostYear>2026</DefaultHostYear>
     <HostYear Condition="'$(HostYear)' == '' and $(Configuration.Contains('.20'))">$(Configuration.Substring($([MSBuild]::Add($(Configuration.IndexOf('.')), 1))))</HostYear>
     <HostYear Condition="'$(HostYear)' == ''">$(DefaultHostYear)</HostYear>
     <!-- Target frameworks the host-neutral libraries are built for. -->
-    <SharedTargetFrameworks>net8.0</SharedTargetFrameworks>
+    <SharedTargetFrameworks>net10.0</SharedTargetFrameworks>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(HostYear)' == '2026'">
-    <HostTargetFramework>net8.0-windows</HostTargetFramework>
+    <HostTargetFramework>net10.0-windows</HostTargetFramework>
     <!-- Compile-only reference packages, used ONLY when the product is not installed
          on the build machine (e.g. CI). Never copied to the output. -->
     <RevitApiPackageVersion>2026.4.10</RevitApiPackageVersion>
@@ -43,7 +43,6 @@
     <AutoCadApiPackageVersion>26.0.0</AutoCadApiPackageVersion>
     <Civil3DApiPackageVersion>13.9.628</Civil3DApiPackageVersion>
     <AutoCadSeries>R26.0</AutoCadSeries>
-    <SharedTargetFrameworks>net8.0;net10.0</SharedTargetFrameworks>
   </PropertyGroup>
   -->
 
