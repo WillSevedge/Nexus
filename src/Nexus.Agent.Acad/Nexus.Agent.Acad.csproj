@@ -4,6 +4,8 @@
   <PropertyGroup>
     <TargetFramework>$(HostTargetFramework)</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
+    <!-- The AutoCAD 2026 API references the Windows Desktop WindowsBase (WPF); avoids MSB3277. -->
+    <UseWPF>true</UseWPF>
     <PlatformTarget>x64</PlatformTarget>
     <RootNamespace>Nexus.Agent.Acad</RootNamespace>
     <AssemblyName>Nexus.Agent.Acad</AssemblyName>
@@ -15,6 +17,8 @@
     <!-- Avoid Application/Color ambiguity with the AutoCAD API. -->
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
+    <!-- UseWPF drops System.IO from the implicit usings (Path clash with WPF shapes, not used here). -->
+    <Using Include="System.IO" />
   </ItemGroup>
 
   <ItemGroup>

@@ -3,12 +3,19 @@
        Loaded at runtime by the core agent when Civil 3D is detected (modules.json). -->
   <PropertyGroup>
     <TargetFramework>$(HostTargetFramework)</TargetFramework>
+    <!-- The AutoCAD 2026 API references the Windows Desktop WindowsBase (WPF); avoids MSB3277. -->
+    <UseWPF>true</UseWPF>
     <PlatformTarget>x64</PlatformTarget>
     <RootNamespace>Nexus.Agent.Acad.Civil3D</RootNamespace>
     <AssemblyName>Nexus.Agent.Acad.Civil3D</AssemblyName>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- UseWPF drops System.IO from the implicit usings (Path clash with WPF shapes, not used here). -->
+    <Using Include="System.IO" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- The core agent is already loaded by AutoCAD; do not copy it again. -->
