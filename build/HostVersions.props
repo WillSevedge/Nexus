@@ -13,7 +13,8 @@
     Nothing else in the code changes.
 
     Verified (from Autodesk's published API packages):
-      Revit 2025/2026     -> .NET 8   (Revit 2027 -> .NET 10)
+      Revit 2025/2026     -> .NET 8   (Revit 2026 updates with API 26.5+ and Revit 2027 -> .NET 10;
+                                       the Revit agent detects this, see build/Revit.props)
       AutoCAD 2025/2026   -> .NET 8   (AutoCAD 2027 = R26.0 -> .NET 10)
       Civil 3D 2026       -> .NET 8   (Civil3D.NET 13.8.x)
   -->

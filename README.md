@@ -14,7 +14,7 @@ two-way sync and the MCP server come in later phases.
 |---|---|---|
 | `src/AecHub.Contracts` | net8.0 | *Shared.Contracts*: message envelope, DTOs (host, document, reader, item, property), pipe framing. No dependencies. |
 | `src/AecHub.Agent.Shared` | net8.0 | *Shared.Agent*: pipe server, discovery file, request dispatch, host-thread work queue, reader registry, logging. No NuGet dependencies (loaded inside the hosts). |
-| `src/AecHub.Agent.Revit` | net8.0-windows | Revit add-in (`IExternalApplication`), ribbon status button, `ExternalEvent` request queue, readers. |
+| `src/AecHub.Agent.Revit` | net8.0-windows or net10.0-windows (matches the installed RevitAPI.dll; see `build/Revit.props`) | Revit add-in (`IExternalApplication`), ribbon status button, `ExternalEvent` request queue, readers. |
 | `src/AecHub.Agent.Acad` | net8.0-windows | AutoCAD-family core agent (`IExtensionApplication`), autoloader bundle, generic "Properties palette" reader, layouts reader, module loader. Loads in every AutoCAD-based product. |
 | `src/AecHub.Agent.Acad.Civil3D` | net8.0-windows | Civil 3D module. The only project that references the Civil 3D API. Loaded by the core only when Civil 3D is detected. |
 | `src/AecHub.Hub.Core` | net8.0 | UI-free hub logic: discovery, pipe client, result flattening, CSV/JSON export. |
@@ -28,7 +28,7 @@ Deployment templates are in `deploy/`.
 
 ## Prerequisites
 
-- Windows, Visual Studio 2022 17.8+ / Visual Studio 2026, .NET 8 SDK.
+- Windows, Visual Studio 2022 17.8+ / Visual Studio 2026, .NET 8 SDK. Revit 2026 updated to API 26.5 or later runs on .NET 10, so the Revit agent then builds for `net10.0-windows` and needs the .NET 10 SDK (included with Visual Studio 2026).
 - Revit 2026 and/or AutoCAD 2026 / Civil 3D 2026 installed in the default folders
   (`C:\Program Files\Autodesk\Revit 2026\`, `C:\Program Files\Autodesk\AutoCAD 2026\`).
 
