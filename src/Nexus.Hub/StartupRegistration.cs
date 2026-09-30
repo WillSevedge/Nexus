@@ -47,6 +47,20 @@ internal static class StartupRegistration
         }
     }
 
+    /// <summary>Removes the Run entry without changing the saved choice (used by uninstall).</summary>
+    public static void Remove()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
+            key?.DeleteValue(ValueName, throwOnMissingValue: false);
+        }
+        catch (Exception ex)
+        {
+            HubLog.Warn("Could not remove the startup entry.", ex);
+        }
+    }
+
     private static Settings Load()
     {
         try

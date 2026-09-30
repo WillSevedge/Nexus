@@ -2,7 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:Nexus.Hub.ViewModels"
-        Title="Nexus" Height="860" Width="1400" WindowStartupLocation="CenterScreen">
+        Title="Nexus" Height="860" Width="1400" WindowStartupLocation="CenterScreen"
+        Icon="Assets/Nexus.ico">
   <DockPanel Margin="8">
     <!-- Toolbar -->
     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">

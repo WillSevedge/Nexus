@@ -88,55 +88,107 @@ internal sealed class HubInstance : IDisposable
     });
 
     /// <summary>
-    /// Build step (--install): stop the running hub, copy this build to the install folder,
-    /// and start the installed copy in the background. Returns the process exit code.
+    /// --install: stop the running hub, copy this program to %LOCALAPPDATA%\Nexus\Hub, add the
+    /// Start Menu shortcut and the Settings › Apps entry, and start the installed copy
+    /// (in the tray only when <paramref name="background"/>). Returns the process exit code.
     /// </summary>
-    public static int Install()
+    public static int Install(bool background)
     {
-        string source = AppContext.BaseDirectory;
         string target = NexusPaths.HubInstallDir;
-        if (Path.GetFullPath(source).TrimEnd('\\', '/').Equals(Path.GetFullPath(target).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
-            return 0;
+        string sourceDir = AppContext.BaseDirectory;
+        bool fromInstallDir = SameDir(sourceDir, target);
 
-        using (var instance = Claim())
+        if (!fromInstallDir)
         {
-            if (!instance.IsOwner)
-            {
-                Send("exit");
-                if (!instance.WaitForOwnership(TimeSpan.FromSeconds(15)))
-                {
-                    HubLog.Warn("Install: the running hub did not exit; files in use may not be updated.");
-                }
-            }
+            StopRunningHub();
 
+            // A published Nexus.exe is one self-contained file; a Visual Studio build is a folder of files.
+            bool singleFile = !File.Exists(Path.Combine(sourceDir, "Nexus.dll"));
+            var files = singleFile
+                ? new[] { Environment.ProcessPath! }
+                : Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories).ToArray();
+            string root = singleFile ? Path.GetDirectoryName(Environment.ProcessPath!)! : sourceDir;
+
+            // Start clean so files from an older layout do not linger.
+            if (Directory.Exists(target))
+                foreach (var old in Directory.EnumerateFiles(target, "*", SearchOption.AllDirectories))
+                    Retry(() => File.Delete(old));
             Directory.CreateDirectory(target);
-            foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
-            {
-                string dest = Path.Combine(target, Path.GetRelativePath(source, file));
-                Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-                for (int attempt = 0; ; attempt++)
-                {
-                    try
-                    {
-                        File.Copy(file, dest, overwrite: true);
-                        break;
-                    }
-                    catch (IOException) when (attempt < 10)
-                    {
-                        Thread.Sleep(300);
-                    }
-                }
-            }
-        }
-        HubLog.Info("Installed the hub to " + target);
 
-        // Shell-execute so the new hub does not inherit the build's console handles.
-        Process.Start(new ProcessStartInfo(NexusPaths.HubExe, "--background")
+            foreach (var file in files)
+            {
+                string dest = Path.Combine(target, Path.GetRelativePath(root, file));
+                Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+                Retry(() => File.Copy(file, dest, overwrite: true));
+            }
+            HubLog.Info($"Installed the hub to {target} ({files.Length} file(s)).");
+        }
+
+        ShellIntegration.Register();
+        StartupRegistration.Apply();
+
+        // Shell-execute so the new hub does not inherit this process's (or a build's) console handles.
+        Process.Start(new ProcessStartInfo(NexusPaths.HubExe, background ? "--background" : "")
         {
             UseShellExecute = true,
             WorkingDirectory = target,
         });
         return 0;
+    }
+
+    /// <summary>--uninstall: stop the hub, remove the startup entry, shortcut, Apps entry and program files.</summary>
+    public static int Uninstall()
+    {
+        StopRunningHub();
+        StartupRegistration.Remove();
+        ShellIntegration.Unregister();
+
+        string target = NexusPaths.HubInstallDir;
+        if (SameDir(AppContext.BaseDirectory, target) || SameDir(Path.GetDirectoryName(Environment.ProcessPath ?? "") ?? "", target))
+        {
+            // We are running from the folder being removed: delete it once this process has exited.
+            Process.Start(new ProcessStartInfo("cmd.exe", $"/c ping -n 3 127.0.0.1 >nul & rmdir /s /q \"{target}\"")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+        }
+        else if (Directory.Exists(target))
+        {
+            try { Directory.Delete(target, recursive: true); }
+            catch (Exception ex) { HubLog.Warn("Could not delete " + target, ex); }
+        }
+        HubLog.Info("Uninstalled the hub. Logs and settings remain in " + NexusPaths.Root);
+        return 0;
+    }
+
+    private static void StopRunningHub()
+    {
+        using var instance = Claim();
+        if (instance.IsOwner) return;
+        Send("exit");
+        if (!instance.WaitForOwnership(TimeSpan.FromSeconds(15)))
+            HubLog.Warn("The running hub did not exit; files in use may not be replaced.");
+    }
+
+    private static bool SameDir(string a, string b) =>
+        a.Length > 0 && b.Length > 0 &&
+        Path.GetFullPath(a).TrimEnd('\\', '/').Equals(Path.GetFullPath(b).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
+
+    private static void Retry(Action action)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                action();
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < 20)
+            {
+                Thread.Sleep(250);
+            }
+        }
     }
 
     public void Dispose()

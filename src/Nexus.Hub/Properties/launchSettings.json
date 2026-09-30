@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "Nexus (replace the background hub)": {
+    "Nexus (replace the running hub)": {
       "commandName": "Project",
       "commandLineArgs": "--replace"
     }

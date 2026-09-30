@@ -52,7 +52,7 @@ dotnet build Nexus.sln -c Debug
 dotnet test tests\Nexus.Tests
 ```
 
-On Windows, every build deploys automatically:
+On Windows, every build deploys the add-ins automatically:
 
 | What | Where |
 |---|---|
@@ -60,7 +60,7 @@ On Windows, every build deploys automatically:
 | Revit add-in files | `%APPDATA%\Autodesk\Revit\Addins\2026\Nexus\` |
 | AutoCAD bundle manifest | `%APPDATA%\Autodesk\ApplicationPlugins\Nexus.bundle\PackageContents.xml` |
 | AutoCAD core + Civil 3D module | `%APPDATA%\Autodesk\ApplicationPlugins\Nexus.bundle\Contents\2026\` |
-| Hub | `src\Nexus.Hub\bin\Debug\net10.0-windows\Nexus.exe` (not deployed; run it from there) |
+| Hub | not deployed by the build: it is a separate program, installed with `build\Publish-Hub.cmd install` (see *Hub*) into `%LOCALAPPDATA%\Nexus\Hub\Nexus.exe` |
 
 Add `/p:DeployToHost=false` to build without deploying. `dotnet clean` removes the deployed files.
 
@@ -71,6 +71,7 @@ Runtime files (all under `%LOCALAPPDATA%\Nexus\`):
 | `agents\{pid}.json` | One registration per running agent (how the hub finds them). |
 | `logs\revit-*.log`, `logs\acad-*.log`, `logs\hub-*.log` | Logs. Every error is logged here with a stack trace. |
 | `exports\` | Default export folder. |
+| `Hub\Nexus.exe`, `hub-settings.json` | The installed hub and its Start with Windows choice. |
 | `acad-probe-*.txt` | AutoCAD crash guard for the generic property reader (see below). |
 
 ## Revit 2026
@@ -193,21 +194,31 @@ The agent handles "no active document" and reads non-active drawings too.
 
 ## Hub
 
-Nexus runs in the background, like Autodesk Access: one per Windows user, with an **N** icon in the
-notification area (next to the clock), and it starts when you sign in to Windows.
+The hub is a separate program from the add-ins. It runs in the background like Autodesk Access:
+one per Windows user, an **N** icon in the notification area (on Windows 11 new icons start in the
+hidden area behind **^** next to the clock; drag it onto the taskbar to keep it visible), and it
+starts when you sign in to Windows.
 
-- **Install.** Building `Nexus.Hub` installs it to `%LOCALAPPDATA%\Nexus\Hub` and restarts it there in the
-  background (the running hub is asked to exit first, so the files can be replaced). Set
-  `/p:DeployToHost=false` to skip.
-- **Open it.** Click the tray icon, or **Hub → Show the Nexus hub** in Revit/AutoCAD/Civil 3D, or run `Nexus.exe` again.
+- **Build it.** `build\Publish-Hub.cmd` makes one self-contained `artifacts\Nexus\Nexus.exe` (about 75 MB)
+  plus `Install.cmd`. It runs on any 64-bit Windows 10/11 PC: no .NET, Visual Studio or Autodesk product needed.
+  `build\Publish-Hub.cmd install` also installs it on this PC. (Visual Studio: right-click `Nexus.Hub` →
+  **Publish** → *Standalone* does the same build.)
+- **Install it.** Run `Install.cmd` (or `Nexus.exe --install`). No administrator rights: it copies
+  `Nexus.exe` to `%LOCALAPPDATA%\Nexus\Hub`, adds **Nexus** to the Start Menu and to **Settings → Apps**, turns on
+  Start with Windows, and opens it. Running it again upgrades in place (the running hub is stopped first).
+- **Uninstall.** **Settings → Apps → Nexus → Uninstall** (or `Nexus.exe --uninstall`). Logs and settings in
+  `%LOCALAPPDATA%\Nexus` are kept. The add-ins are separate (see *Build and deploy*).
+- **Open it.** Click the tray icon, the Start Menu entry, or **Hub → Show the Nexus hub** in Revit/AutoCAD/Civil 3D.
 - **Close vs exit.** Closing the window hides it; Nexus keeps running. Right-click the tray icon →
   **Exit Nexus** to stop it.
 - **Start with Windows.** On by default; toggle it in the tray menu (a per-user `Run` entry that starts
   `%LOCALAPPDATA%\Nexus\Hub\Nexus.exe --background`).
 - **Hosts.** Revit, AutoCAD and Civil 3D sessions are picked up within a few seconds of starting or closing,
   even while the window is hidden. **Refresh hosts** also re-lists the open documents.
-- **Debugging.** F5 on `Nexus.Hub` uses the `--replace` launch profile: the background hub exits and the
-  debugger's copy takes over. Other switches: `--background`, `--shutdown`, `--install`.
+- **Debugging.** Building the solution does not touch the installed hub. F5 on `Nexus.Hub` uses the
+  `--replace` launch profile: the installed hub exits and the debugger's copy takes over until you stop
+  debugging. Set `InstallHubOnBuild=true` to reinstall the hub on every build instead.
+  Switches: `--background`, `--install`, `--uninstall`, `--shutdown`, `--replace`.
 
 1. **Hosts and open documents.** Every running agent, with product, year, modules and pid, and its open documents flagged active, read-only, workshared, linked or family. The active document of each host is pre-checked. Click **Refresh hosts** after opening or closing files or hosts.
 2. **Readers.** Readers from all agents. Expand one to change its options. Placeholders are greyed out and return `NotImplemented`.

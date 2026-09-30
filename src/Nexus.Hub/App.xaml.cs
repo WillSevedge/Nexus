@@ -12,7 +12,9 @@ namespace Nexus.Hub;
 /// Command line:
 ///   --background   start hidden in the tray (used by Start with Windows)
 ///   --replace      stop the running hub and take over (Visual Studio F5)
-///   --install      build step: stop the running hub, copy this build to %LOCALAPPDATA%\Nexus\Hub, start it
+///   --install      install this Nexus.exe to %LOCALAPPDATA%\Nexus\Hub (Start Menu, Settings › Apps,
+///                  start with Windows) and start it; add --background to start it in the tray only
+///   --uninstall    stop the hub and remove it (also what Settings › Apps › Uninstall runs)
 ///   --shutdown     ask the running hub to exit
 /// </summary>
 public partial class App : Application
@@ -32,7 +34,21 @@ public partial class App : Application
 
         if (args.Contains("--install"))
         {
-            Shutdown(HubInstance.Install());
+            Shutdown(HubInstance.Install(background: args.Contains("--background")));
+            return;
+        }
+        if (args.Contains("--uninstall"))
+        {
+            bool quiet = args.Contains("--quiet");
+            if (!quiet && MessageBox.Show("Remove Nexus from this computer?\n\nThe Revit and AutoCAD add-ins are not affected; they are removed separately.",
+                    "Uninstall Nexus", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                Shutdown(1);
+                return;
+            }
+            int code = HubInstance.Uninstall();
+            if (!quiet) MessageBox.Show("Nexus has been removed.", "Uninstall Nexus", MessageBoxButton.OK, MessageBoxImage.Information);
+            Shutdown(code);
             return;
         }
         if (args.Contains("--shutdown"))

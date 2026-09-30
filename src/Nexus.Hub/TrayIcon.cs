@@ -1,7 +1,4 @@
 using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Text;
-using System.Runtime.InteropServices;
 using WinForms = System.Windows.Forms;
 
 namespace Nexus.Hub;
@@ -67,33 +64,14 @@ internal sealed class TrayIcon : IDisposable
     {
         _icon.Visible = false;
         _icon.Dispose();
-        DestroyIcon(_image.Handle);
         _image.Dispose();
     }
 
+    /// <summary>The embedded Nexus.ico at the tray's icon size (sharp at any display scaling).</summary>
     private static Icon CreateIcon()
     {
-        using var bmp = new Bitmap(32, 32);
-        using (var g = Graphics.FromImage(bmp))
-        {
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-            using var path = new GraphicsPath();
-            const int r = 8;
-            path.AddArc(1, 1, r, r, 180, 90);
-            path.AddArc(31 - r, 1, r, r, 270, 90);
-            path.AddArc(31 - r, 31 - r, r, r, 0, 90);
-            path.AddArc(1, 31 - r, r, r, 90, 90);
-            path.CloseFigure();
-            using var fill = new SolidBrush(Color.FromArgb(0x1F, 0x4E, 0x8C));
-            g.FillPath(fill, path);
-            using var font = new Font("Segoe UI Semibold", 17, FontStyle.Bold, GraphicsUnit.Pixel);
-            var size = g.MeasureString("N", font);
-            g.DrawString("N", font, Brushes.White, (32 - size.Width) / 2, (32 - size.Height) / 2);
-        }
-        return Icon.FromHandle(bmp.GetHicon());
+        using var stream = typeof(TrayIcon).Assembly.GetManifestResourceStream("Nexus.ico")
+                           ?? throw new InvalidOperationException("Nexus.ico is not embedded.");
+        return new Icon(stream, WinForms.SystemInformation.SmallIconSize);
     }
-
-    [DllImport("user32.dll")]
-    private static extern bool DestroyIcon(IntPtr handle);
 }

@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- The hub: a background (tray) application, one per Windows user. -->
+  <!--
+    The Nexus hub: a standalone background (tray) application, one per Windows user.
+    It is independent of the host add-ins: build it into a self-contained Nexus.exe with
+    build\Publish-Hub.cmd and install it with Install.cmd next to it (see README, Hub section).
+  -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -8,6 +12,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>Nexus.Hub</RootNamespace>
     <AssemblyName>Nexus</AssemblyName>
+    <ApplicationIcon>Assets\Nexus.ico</ApplicationIcon>
+    <Product>Nexus</Product>
+    <AssemblyTitle>Nexus hub</AssemblyTitle>
   </PropertyGroup>
   <ItemGroup>
     <!-- WPF types (Application, MessageBox, Color...) win; WinForms is only used by name. -->
@@ -15,14 +22,21 @@
     <Using Remove="System.Drawing" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Window icon (WPF resource) and tray icon (embedded, loaded at tray size). -->
+    <Resource Include="Assets\Nexus.ico" />
+    <EmbeddedResource Include="Assets\Nexus.ico" LogicalName="Nexus.ico" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Nexus.Hub.Core\Nexus.Hub.Core.csproj" />
   </ItemGroup>
 
-  <!-- Install the hub to %LOCALAPPDATA%\Nexus\Hub and (re)start it in the background.
-       The running hub is asked to exit first, so its files can be replaced.
-       Set /p:DeployToHost=false to skip. -->
-  <Target Name="NexusInstallHub" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
-    <Exec Command="&quot;$(TargetDir)$(AssemblyName).exe&quot; --install" ContinueOnError="WarnAndContinue" />
-    <Message Importance="high" Text="Nexus: installed the hub to $([System.Environment]::GetFolderPath(SpecialFolder.LocalApplicationData))\Nexus\Hub and started it in the background (tray icon)." />
+  <!--
+    Optional: install the hub every time Visual Studio builds it (handy while working on the hub).
+    Off by default so the hub stays a separate program; turn on with /p:InstallHubOnBuild=true
+    or by setting the property here.
+  -->
+  <Target Name="NexusInstallHub" AfterTargets="Build"
+          Condition="'$(OS)' == 'Windows_NT' and '$(InstallHubOnBuild)' == 'true' and '$(_IsPublishing)' != 'true'">
+    <Exec Command="&quot;$(TargetDir)$(AssemblyName).exe&quot; --install --background" ContinueOnError="WarnAndContinue" />
   </Target>
 </Project>
