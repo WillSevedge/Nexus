@@ -1,0 +1,77 @@
+<Window x:Class="Nexus.Hub.CompareWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{Binding Title}" Height="680" Width="1180" WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False" Icon="Assets/Nexus.ico">
+  <Window.Resources>
+    <BooleanToVisibilityConverter x:Key="BoolToVis" />
+  </Window.Resources>
+  <DockPanel Margin="20">
+    <TextBlock DockPanel.Dock="Top" Text="{Binding Summary}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,6" />
+    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8"
+               Text="Excel → model stages the value in the grid (yellow) so you can review and apply it as usual. Model → Excel writes the workbook (a backup is saved first; close it in Excel)." />
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+      <TextBlock Text="For every row:" VerticalAlignment="Center" Margin="0,0,8,0" />
+      <Button Margin="8,0,0,0" Content="Excel → model" Command="{Binding UseExcelForAll}" />
+      <Button Margin="8,0,0,0" Content="Model → Excel" Command="{Binding UseModelForAll}" />
+      <Button Margin="8,0,0,0" Content="Add missing rows to Excel" Command="{Binding AddAllToExcel}" />
+      <Button Margin="8,0,0,0" Content="Skip" Command="{Binding SkipAll}" />
+    </StackPanel>
+    <TextBox DockPanel.Dock="Bottom" Text="{Binding WarningText, Mode=OneWay}" IsReadOnly="True" Height="60" TextWrapping="Wrap"
+             VerticalScrollBarVisibility="Auto" Foreground="{DynamicResource SystemFillColorCautionBrush}" Margin="0,8,0,0"
+             Visibility="{Binding HasWarnings, Converter={StaticResource BoolToVis}}" />
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+      <Button Margin="8,0,0,0" Content="Apply" Click="OnApply" IsDefault="True" Style="{DynamicResource AccentButtonStyle}" />
+      <Button Margin="8,0,0,0" Content="Close" IsCancel="True" />
+    </StackPanel>
+
+    <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+              HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+              EnableRowVirtualization="True">
+      <DataGrid.RowStyle>
+        <Style TargetType="DataGridRow">
+          <Style.Triggers>
+            <DataTrigger Binding="{Binding KindText}" Value="Only in model">
+              <Setter Property="Background" Value="{DynamicResource SystemFillColorAttentionBackgroundBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding KindText}" Value="Only in Excel">
+              <Setter Property="Background" Value="{DynamicResource SystemFillColorNeutralBackgroundBrush}" />
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </DataGrid.RowStyle>
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Key" Binding="{Binding Key}" IsReadOnly="True" Width="110" FontWeight="SemiBold" />
+        <DataGridTextColumn Header="Column" Binding="{Binding Field}" IsReadOnly="True" Width="150" />
+        <DataGridTextColumn Header="" Binding="{Binding KindText}" IsReadOnly="True" Width="100" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+        <DataGridTextColumn Header="In the model" Binding="{Binding ModelValue}" IsReadOnly="True" Width="*" />
+        <DataGridTextColumn Header="In Excel" Binding="{Binding ExcelValue}" IsReadOnly="True" Width="*" />
+        <DataGridTemplateColumn Header="Action" Width="150">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding Action, UpdateSourceTrigger=PropertyChanged}" BorderThickness="0">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock>
+                      <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                          <Setter Property="Text" Value="Skip" />
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding}" Value="UseExcel"><Setter Property="Text" Value="Excel → model" /></DataTrigger>
+                            <DataTrigger Binding="{Binding}" Value="UseModel"><Setter Property="Text" Value="Model → Excel" /></DataTrigger>
+                            <DataTrigger Binding="{Binding}" Value="AddToExcel"><Setter Property="Text" Value="Add row to Excel" /></DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </TextBlock.Style>
+                    </TextBlock>
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+        <DataGridTextColumn Header="File" Binding="{Binding Where}" IsReadOnly="True" Width="140" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</Window>

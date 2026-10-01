@@ -1,0 +1,29 @@
+<Project>
+  <!--
+    Common settings for every project in the solution.
+    Host (Revit / AutoCAD) version selection lives in build/HostVersions.props.
+  -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Company>Nexus</Company>
+    <Product>Nexus</Product>
+    <Version>0.1.0</Version>
+    <Deterministic>true</Deterministic>
+    <!-- Lets the Windows-only projects compile on non-Windows build agents (CI). -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- Solution configurations are named Debug.2026 / Release.2026 etc. -->
+    <Configurations>Debug;Release;Debug.2026;Release.2026</Configurations>
+    <Optimize Condition="$(Configuration.StartsWith('Release'))">true</Optimize>
+    <DebugType>portable</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(Configuration.StartsWith('Debug'))">
+    <DefineConstants>$(DefineConstants);DEBUG;TRACE</DefineConstants>
+  </PropertyGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)build/HostVersions.props" />
+</Project>

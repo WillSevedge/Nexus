@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- UI-free hub logic: agent discovery, pipe client, result flattening, export.
+       Shared by the WPF hub, the CLI and (later) the MCP server. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Nexus.Hub.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Nexus.Contracts\Nexus.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Excel link: read/compare/write .xlsx/.xlsm templates (MIT). -->
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
+  </ItemGroup>
+</Project>
