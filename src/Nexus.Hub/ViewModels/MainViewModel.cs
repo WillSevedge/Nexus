@@ -533,7 +533,11 @@ public sealed class MainViewModel : Observable
 
     private void BuildTable(DatasetNode dataset)
     {
-        if (_grid is not null) _grid.ColumnChanged -= OnGridValueChanged;
+        if (_grid is not null)
+        {
+            _grid.ColumnChanged -= OnGridValueChanged;
+            _grid.RowChanged -= OnGridRowChanged;
+        }
         _gridColumnIds.Clear();
         _gridColumnByColumnId.Clear();
         SelectedRow = null;
@@ -568,6 +572,7 @@ public sealed class MainViewModel : Observable
         dt.EndLoadData();
         dt.AcceptChanges();
         dt.ColumnChanged += OnGridValueChanged;
+        dt.RowChanged += OnGridRowChanged;
 
         _table = table;
         _grid = dt;
@@ -692,9 +697,8 @@ public sealed class MainViewModel : Observable
     {
         original = null;
         var row = view.Row;
-        if (row.RowState != DataRowState.Modified || !_gridColumnIds.ContainsKey(gridColumn)) return false;
-        original = row[gridColumn, DataRowVersion.Original] as string;
-        return !Editing.SameValue(original, row[gridColumn, DataRowVersion.Current] as string);
+        if (!_gridColumnIds.ContainsKey(gridColumn)) return false;
+        return GridEdits.IsEdited(row, gridColumn, out original);
     }
 
     /// <summary>Sets a cell if it is editable. Returns null on success, else why not.</summary>
@@ -736,6 +740,9 @@ public sealed class MainViewModel : Observable
         Status = n == 0 ? "Nothing to revert in the selection." : $"Reverted {n} cell(s).";
         return n;
     }
+
+    /// <summary>A row edit was committed (or cancelled): recount, since the cell event fired while it was still proposed.</summary>
+    private void OnGridRowChanged(object sender, DataRowChangeEventArgs e) => PendingEdits = CollectEdits().Count;
 
     private void OnGridValueChanged(object sender, DataColumnChangeEventArgs e)
     {
@@ -826,12 +833,12 @@ public sealed class MainViewModel : Observable
         if (_grid is null || _table is null) return edits;
         foreach (DataRow row in _grid.Rows)
         {
-            if (row.RowState != DataRowState.Modified) continue;
+            if (!GridEdits.MayBeEdited(row)) continue;
             var tableRow = _table.Rows[(int)row[RowIndexColumn]];
             foreach (var (gridColumn, columnId) in _gridColumnIds)
             {
-                string? now = row[gridColumn, DataRowVersion.Current] as string;
-                if (Editing.SameValue(row[gridColumn, DataRowVersion.Original] as string, now)) continue;
+                if (!GridEdits.IsEdited(row, gridColumn, out _)) continue;
+                string? now = GridEdits.Value(row, gridColumn);
                 if (!tableRow.Values.ContainsKey(columnId)) continue;
                 edits.Add(new CellEdit(tableRow, columnId, now ?? ""));
             }
@@ -841,6 +848,7 @@ public sealed class MainViewModel : Observable
 
     private void DiscardEdits()
     {
+        CommitGridEdits?.Invoke();
         _grid?.RejectChanges();
         PendingEdits = 0;
         Status = "Changes discarded.";

@@ -32,7 +32,32 @@ public sealed class AgentNode : Observable
         }
     }
 
-    /// <summary>Product badge letter(s) and colour, like the Autodesk product icons.</summary>
+    private System.Windows.Media.ImageSource? _icon;
+    private string? _iconFor;
+
+    /// <summary>The Autodesk product's own icon, read from the installed program (null if not found).</summary>
+    public System.Windows.Media.ImageSource? ProductIcon
+    {
+        get
+        {
+            string key = $"{Product} {Connection.Host.Version}";
+            if (_iconFor != key)
+            {
+                _iconFor = key;
+                _icon = ProductIcons.For(Connection.Host, Product);
+            }
+            return _icon;
+        }
+    }
+
+    public bool HasProductIcon => ProductIcon is not null;
+    public bool ShowBadge => !HasProductIcon;
+
+    /// <summary>Shown under the program when its add-in cannot take edits (built before editing existed).</summary>
+    public string? EditNote => Connection.Client is null || Connection.CanWrite ? null
+        : "View only: this program's Nexus add-in is out of date. Close it, Rebuild Solution in Visual Studio, and reopen it.";
+
+    /// <summary>Fallback badge when the product icon cannot be read.</summary>
     public string Badge => Product switch
     {
         "Revit" => "R",
@@ -63,6 +88,10 @@ public sealed class AgentNode : Observable
         Raise(nameof(Subtitle));
         Raise(nameof(Badge));
         Raise(nameof(BadgeColor));
+        Raise(nameof(ProductIcon));
+        Raise(nameof(HasProductIcon));
+        Raise(nameof(ShowBadge));
+        Raise(nameof(EditNote));
         Error = Connection.LastError;
     }
 }
@@ -298,14 +327,12 @@ public sealed class DetailRow : Observable, IDisposable
     {
         get
         {
-            var row = _view.Row;
-            return row.RowState == DataRowState.Modified &&
-                   !Editing.SameValue(row[GridColumn, DataRowVersion.Original] as string, row[GridColumn] as string);
+            return GridEdits.IsEdited(_view.Row, GridColumn, out _);
         }
     }
 
     public string ToolTip => IsEdited
-        ? $"Edited. Was: {_view.Row[GridColumn, DataRowVersion.Original]}"
+        ? $"Edited. Was: {(GridEdits.IsEdited(_view.Row, GridColumn, out var was) ? was : "")}"
         : Reason is { } r ? "Not editable: " + r
         : $"{Property.Source}{(Property.DataType is null ? "" : " · " + Property.DataType)}{(Property.Units is null ? "" : " · " + Property.Units)}";
 

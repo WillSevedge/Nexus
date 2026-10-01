@@ -157,3 +157,35 @@ public sealed class SheetIndexAndExcelTests : IDisposable
     public void Natural_sort_orders_sheet_numbers() =>
         Assert.Equal(new[] { "A-2", "A-10", "B-1" }, new[] { "A-10", "B-1", "A-2" }.OrderBy(x => x, NaturalComparer.Instance));
 }
+
+public class GridEditTests
+{
+    [Fact]
+    public void Edits_count_while_the_row_is_still_being_edited_and_after_commit()
+    {
+        var dt = new System.Data.DataTable();
+        dt.Columns.Add("c0", typeof(string));
+        dt.Columns.Add("c1", typeof(string));
+        dt.Rows.Add("A-101", "Plan");
+        dt.Rows.Add("A-102", "Section");
+        dt.AcceptChanges();
+
+        var row = dt.Rows[0];
+        var view = dt.DefaultView[0];
+        view.BeginEdit();          // the WPF DataGrid edits rows like this
+        view["c1"] = "Floor Plan"; // cell committed, row still in edit
+        Assert.True(GridEdits.IsEdited(row, "c1", out var original));
+        Assert.Equal("Plan", original);
+        Assert.False(GridEdits.IsEdited(row, "c0", out _));
+        Assert.Equal("Floor Plan", GridEdits.Value(row, "c1"));
+
+        view.EndEdit();            // row committed
+        Assert.True(GridEdits.IsEdited(row, "c1", out _));
+        Assert.False(GridEdits.MayBeEdited(dt.Rows[1]));
+
+        view.BeginEdit();
+        view["c1"] = "Plan";       // typed back to the original value
+        view.EndEdit();
+        Assert.False(GridEdits.IsEdited(row, "c1", out _));
+    }
+}
