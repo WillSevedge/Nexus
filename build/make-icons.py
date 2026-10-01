@@ -5,7 +5,7 @@ Outputs (src/Nexus.Hub/Assets):
   Nexus.ico          app / Start Menu / tray icon: the N on a light rounded tile, readable on light and dark taskbars
   Nexus-dark.png     the N in near-black, for light backgrounds (hub header in light mode)
   Nexus-light.png    the N in white, for dark backgrounds (hub header in dark mode)
-and src/Nexus.Agent.Revit/Resources + src/Nexus.Agent.Acad/Resources:
+and src/Common/Resources (linked into the Revit and AutoCAD add-ins):
   Nexus-16.png, Nexus-32.png  ribbon button images (N on the tile)
 
 Usage:  python build/make-icons.py      (needs Pillow: pip install pillow)
@@ -47,7 +47,7 @@ def tiled(size):
     d = ImageDraw.Draw(tile)
     r = round(big * 0.2)
     d.rounded_rectangle([0, 0, big - 1, big - 1], radius=r, fill=TILE, outline=(0, 0, 0, 60), width=max(1, scale))
-    mark = glyph(INK, big, padding=0.2)
+    mark = glyph(INK, big, padding=0.12 if size <= 24 else 0.18)
     tile.alpha_composite(mark)
     return tile.resize((size, size), Image.LANCZOS)
 
@@ -60,11 +60,10 @@ def main():
     images[-1].save(ASSETS / "Nexus.ico", sizes=[(s, s) for s in sizes], append_images=images[:-1])
     glyph(INK, 256).save(ASSETS / "Nexus-dark.png")
     glyph((255, 255, 255, 255), 256).save(ASSETS / "Nexus-light.png")
-    for project in ("Nexus.Agent.Revit", "Nexus.Agent.Acad"):
-        res = ROOT / "src" / project / "Resources"
-        res.mkdir(exist_ok=True)
-        tiled(16).save(res / "Nexus-16.png")
-        tiled(32).save(res / "Nexus-32.png")
+    res = ROOT / "src" / "Common" / "Resources"
+    res.mkdir(parents=True, exist_ok=True)
+    tiled(16).save(res / "Nexus-16.png")
+    tiled(32).save(res / "Nexus-32.png")
     print("Icons written to", ASSETS)
 
 

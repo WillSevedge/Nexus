@@ -24,6 +24,11 @@
   <ItemGroup>
     <!-- Window icon (WPF resource) and tray icon (embedded, loaded at tray size). -->
     <Resource Include="Assets\Nexus.ico" />
+    <!-- The Nexus N for the window header: dark mark on light themes, light mark on dark themes. -->
+    <Resource Include="Assets\Nexus-dark.png" />
+    <Resource Include="Assets\Nexus-light.png" />
+    <!-- Source for build\make-icons.py; not used at run time. -->
+    <None Include="Assets\Nexus-logo.png" />
     <EmbeddedResource Include="Assets\Nexus.ico" LogicalName="Nexus.ico" />
   </ItemGroup>
   <ItemGroup>

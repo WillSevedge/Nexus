@@ -45,6 +45,27 @@ public partial class MainWindow : Window
 
         InputBindings.Add(new KeyBinding(new RelayCommand(() => { SearchBox.Focus(); SearchBox.SelectAll(); return Task.CompletedTask; }), Key.F, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(_vm.RefreshCommand, Key.F5, ModifierKeys.None));
+
+        // The N follows Windows light/dark mode, like the rest of the window.
+        UpdateBrandLogo();
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+        Closed += (_, _) => Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+    }
+
+    private void OnUserPreferenceChanged(object sender, Microsoft.Win32.UserPreferenceChangedEventArgs e) =>
+        Dispatcher.BeginInvoke(UpdateBrandLogo);
+
+    private void UpdateBrandLogo()
+    {
+        bool dark = false;
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            dark = key?.GetValue("AppsUseLightTheme") is int light && light == 0;
+        }
+        catch { /* default: light */ }
+        BrandLogo.Source = new System.Windows.Media.Imaging.BitmapImage(
+            new Uri($"pack://application:,,,/Assets/Nexus-{(dark ? "light" : "dark")}.png"));
     }
 
     // ------------------------------------------------------------------ columns

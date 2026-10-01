@@ -38,8 +38,8 @@ internal sealed class AcadRibbon : IDisposable
         _host = host;
         foreach (AgentState s in Enum.GetValues<AgentState>())
         {
-            _large[s] = CreateIcon(s, 32);
-            _small[s] = CreateIcon(s, 16);
+            _large[s] = RibbonIcons.Create(s, 32);
+            _small[s] = RibbonIcons.Create(s, 16);
         }
 
         if (ComponentManager.Ribbon is not null) Create();
@@ -190,32 +190,6 @@ internal sealed class AcadRibbon : IDisposable
         window.Content = panel;
 
         AcUiApp.ShowModalWindow(window);
-    }
-
-    private static ImageSource CreateIcon(AgentState state, int size)
-    {
-        var color = state switch
-        {
-            AgentState.Connected => Color.FromRgb(0x2E, 0x9E, 0x44),
-            AgentState.Listening => Color.FromRgb(0x2F, 0x6F, 0xD6),
-            AgentState.Faulted => Color.FromRgb(0xD0, 0x3A, 0x2F),
-            _ => Color.FromRgb(0x8A, 0x8A, 0x8A),
-        };
-        double k = size / 32.0;
-        var visual = new DrawingVisual();
-        using (var dc = visual.RenderOpen())
-        {
-            var brush = new SolidColorBrush(color);
-            brush.Freeze();
-            dc.DrawRoundedRectangle(brush, null, new Rect(2 * k, 2 * k, 28 * k, 28 * k), 6 * k, 6 * k);
-            var text = new FormattedText("N", CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-                new Typeface("Segoe UI Semibold"), 20 * k, Brushes.White, 1.0);
-            dc.DrawText(text, new Point(size / 2.0 - text.Width / 2, size / 2.0 - text.Height / 2));
-        }
-        var bmp = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
-        bmp.Render(visual);
-        bmp.Freeze();
-        return bmp;
     }
 
     public void Dispose()
