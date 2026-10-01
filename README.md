@@ -264,9 +264,11 @@ starts when you sign in to Windows.
     **F2** sets one value for all, **Ctrl+H** finds and replaces, **Delete** clears, **Ctrl+Z** reverts;
   - click a header to sort; **Ctrl+F** searches all visible columns; **Columns…** picks the columns (remembered per view).
 - **Details** (right). Every property of the selected row, grouped, editable in place.
-- **Revisions on sheets** (toolbar or right-click, Revit sheets). Select one or more sheets and tick which revisions
-  they show: a tick means on every selected sheet, a dash means on some. Or select Yes/No cells and press **Space**.
-  Changes are pending until *Review & apply*, like any edit.
+- **Revisions on sheets** (right-click, Revit sheets). Right-click a sheet, or select several (Shift/Ctrl+click) and
+  right-click them: the menu lists every revision, ticked when it is on all of them and with a dash when it is on
+  some. Click a revision to add it to (or, if all have it, remove it from) those sheets; the menu stays open so you
+  can change several, plus *Show all* / *Remove all*. Revisions placed by revision clouds stay, as in Revit. Or select
+  Yes/No cells and press **Space**. Changes are pending until *Review & apply*, like any edit.
 - **Show in model** (toolbar, details or right-click). Revit opens the sheet (or selects and zooms to elements);
   AutoCAD/Civil 3D switches to the drawing and layout, selects the objects and zooms to them.
 - **Changes bar** (bottom). **Review & apply…** lists every change (old → new), writes them, and shows each outcome:

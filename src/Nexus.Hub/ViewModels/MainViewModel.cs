@@ -718,6 +718,10 @@ public sealed class MainViewModel : Observable
         return list;
     }
 
+    /// <summary>How many of the given rows are sheets with revision columns.</summary>
+    public int RevisionSheetCount(IReadOnlyList<DataRowView> views) =>
+        views.Count(v => RowOf(v)?.Values.Keys.Any(k => _table!.ColumnsById.TryGetValue(k, out var c) && c.Group == RevisionsGroup) == true);
+
     /// <summary>Shows/hides revisions on the given sheets (staged as normal edits). Returns a status line.</summary>
     public string SetRevisions(IReadOnlyList<DataRowView> views, IReadOnlyDictionary<string, bool> changes)
     {

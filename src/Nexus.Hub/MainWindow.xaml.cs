@@ -237,21 +237,95 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Revisions on sheets: tick which revisions the selected sheets show (like Revit's dialog, for many sheets at once).
+    /// Right-click on a row that is not part of the selection selects just that row (so the menu acts on it);
+    /// right-click inside a selection keeps it (to act on all selected sheets).
     /// </summary>
-    private void OnRevisions(object sender, RoutedEventArgs e)
+    private void OnGridRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        var cell = FindParent<DataGridCell>(e.OriginalSource as DependencyObject);
+        if (cell?.DataContext is not DataRowView view) return;
+        if (SelectedRows().Contains(view)) return;
+        TableGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        TableGrid.SelectedCells.Clear();
+        foreach (var column in TableGrid.Columns)
+            TableGrid.SelectedCells.Add(new DataGridCellInfo(view, column));
+        TableGrid.CurrentCell = new DataGridCellInfo(view, cell.Column);
+        cell.Focus();
+    }
+
+    private static T? FindParent<T>(DependencyObject? d) where T : DependencyObject
+    {
+        while (d is not null and not T) d = d is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d);
+        return d as T;
+    }
+
+    private readonly List<(MenuItem Item, string ColumnId, string Label)> _revisionItems = new();
+
+    /// <summary>Builds the Revisions submenu for the selected sheets each time the menu opens.</summary>
+    private void OnGridContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
         TableGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        var items = TableGrid.ContextMenu?.Items.OfType<FrameworkElement>().ToList() ?? new();
+        if (items.FirstOrDefault(i => i.Name == "RevisionsMenu") is not MenuItem RevisionsMenu) return;
+        var RevisionsSeparator = items.FirstOrDefault(i => i.Name == "RevisionsSeparator") ?? new Separator();
+        RevisionsMenu.Items.Clear();
+        _revisionItems.Clear();
+
         var rows = SelectedRows();
         var states = _vm.RevisionStates(rows);
-        if (rows.Count == 0 || states.Count == 0)
+        bool show = states.Count > 0;
+        RevisionsMenu.Visibility = RevisionsSeparator.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (!show) return;
+
+        int sheets = _vm.RevisionSheetCount(rows);
+        RevisionsMenu.Header = sheets == 1 ? "Revisions on this sheet" : $"Revisions on these {sheets} sheets";
+        foreach (var (columnId, label, _, _) in states)
         {
-            _vm.Status = "Select one or more Revit sheets first (click a row; Ctrl+click or Shift+click for more).";
-            return;
+            var item = new MenuItem { StaysOpenOnClick = true };
+            item.Click += (_, _) => ToggleRevision(columnId);
+            _revisionItems.Add((item, columnId, label));
+            RevisionsMenu.Items.Add(item);
         }
-        var changes = Dialogs.AskRevisions(this, rows.Count, states);
-        if (changes is null || changes.Count == 0) return;
+        RevisionsMenu.Items.Add(new Separator());
+        var all = new MenuItem { Header = "Show all revisions", StaysOpenOnClick = true };
+        all.Click += (_, _) => SetAllRevisions(true);
+        var none = new MenuItem { Header = "Remove all revisions", StaysOpenOnClick = true };
+        none.Click += (_, _) => SetAllRevisions(false);
+        RevisionsMenu.Items.Add(all);
+        RevisionsMenu.Items.Add(none);
+        RefreshRevisionItems();
+    }
+
+    /// <summary>Tick = on every selected sheet; dash = on some of them; locked ones say why.</summary>
+    private void RefreshRevisionItems()
+    {
+        var states = _vm.RevisionStates(SelectedRows()).ToDictionary(s => s.ColumnId);
+        foreach (var (item, columnId, label) in _revisionItems)
+        {
+            if (!states.TryGetValue(columnId, out var s)) continue;
+            item.IsChecked = s.State == true;
+            item.Icon = s.State is null ? new TextBlock { Text = "–", FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center } : null;
+            item.Header = s.Locked > 0 ? $"{label}   (by revision clouds on {s.Locked})" : label;
+            item.ToolTip = s.State is null ? "On some of the selected sheets. Click to add it to all of them." : null;
+        }
+    }
+
+    /// <summary>Click a revision: add it to every selected sheet, or remove it if all of them already show it.</summary>
+    private void ToggleRevision(string columnId)
+    {
+        var rows = SelectedRows();
+        var state = _vm.RevisionStates(rows).FirstOrDefault(s => s.ColumnId == columnId);
+        if (state.ColumnId is null) return;
+        _vm.SetRevisions(rows, new Dictionary<string, bool> { [columnId] = state.State != true });
+        RefreshRevisionItems();
+    }
+
+    private void SetAllRevisions(bool show)
+    {
+        var rows = SelectedRows();
+        var changes = _vm.RevisionStates(rows).ToDictionary(s => s.ColumnId, _ => show);
         _vm.SetRevisions(rows, changes);
+        RefreshRevisionItems();
     }
 
     /// <summary>Space on selected Yes/No cells: all become Yes, or all No if they already are.</summary>
