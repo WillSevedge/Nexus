@@ -143,6 +143,11 @@ The core detects Civil 3D after startup, on the first idle. It looks for any of:
 The detection rules are in `modules.json` next to the core DLL.
 
 **Readers**
+- `acad.sheets`: one row per layout (the sheet index): layout name (editable; renames the layout), page setup,
+  plotter, paper size, plot scale, viewport scales, every attribute of the layout's title block (editable), and the
+  drawing properties (DWGPROPS: title, subject, author, keywords, comments, custom properties; editable). The title
+  block is the attributed block whose name looks like one (TITLE, TB, BORDER, SHEET…), else the one with the most
+  attributes; set exact names with the `titleBlockNames` option (wildcards allowed).
 - `acad.layouts`: one item per layout, in tab order, plus a `Drawing` item.
   - Drawing item: drawing settings and, for the active drawing, the system variables the palette shows with nothing selected. These cover current layer, color, linetype, lineweight, annotation scale, UCS, plot style, view center/size and similar settings.
   - Each layout: page setup, plotter, paper size, plot style table, plot settings including shade plot and DPI, all layout COM/.NET properties, and the paper space view (view center/height/width, visual style, UCS settings, annotation scale).
@@ -213,30 +218,69 @@ starts when you sign in to Windows.
   **Exit Nexus** to stop it.
 - **Start with Windows.** On by default; toggle it in the tray menu (a per-user `Run` entry that starts
   `%LOCALAPPDATA%\Nexus\Hub\Nexus.exe --background`).
-- **Hosts.** Revit, AutoCAD and Civil 3D sessions are picked up within a few seconds of starting or closing,
-  even while the window is hidden. **Refresh hosts** also re-lists the open documents.
+- **Programs.** Revit, AutoCAD and Civil 3D sessions are picked up within a few seconds of starting or closing,
+  even while the window is hidden. **Reload** (F5) also re-lists the open files.
 - **Debugging.** Building the solution does not touch the installed hub. F5 on `Nexus.Hub` uses the
   `--replace` launch profile: the installed hub exits and the debugger's copy takes over until you stop
   debugging. Set `InstallHubOnBuild=true` to reinstall the hub on every build instead.
   Switches: `--background`, `--install`, `--uninstall`, `--shutdown`, `--replace`.
 
-1. **Hosts and open documents.** Every running agent, with product, year, modules and pid, and its open documents flagged active, read-only, workshared, linked or family. The active document of each host is pre-checked. Click **Refresh hosts** after opening or closing files or hosts.
-2. **Readers.** Readers from all agents. Expand one to change its options. Placeholders are greyed out and return `NotImplemented`.
-3. **Run readers.** Runs every checked reader on every checked document of the matching host type. Different hosts run in parallel.
-4. **Results.** One entry per document × reader, with item count, time, warnings or error. Select an entry to see its warnings. Untick it to leave it out of the table and exports.
-5. **Table.** One row per item (children indented), one column per checked property.
-6. **Items.** Browse the selected result's item tree. Select an item to see every property with value, read-only flag and reason, source, storage type, data type, units and id.
-7. **Columns.** Choose which groups and properties go into the table and exports. You can filter by name.
-8. **Editing** (Revit, AutoCAD, Civil 3D). Double-click a value in the **Table** tab (or select it and start typing) to change it. Paper space objects, title block attributes and other child items are rows in the table too. The **Items** tab is for browsing.
-   - Edited cells turn yellow; the tooltip shows the old value.
-   - Grey cells cannot be edited; the tooltip says why (read-only parameter, borrowed element, host without editing, …).
-   - **Apply N change(s)…** shows every edit (document, item, property, old → new). **Apply to the model** writes them and shows each outcome: *Applied*, *Unchanged*, *Skipped* (with why) or *Failed* (with why). Closing the window re-reads the changed results so the table shows the model's values.
-   - **Discard changes** puts the table back. Re-running readers or rebuilding the table asks before discarding unapplied edits.
-9. **Export.**
-   - *CSV one row per item*: the table as shown, all rows.
-   - *CSV one row per property*: includes read-only flags, sources and units.
-   - *JSON*: the raw results.
-   CSV files open directly in Excel.
+### Using the hub
+
+```
+┌ Nexus  Show [Sheets ▾] [Options] [Reload]   Search…        [Show in model] [Columns…] [Excel ▾] [⋯] ┐
+│ CONNECTED            │ File        Number  Title         Revision  Drawn By …  │ DETAILS              │
+│ Revit 2026           │ Tower.rvt   A-101   Floor Plan    2         WS          │ A-101                │
+│  ☑ Tower.rvt active  │ Tower.rvt   A-102   Sections      1         WS          │ Sheet · Identity …   │
+│ Civil 3D 2026        │ C-Grade.dwg C-201   GRADING PLAN            JD          │  Sheet Name [ … ]    │
+│  ☑ C-Grade.dwg       │                                                         │ Title Block …        │
+│ EXCEL  Index.xlsx    │                                                         │                      │
+│  [Compare…]          │                                                         │                      │
+└ 3 files · 48 rows · 1 warning        status…               [ 2 changes not yet applied  Review & apply… ] ┘
+```
+
+- **Connected** (left). Every running Revit, AutoCAD and Civil 3D with its open files. The active file of each
+  program is ticked; tick the files you want in the grid. Changes reload automatically.
+- **Show** (top). What to look at:
+  - **Sheets** (all programs): one row per Revit sheet and per AutoCAD/Civil 3D layout, with the standard columns
+    **Number, Title, Revision, Revision Date, Issue Date, Drawn/Checked/Designed/Approved By, Scale, Project Number**.
+    In Revit they come from the sheet parameters; in AutoCAD from the title block attributes (`DWGNO`, `TITLE`,
+    `REV`… with many common spellings). Add your own tags in `%LOCALAPPDATA%\Nexus\sheet-fields.json`
+    (**⋯ → Sheet field matching**). Every other sheet, title block and drawing property is available too.
+  - Per program: Revit *Project Information*, AutoCAD *Layouts (all objects)*, Civil 3D *objects*, …
+  - **Options** changes what a reader includes (title block names, hidden parameters, …).
+- **Grid** (center). Works like a spreadsheet:
+  - double-click or type to edit; edited cells turn yellow (tooltip: old value); grey cells are locked (tooltip: why);
+  - select several cells: **Ctrl+V** pastes a value or a block copied from Excel, **Ctrl+D** fills down,
+    **F2** sets one value for all, **Ctrl+H** finds and replaces, **Delete** clears, **Ctrl+Z** reverts;
+  - click a header to sort; **Ctrl+F** searches all visible columns; **Columns…** picks the columns (remembered per view).
+- **Details** (right). Every property of the selected row, grouped, editable in place.
+- **Show in model** (toolbar, details or right-click). Revit opens the sheet (or selects and zooms to elements);
+  AutoCAD/Civil 3D switches to the drawing and layout, selects the objects and zooms to them.
+- **Changes bar** (bottom). **Review & apply…** lists every change (old → new), writes them, and shows each outcome:
+  *Applied*, *Unchanged*, *Skipped* or *Failed*, with the reason. The grid then reloads from the model.
+  **Discard** puts everything back. A sheet field and the parameter/attribute behind it change together.
+
+### Excel link
+
+Link your sheet index or template once; Nexus remembers it (per workbook) and compares it with the model.
+
+1. **Excel ▾ → Link a workbook…** (or *Link workbook…* in the left panel). Pick the `.xlsx`/`.xlsm`, the worksheet
+   and the header row (found automatically). Each Excel column is matched to a Nexus column (e.g. *Sheet No.* →
+   Number, *Sheet Title* → Title, *Rev* → Revision); fix or add matches, and pick the column rows are matched on
+   (normally the sheet number). Any Nexus column can be linked, not only the standard ones.
+2. **Compare…** lists every linked value that differs, every sheet that is only in the model, and every row only
+   in Excel. For each, choose:
+   - **Excel → model**: the value is staged in the grid (yellow) and written with *Review & apply*, as usual;
+   - **Model → Excel**: the workbook cell is updated;
+   - **Add row to Excel**: a missing sheet is added below the last row (taking its formatting).
+   Buttons apply one choice to every row.
+3. Writing to Excel needs the workbook closed in Excel. A backup copy is saved first in
+   `%LOCALAPPDATA%\Nexus\excel-backups`. Cells with formulas are never overwritten; numbers stay numbers;
+   macros in `.xlsm` files are kept. Reading and comparing work while the workbook is open.
+
+**Excel ▾ → Export this view to Excel…** saves the grid as shown (columns, filter and sort) to a new formatted workbook.
+**⋯** has the CSV and JSON exports.
 
 ### CLI
 

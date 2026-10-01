@@ -3,119 +3,172 @@ using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using Microsoft.Win32;
 using Nexus.Contracts;
 using Nexus.Hub.Core;
-using Microsoft.Win32;
+using Nexus.Hub.Core.Excel;
 
 namespace Nexus.Hub.ViewModels;
 
+/// <summary>A grid column: the DataTable column it shows and how to label it.</summary>
+public sealed record GridColumnSpec(string Column, string Group, string Name, bool Editable, bool Frozen);
+
+/// <summary>
+/// The hub screen: connected programs and files (left), a dataset loaded into an editable
+/// grid (center), the selected row's properties (right), pending changes (bottom).
+/// </summary>
 public sealed class MainViewModel : Observable
 {
-    /// <summary>Above this many columns, new columns start unchecked to keep the grid fast.</summary>
-    private const int AutoCheckColumnLimit = 300;
-    private const int MaxGridColumns = 1500;
+    public const string SheetsDatasetId = "sheets";
+    private const string RowIndexColumn = "__row";
+    private const string FileColumn = "c_file";
+    private const string ItemColumn = "c_item";
+    private const int DefaultVisibleLimit = 25;
 
     private readonly Dictionary<int, AgentNode> _agents = new();
-    private string _status = "Ready";
-    private ResultRun? _selectedRun;
-    private ItemNode? _selectedItem;
-    private string _columnFilter = "";
-    private bool _busy;
-    private bool _refreshing;
+    private readonly Dictionary<(string Host, string Reader), ReaderNode> _readers = new();
+    private readonly UiSettings _settings = UiSettings.Load();
+    private readonly SheetFieldMap _sheetFields = SheetFieldMap.LoadOrCreate();
 
-    // The table as shown: the flattened results, the grid's DataTable, and which
-    // grid column ("c7") holds which property column ("Group › Name").
-    private const string RowIndexColumn = "__row";
+    // The grid: the flattened results, its DataTable (all columns), and grid column ↔ Nexus column id.
     private ResultTable? _table;
     private DataTable? _grid;
     private readonly Dictionary<string, string> _gridColumnIds = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _gridColumnByColumnId = new(StringComparer.Ordinal);
+    private HashSet<string> _visible = new(StringComparer.Ordinal);
+    private bool _syncing;
+
+    private DatasetNode? _dataset;
+    private DataRowView? _selectedRow;
+    private string _status = "Starting…";
+    private string _summary = "";
+    private string _search = "";
     private int _pendingEdits;
+    private bool _busy;
+    private bool _refreshing;
+    private int _loadGeneration;
+    private CancellationTokenSource? _reloadDelay;
+    private ExcelLink? _excelLink;
 
     public MainViewModel()
     {
-        RefreshCommand = new RelayCommand(RefreshAsync);
-        RunCommand = new RelayCommand(RunAsync, () => !_busy);
-        ShowTableCommand = new RelayCommand(() =>
-        {
-            if (!ConfirmDiscardEdits()) return Task.CompletedTask;
-            RebuildColumns();
-            BuildTable();
-            return Task.CompletedTask;
-        });
+        RefreshCommand = new RelayCommand(async () => { await RefreshAsync(); await LoadAsync(); });
         ApplyChangesCommand = new RelayCommand(ReviewAndApplyAsync, () => _pendingEdits > 0 && !_busy);
-        DiscardChangesCommand = new RelayCommand(() =>
-        {
-            DiscardEdits();
-            return Task.CompletedTask;
-        }, () => _pendingEdits > 0 && !_busy);
-        ExportWideCommand = new RelayCommand(() => Export("wide"));
-        ExportLongCommand = new RelayCommand(() => Export("long"));
-        ExportJsonCommand = new RelayCommand(() => Export("json"));
-        ClearResultsCommand = new RelayCommand(() =>
-        {
-            if (!ConfirmDiscardEdits()) return Task.CompletedTask;
-            Results.Clear();
-            Items.Clear();
-            RebuildColumns();
-            BuildTable();
-            return Task.CompletedTask;
-        });
-        CheckAllColumnsCommand = new RelayCommand(() => SetAllColumns(true));
-        UncheckAllColumnsCommand = new RelayCommand(() => SetAllColumns(false));
+        DiscardChangesCommand = new RelayCommand(() => { DiscardEdits(); return Task.CompletedTask; }, () => _pendingEdits > 0 && !_busy);
+        ShowInModelCommand = new RelayCommand(() => ShowInModelAsync(SelectedRowsProvider?.Invoke() ?? Array.Empty<DataRowView>()),
+            () => _table is not null);
+        LinkExcelCommand = new RelayCommand(LinkExcelAsync, () => _table is not null);
+        CompareExcelCommand = new RelayCommand(CompareExcelAsync, () => _table is not null);
+        ExportExcelCommand = new RelayCommand(ExportExcel, () => _grid is not null);
+        ExportCsvCommand = new RelayCommand(() => ExportLegacy("wide"), () => _table is not null);
+        ExportLongCsvCommand = new RelayCommand(() => ExportLegacy("long"), () => _table is not null);
+        ExportJsonCommand = new RelayCommand(() => ExportLegacy("json"), () => _table is not null);
         OpenLogFolderCommand = new RelayCommand(() =>
         {
             Directory.CreateDirectory(NexusPaths.LogsDir);
             Process.Start(new ProcessStartInfo("explorer.exe", $"\"{NexusPaths.LogsDir}\"") { UseShellExecute = true });
             return Task.CompletedTask;
         });
+        OpenSheetFieldsCommand = new RelayCommand(() =>
+        {
+            Process.Start(new ProcessStartInfo(Path.Combine(NexusPaths.Root, "sheet-fields.json")) { UseShellExecute = true });
+            return Task.CompletedTask;
+        });
+
+        if (_settings.ExcelWorkbook is { } wbPath) _excelLink = ExcelLink.LoadFor(wbPath);
 
         HubLog.Message += line => Application.Current?.Dispatcher.BeginInvoke(() =>
         {
             Log.Add(line);
-            if (Log.Count > 1000) Log.RemoveAt(0);
+            if (Log.Count > 2000) Log.RemoveAt(0);
         });
     }
 
+    // ------------------------------------------------------------------ bindable state
+
     public ObservableCollection<AgentNode> Agents { get; } = new();
-    public ObservableCollection<ReaderNode> Readers { get; } = new();
-    public ObservableCollection<ResultRun> Results { get; } = new();
-    public ObservableCollection<ColumnGroupNode> ColumnGroups { get; } = new();
-    public ObservableCollection<ItemNode> Items { get; } = new();
+    public ObservableCollection<DatasetNode> Datasets { get; } = new();
+    public ObservableCollection<DetailGroup> DetailGroups { get; } = new();
     public ObservableCollection<string> Log { get; } = new();
+    public List<ResultRun> Runs { get; private set; } = new();
 
     public RelayCommand RefreshCommand { get; }
-    public RelayCommand RunCommand { get; }
-    public RelayCommand ShowTableCommand { get; }
     public RelayCommand ApplyChangesCommand { get; }
     public RelayCommand DiscardChangesCommand { get; }
-    public RelayCommand ExportWideCommand { get; }
-    public RelayCommand ExportLongCommand { get; }
+    public RelayCommand ShowInModelCommand { get; }
+    public RelayCommand LinkExcelCommand { get; }
+    public RelayCommand CompareExcelCommand { get; }
+    public RelayCommand ExportExcelCommand { get; }
+    public RelayCommand ExportCsvCommand { get; }
+    public RelayCommand ExportLongCsvCommand { get; }
     public RelayCommand ExportJsonCommand { get; }
-    public RelayCommand ClearResultsCommand { get; }
-    public RelayCommand CheckAllColumnsCommand { get; }
-    public RelayCommand UncheckAllColumnsCommand { get; }
     public RelayCommand OpenLogFolderCommand { get; }
+    public RelayCommand OpenSheetFieldsCommand { get; }
 
-    /// <summary>Raised after each refresh with a one-line summary (tray tooltip).</summary>
-    public event Action<string>? HostsChanged;
+    /// <summary>The window supplies the rows that are selected in the grid.</summary>
+    public Func<IReadOnlyList<DataRowView>>? SelectedRowsProvider { get; set; }
 
+    /// <summary>The grid's data changed (new load): rebuild the columns.</summary>
+    public event Action<DataTable, IReadOnlyList<GridColumnSpec>>? TableReady;
+    /// <summary>Only the visible columns changed.</summary>
+    public event Action<IReadOnlyList<GridColumnSpec>>? ColumnsChanged;
     /// <summary>Raised before edits are collected; the window commits any cell still being edited.</summary>
     public event Action? CommitGridEdits;
+    /// <summary>One-line summary of connected programs (tray tooltip).</summary>
+    public event Action<string>? HostsChanged;
 
-    /// <summary>Raised when the wide table is rebuilt; the window builds the grid columns.</summary>
-    public event Action<DataTable, IReadOnlyList<(string Column, string Header)>>? TableReady;
-
-    /// <summary>Number of edited cells not yet sent to the hosts.</summary>
-    public int PendingEdits
+    public DatasetNode? SelectedDataset
     {
-        get => _pendingEdits;
-        private set
+        get => _dataset;
+        set
         {
-            if (Set(ref _pendingEdits, value)) Raise(nameof(ApplyLabel));
+            // WPF clears the selection while the list is rebuilt; that is not the user choosing nothing.
+            if (value is null || ReferenceEquals(value, _dataset)) return;
+            if (!ConfirmDiscardEdits())
+            {
+                Raise(); // put the picker back
+                return;
+            }
+            _dataset = value;
+            Raise();
+            Raise(nameof(DatasetOptions));
+            Raise(nameof(HasOptions));
+            if (value is not null)
+            {
+                _settings.LastDataset = value.Id;
+                _settings.Save();
+            }
+            _ = LoadAsync(confirm: false);
         }
     }
 
-    public string ApplyLabel => _pendingEdits == 0 ? "Apply changes" : $"Apply {_pendingEdits} change(s)…";
+    /// <summary>Options of the readers behind the selected dataset.</summary>
+    public IEnumerable<ReaderNode> DatasetOptions => _dataset?.Readers.Values.Where(r => r.Options.Count > 0) ?? Enumerable.Empty<ReaderNode>();
+    public bool HasOptions => DatasetOptions.Any();
+
+    public DataRowView? SelectedRow
+    {
+        get => _selectedRow;
+        set
+        {
+            if (!Set(ref _selectedRow, value)) return;
+            BuildDetails();
+            Raise(nameof(SelectedTitle));
+            Raise(nameof(SelectedSubtitle));
+        }
+    }
+
+    public string SelectedTitle => RowOf(_selectedRow) is { } r ? (r.Key.Length > 0 ? r.Key : r.Item) : "Nothing selected";
+    public string SelectedSubtitle => RowOf(_selectedRow) is { } r ? $"{r.ItemType} · {r.Document} · {r.Host}" : "Select a row to see and edit all of its properties.";
+
+    public string Search
+    {
+        get => _search;
+        set
+        {
+            if (Set(ref _search, value)) ApplySearch();
+        }
+    }
 
     public string Status
     {
@@ -123,53 +176,66 @@ public sealed class MainViewModel : Observable
         set => Set(ref _status, value);
     }
 
-    public ResultRun? SelectedRun
+    /// <summary>"3 files · 42 rows · 2 warnings".</summary>
+    public string Summary
     {
-        get => _selectedRun;
-        set
+        get => _summary;
+        private set => Set(ref _summary, value);
+    }
+
+    public int PendingEdits
+    {
+        get => _pendingEdits;
+        private set
         {
-            if (!Set(ref _selectedRun, value)) return;
-            Items.Clear();
-            if (value?.Result is not null)
-                foreach (var i in value.Result.Items) Items.Add(new ItemNode(i));
-            Raise(nameof(SelectedRunWarnings));
+            if (!Set(ref _pendingEdits, value)) return;
+            Raise(nameof(HasPendingEdits));
+            Raise(nameof(PendingText));
         }
     }
 
-    public string SelectedRunWarnings =>
-        _selectedRun?.Error?.Detail ?? string.Join(Environment.NewLine, _selectedRun?.Result?.Warnings ?? new List<string>());
+    public bool HasPendingEdits => _pendingEdits > 0;
+    public string PendingText => _pendingEdits == 1 ? "1 change not yet applied" : $"{_pendingEdits} changes not yet applied";
 
-    public ItemNode? SelectedItem
+    public ExcelLink? ExcelLink
     {
-        get => _selectedItem;
-        set
+        get => _excelLink;
+        private set
         {
-            if (Set(ref _selectedItem, value)) Raise(nameof(SelectedProperties));
+            if (!Set(ref _excelLink, value)) return;
+            Raise(nameof(ExcelLinkTitle));
+            Raise(nameof(HasExcelLink));
         }
     }
 
-    public IEnumerable<PropertyRow> SelectedProperties => _selectedItem?.Properties ?? Enumerable.Empty<PropertyRow>();
+    public bool HasExcelLink => _excelLink is not null;
+    public string ExcelLinkTitle => _excelLink is null ? "No workbook linked" : _excelLink.Title;
 
-    public string ColumnFilter
+    public bool HasIssues => Runs.Any(r => r.Failed || r.Result?.Warnings.Count > 0);
+
+    public string IssuesText
     {
-        get => _columnFilter;
-        set
+        get
         {
-            if (Set(ref _columnFilter, value)) Raise(nameof(FilteredColumnGroups));
+            int failed = Runs.Count(r => r.Failed), warnings = Runs.Sum(r => r.Result?.Warnings.Count ?? 0);
+            var parts = new List<string>();
+            if (failed > 0) parts.Add($"{failed} failed");
+            if (warnings > 0) parts.Add($"{warnings} warning{(warnings == 1 ? "" : "s")}");
+            return string.Join(", ", parts);
         }
     }
 
-    public IEnumerable<ColumnGroupNode> FilteredColumnGroups =>
-        string.IsNullOrWhiteSpace(_columnFilter)
-            ? ColumnGroups
-            : ColumnGroups.Where(g => g.Name.Contains(_columnFilter, StringComparison.OrdinalIgnoreCase)
-                                      || g.Columns.Any(c => c.Name.Contains(_columnFilter, StringComparison.OrdinalIgnoreCase)));
+    // ------------------------------------------------------------------ programs and files
 
-    // ---------------------------------------------------------------- agents
+    /// <summary>First start: find the programs, then load the last dataset (Sheets by default).</summary>
+    public async Task StartAsync()
+    {
+        await RefreshAsync();
+        await LoadAsync(confirm: false);
+    }
 
     public async Task RefreshAsync()
     {
-        Status = "Looking for running hosts…";
         var found = AgentDiscovery.Discover();
 
         foreach (var pid in _agents.Keys.Where(pid => found.All(f => f.Host.ProcessId != pid)).ToList())
@@ -180,8 +246,7 @@ public sealed class MainViewModel : Observable
             await gone.Connection.DisposeAsync();
         }
 
-        var tasks = new List<Task>();
-        foreach (var reg in found)
+        await Task.WhenAll(found.Select(reg =>
         {
             if (!_agents.TryGetValue(reg.Host.ProcessId, out var node))
             {
@@ -189,127 +254,199 @@ public sealed class MainViewModel : Observable
                 _agents[reg.Host.ProcessId] = node;
                 Agents.Add(node);
             }
-            tasks.Add(RefreshAgentAsync(node, reg));
-        }
-        await Task.WhenAll(tasks);
+            return RefreshAgentAsync(node, reg);
+        }));
 
-        RebuildReaders();
+        RebuildDatasets();
         int docs = Agents.Sum(a => a.Documents.Count);
-        Status = found.Count == 0
-            ? "No hosts found. Start Revit, AutoCAD or Civil 3D with the Nexus add-in loaded; they appear here automatically."
-            : $"{found.Count} host(s), {docs} document(s).";
+        if (!_busy)
+            Status = found.Count == 0
+                ? "Waiting for Revit, AutoCAD or Civil 3D (with the Nexus add-in). They appear here automatically."
+                : $"Connected to {found.Count} program(s) with {docs} open file(s).";
         HostsChanged?.Invoke(found.Count == 0
             ? "waiting for Revit, AutoCAD or Civil 3D"
-            : string.Join(", ", Agents.Select(a => $"{a.Connection.Host.Product} {a.Connection.Host.Version}")));
+            : string.Join(", ", Agents.Select(a => a.Title)));
     }
 
-    /// <summary>Cheap poll (reads the registration files): refreshes only when a host started or stopped.</summary>
-    public async Task RefreshIfHostsChangedAsync()
-    {
-        if (_busy || _refreshing) return;
-        var pids = AgentDiscovery.Discover().Select(r => r.Host.ProcessId).ToHashSet();
-        if (pids.SetEquals(_agents.Keys)) return;
-        _refreshing = true;
-        try { await RefreshAsync(); }
-        finally { _refreshing = false; }
-    }
-
-    /// <summary>Asks before exiting with unapplied edits.</summary>
-    public bool ConfirmExit()
-    {
-        CommitGridEdits?.Invoke();
-        if (_pendingEdits == 0) return true;
-        return MessageBox.Show($"You have {_pendingEdits} edit(s) that have not been applied. Exit Nexus anyway?",
-            "Nexus", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
-    }
-
-    private static async Task RefreshAgentAsync(AgentNode node, AgentRegistration reg)
+    private async Task RefreshAgentAsync(AgentNode node, AgentRegistration reg)
     {
         await node.Connection.RefreshAsync(reg);
         var checkedIds = node.Documents.Where(d => d.IsChecked).Select(d => d.Info.Id).ToHashSet();
         bool first = node.Documents.Count == 0;
+        foreach (var d in node.Documents) d.CheckedChanged -= OnDocumentChecked;
         node.Documents.Clear();
-        foreach (var d in node.Connection.Documents)
+        foreach (var info in node.Connection.Documents)
         {
-            node.Documents.Add(new DocumentNode(node, d)
-            {
-                // First time: pre-check the active document of each host.
-                IsChecked = first ? d.IsActive : checkedIds.Contains(d.Id),
-            });
+            var doc = new DocumentNode(node, info);
+            // First time: tick the active file of each program; afterwards keep the user's ticks.
+            doc.Restore(first ? info.IsActive : checkedIds.Contains(info.Id));
+            doc.CheckedChanged += OnDocumentChecked;
+            node.Documents.Add(doc);
         }
         node.Refreshed();
     }
 
-    private void RebuildReaders()
+    /// <summary>
+    /// Cheap poll (registration files): refreshes only when a program started or stopped, or always
+    /// with <paramref name="force"/> (re-lists open files). Reloads when the ticked files changed.
+    /// </summary>
+    public async Task RefreshIfHostsChangedAsync(bool force = false)
     {
-        var previous = Readers.ToDictionary(r => (r.HostKind, r.Descriptor.Id));
-        Readers.Clear();
-        var seen = new HashSet<(string, string)>();
-        foreach (var agent in Agents)
+        if (_busy || _refreshing) return;
+        if (!force)
         {
-            string kind = agent.Connection.Host.HostKind;
-            foreach (var d in agent.Connection.Readers)
-            {
-                if (!seen.Add((kind, d.Id))) continue;
-                if (previous.TryGetValue((kind, d.Id), out var old))
-                {
-                    Readers.Add(old);
-                    continue;
-                }
-                Readers.Add(new ReaderNode(d, kind) { IsChecked = d.IsImplemented });
-            }
+            var pids = AgentDiscovery.Discover().Select(r => r.Host.ProcessId).ToHashSet();
+            if (pids.SetEquals(_agents.Keys)) return;
+        }
+        _refreshing = true;
+        try
+        {
+            var before = CheckedDocumentKeys();
+            await RefreshAsync();
+            // New program with its active file ticked, or a program closed: reload (unless edits are pending).
+            if (_pendingEdits == 0 && !before.SetEquals(CheckedDocumentKeys())) await LoadAsync(confirm: false);
+        }
+        finally
+        {
+            _refreshing = false;
         }
     }
 
-    // ---------------------------------------------------------------- reading
+    private HashSet<string> CheckedDocumentKeys() =>
+        Agents.SelectMany(a => a.Documents).Where(d => d.IsChecked).Select(d => $"{d.Agent.Connection.Host.ProcessId}/{d.Info.Id}").ToHashSet();
 
-    private async Task RunAsync()
+    private void OnDocumentChecked(DocumentNode doc)
     {
-        if (!ConfirmDiscardEdits()) return;
-        var docs = Agents.SelectMany(a => a.Documents).Where(d => d.IsChecked).ToList();
-        var readers = Readers.Where(r => r.IsChecked).ToList();
-        if (docs.Count == 0 || readers.Count == 0)
+        // Debounce: ticking several files reloads once.
+        _reloadDelay?.Cancel();
+        var cts = _reloadDelay = new CancellationTokenSource();
+        _ = Task.Delay(350, cts.Token).ContinueWith(t =>
         {
-            Status = "Check at least one document and one reader.";
+            if (!t.IsCanceled) Application.Current.Dispatcher.BeginInvoke(() => _ = LoadAsync());
+        }, TaskScheduler.Default);
+    }
+
+    private void RebuildDatasets()
+    {
+        string? selectedId = _dataset?.Id ?? _settings.LastDataset ?? SheetsDatasetId;
+        var datasets = new List<DatasetNode>();
+
+        var sheets = new DatasetNode
+        {
+            Id = SheetsDatasetId,
+            Title = "Sheets",
+            Category = "Across programs",
+            IsSheetIndex = true,
+            Description = "Every sheet: Revit sheets and AutoCAD/Civil 3D layouts with their title block. " +
+                          "Number, Title, Revision, Drawn By... are matched in each program (edit the matching in sheet-fields.json).",
+        };
+        datasets.Add(sheets);
+
+        foreach (var agent in Agents)
+        {
+            var host = agent.Connection.Host;
+            foreach (var d in agent.Connection.Readers.Where(r => r.IsImplemented))
+            {
+                var reader = ReaderFor(host, d);
+                if (d.Id is "revit.sheets" or "acad.sheets")
+                {
+                    sheets.Readers.TryAdd(host.HostKind, reader);
+                    continue;
+                }
+                string id = $"{host.HostKind}:{d.Id}";
+                if (datasets.Any(x => x.Id == id)) continue;
+                var ds = new DatasetNode
+                {
+                    Id = id,
+                    Title = d.DisplayName,
+                    Category = reader.HostLabel,
+                    Description = d.Description,
+                };
+                ds.Readers[host.HostKind] = reader;
+                datasets.Add(ds);
+            }
+        }
+
+        // Keep the same objects when nothing changed, so the picker does not flicker.
+        bool same = datasets.Count == Datasets.Count && datasets.Zip(Datasets).All(p => p.First.Id == p.Second.Id
+            && p.First.Readers.Keys.OrderBy(k => k).SequenceEqual(p.Second.Readers.Keys.OrderBy(k => k)));
+        if (same) return;
+
+        Datasets.Clear();
+        foreach (var d in datasets) Datasets.Add(d);
+        var keep = Datasets.FirstOrDefault(d => d.Id == selectedId) ?? Datasets.First();
+        _dataset = keep;
+        Raise(nameof(SelectedDataset));
+        Raise(nameof(DatasetOptions));
+        Raise(nameof(HasOptions));
+    }
+
+    private ReaderNode ReaderFor(HostInfo host, ReaderDescriptor d)
+    {
+        string label = host.HostKind == HostKinds.AutoCAD && host.Modules.Contains("Civil3D") ? "Civil 3D" : host.Product;
+        if (host.HostKind == HostKinds.AutoCAD && label is not ("Civil 3D" or "AutoCAD")) label = "AutoCAD";
+        if (!_readers.TryGetValue((host.HostKind, d.Id), out var node))
+        {
+            node = new ReaderNode(d, host.HostKind, host.HostKind == HostKinds.AutoCAD ? "AutoCAD / Civil 3D" : label);
+            _readers[(host.HostKind, d.Id)] = node;
+        }
+        return node;
+    }
+
+    // ------------------------------------------------------------------ loading
+
+    /// <summary>Reads the selected dataset from every ticked file and shows it.</summary>
+    public async Task LoadAsync(bool confirm = true)
+    {
+        var dataset = _dataset;
+        if (dataset is null) return;
+        if (confirm && !ConfirmDiscardEdits()) return;
+        int generation = ++_loadGeneration;
+
+        var docs = Agents.SelectMany(a => a.Documents)
+            .Where(d => d.IsChecked && dataset.Readers.ContainsKey(d.Agent.Connection.Host.HostKind)
+                        && d.Agent.Connection.Readers.Any(r => r.Id == dataset.Readers[d.Agent.Connection.Host.HostKind].Descriptor.Id))
+            .ToList();
+
+        if (docs.Count == 0)
+        {
+            Runs = new List<ResultRun>();
+            ShowResults(dataset);
+            Status = Agents.Count == 0
+                ? "Waiting for Revit, AutoCAD or Civil 3D. They appear on the left automatically."
+                : $"Tick a file on the left to see its {dataset.Title.ToLowerInvariant()}.";
             return;
         }
 
         _busy = true;
+        Status = $"Reading {dataset.Title.ToLowerInvariant()} from {docs.Count} file(s)…";
         try
         {
             var perAgent = docs.GroupBy(d => d.Agent).Select(async group =>
             {
-                var agent = group.Key;
+                var runs = new List<ResultRun>();
+                var reader = dataset.Readers[group.Key.Connection.Host.HostKind];
                 foreach (var doc in group)
                 {
-                    foreach (var reader in readers.Where(r => r.HostKind == agent.Connection.Host.HostKind))
+                    runs.Add(await ReadOneAsync(group.Key, doc.Info.Title, new ReadRequest
                     {
-                        if (agent.Connection.Readers.All(r => r.Id != reader.Descriptor.Id)) continue;
-                        Status = $"Reading {reader.Descriptor.DisplayName} from {doc.Info.Title}…";
-                        Results.Add(await ReadOneAsync(agent, doc, reader));
-                    }
+                        DocumentId = doc.Info.Id,
+                        ReaderId = reader.Descriptor.Id,
+                        Options = reader.OptionValues(),
+                    }));
                 }
+                return runs;
             });
-            await Task.WhenAll(perAgent);
+            var all = (await Task.WhenAll(perAgent)).SelectMany(r => r).ToList();
+            if (generation != _loadGeneration) return; // a newer load started meanwhile
+            Runs = all;
         }
         finally
         {
-            _busy = false;
+            if (generation == _loadGeneration) _busy = false;
         }
-
-        RebuildColumns();
-        BuildTable();
-        int failed = Results.Count(r => r.Failed);
-        Status = $"{Results.Count} result(s){(failed > 0 ? $", {failed} failed (see the Results list)" : "")}.";
+        ShowResults(dataset);
     }
-
-    private static Task<ResultRun> ReadOneAsync(AgentNode agent, DocumentNode doc, ReaderNode reader) =>
-        ReadOneAsync(agent, doc.Info.Title, new ReadRequest
-        {
-            DocumentId = doc.Info.Id,
-            ReaderId = reader.Descriptor.Id,
-            Options = reader.OptionValues(),
-        });
 
     private static async Task<ResultRun> ReadOneAsync(AgentNode agent, string documentTitle, ReadRequest request)
     {
@@ -318,130 +455,196 @@ public sealed class MainViewModel : Observable
         {
             var result = await agent.Connection.ReadAsync(request);
             HubLog.Info($"{host.DisplayName}: {request.ReaderId} on {documentTitle}: {result.Items.Count} items in {result.ElapsedMs} ms");
-            return new ResultRun
-            {
-                Host = host, DocumentTitle = documentTitle, ReaderId = request.ReaderId,
-                Agent = agent, Request = request, Result = result,
-            };
+            return new ResultRun { Host = host, DocumentTitle = documentTitle, ReaderId = request.ReaderId, Agent = agent, Request = request, Result = result };
         }
         catch (AgentRequestException ex)
         {
             HubLog.Warn($"{host.DisplayName}: {request.ReaderId} on {documentTitle}: {ex.Error}");
-            return new ResultRun
-            {
-                Host = host, DocumentTitle = documentTitle, ReaderId = request.ReaderId,
-                Agent = agent, Request = request, Error = ex.Error,
-            };
+            return new ResultRun { Host = host, DocumentTitle = documentTitle, ReaderId = request.ReaderId, Agent = agent, Request = request, Error = ex.Error };
         }
         catch (Exception ex)
         {
             HubLog.Error($"{host.DisplayName}: {request.ReaderId} on {documentTitle} failed", ex);
             return new ResultRun
             {
-                Host = host, DocumentTitle = documentTitle, ReaderId = request.ReaderId,
-                Agent = agent, Request = request, Error = new ErrorInfo(ErrorCodes.Disconnected, ex.Message),
+                Host = host, DocumentTitle = documentTitle, ReaderId = request.ReaderId, Agent = agent, Request = request,
+                Error = new ErrorInfo(ErrorCodes.Disconnected, ex.Message),
             };
         }
     }
 
-    // ---------------------------------------------------------------- columns & table
-
-    private IEnumerable<ResultSource> IncludedSources() =>
-        Results.Where(r => r.IsIncluded).Select(r => r.ToSource()).OfType<ResultSource>();
-
-    public void RebuildColumns()
+    private void ShowResults(DatasetNode dataset)
     {
-        var table = ResultTable.Build(IncludedSources());
-        var previous = ColumnGroups.SelectMany(g => g.Columns).ToDictionary(c => c.Key.Id, c => c.IsChecked);
-        bool autoCheck = table.Columns.Count <= AutoCheckColumnLimit;
-
-        ColumnGroups.Clear();
-        foreach (var group in table.Columns.GroupBy(c => c.Group))
-        {
-            var g = new ColumnGroupNode(group.Key);
-            foreach (var key in group)
-            {
-                var node = new ColumnNode(g, key);
-                node.IsChecked = previous.TryGetValue(key.Id, out var was) ? was : autoCheck;
-                g.Columns.Add(node);
-            }
-            g.ChildChanged();
-            ColumnGroups.Add(g);
-        }
-        Raise(nameof(FilteredColumnGroups));
-        if (!autoCheck)
-            Status = $"{table.Columns.Count} properties found. Pick the ones you want in the Columns tab, then Show table.";
+        BuildTable(dataset);
+        int files = Runs.Count(r => !r.Failed);
+        Summary = _table is null ? "" : $"{files} file{(files == 1 ? "" : "s")} · {_table.Rows.Count} row{(_table.Rows.Count == 1 ? "" : "s")}";
+        Raise(nameof(HasIssues));
+        Raise(nameof(IssuesText));
+        if (Runs.Count > 0)
+            Status = Runs.Any(r => r.Failed)
+                ? $"Some files could not be read: {string.Join("; ", Runs.Where(r => r.Failed).Select(r => $"{r.DocumentTitle}: {r.Error!.Message}"))}"
+                : "Double-click a value to edit it. Edited values turn yellow until you apply them.";
     }
 
-    private Task SetAllColumns(bool value)
+    // ------------------------------------------------------------------ grid
+
+    private void BuildTable(DatasetNode dataset)
     {
-        foreach (var g in FilteredColumnGroups) g.IsChecked = value;
-        return Task.CompletedTask;
-    }
-
-    private HashSet<string> CheckedColumnIds() =>
-        ColumnGroups.SelectMany(g => g.Columns).Where(c => c.IsChecked).Select(c => c.Key.Id).ToHashSet(StringComparer.Ordinal);
-
-    public void BuildTable()
-    {
-        var table = ResultTable.Build(IncludedSources());
-        var selected = CheckedColumnIds();
-        var cols = table.Columns.Where(c => selected.Contains(c.Id)).Take(MaxGridColumns).ToList();
-
         if (_grid is not null) _grid.ColumnChanged -= OnGridValueChanged;
         _gridColumnIds.Clear();
+        _gridColumnByColumnId.Clear();
+        SelectedRow = null;
+
+        var table = ResultTable.Build(Runs.Select(r => r.ToSource()).OfType<ResultSource>(),
+            includeChildren: true, sheetFields: dataset.IsSheetIndex ? _sheetFields : null);
 
         var dt = new DataTable();
         dt.Columns.Add(RowIndexColumn, typeof(int));
-        var headers = new List<(string, string)>();
-        string AddCol(string header)
+        dt.Columns.Add(FileColumn, typeof(string));
+        dt.Columns.Add(ItemColumn, typeof(string));
+        for (int i = 0; i < table.Columns.Count; i++)
         {
-            string name = "c" + (dt.Columns.Count - 1);
+            string name = "c" + i;
             dt.Columns.Add(name, typeof(string));
-            headers.Add((name, header));
-            return name;
+            _gridColumnIds[name] = table.Columns[i].Id;
+            _gridColumnByColumnId[table.Columns[i].Id] = name;
         }
 
-        foreach (var h in new[] { "Host", "Document", "Reader", "Item Type", "Item", "Key" }) AddCol(h);
-        foreach (var c in cols) _gridColumnIds[AddCol(c.Id)] = c.Id;
-
-        for (int i = 0; i < table.Rows.Count; i++)
+        dt.BeginLoadData();
+        for (int r = 0; r < table.Rows.Count; r++)
         {
-            var r = table.Rows[i];
-            var values = new List<object?> { i, r.Host, r.Document, r.Reader, r.ItemType, new string(' ', r.Depth * 3) + r.Item, r.Key };
-            values.AddRange(cols.Select(c => r.Values.TryGetValue(c.Id, out var v) ? v.Value : null));
-            dt.Rows.Add(values.ToArray());
+            var row = table.Rows[r];
+            var values = new object?[3 + table.Columns.Count];
+            values[0] = r;
+            values[1] = row.Document;
+            values[2] = new string(' ', row.Depth * 3) + row.Item;
+            for (int c = 0; c < table.Columns.Count; c++)
+                values[3 + c] = row.Values.TryGetValue(table.Columns[c].Id, out var v) ? v.Value : null;
+            dt.Rows.Add(values);
         }
+        dt.EndLoadData();
         dt.AcceptChanges();
         dt.ColumnChanged += OnGridValueChanged;
 
         _table = table;
         _grid = dt;
         PendingEdits = 0;
-        TableReady?.Invoke(dt, headers);
-        if (selected.Count > MaxGridColumns)
-            Status = $"Showing the first {MaxGridColumns} of {selected.Count} checked columns (exports include all).";
+        _visible = InitialVisibleColumns(dataset, table);
+        TableReady?.Invoke(dt, ColumnSpecs(dataset));
+        ApplySearch();
     }
 
-    // ---------------------------------------------------------------- editing
+    private HashSet<string> InitialVisibleColumns(DatasetNode dataset, ResultTable table)
+    {
+        if (_settings.VisibleColumns.TryGetValue(dataset.Id, out var saved))
+        {
+            var kept = saved.Where(table.ColumnsById.ContainsKey).ToHashSet(StringComparer.Ordinal);
+            if (kept.Count > 0) return kept;
+        }
+        if (dataset.IsSheetIndex)
+        {
+            var fields = table.Columns.Where(c => c.Group == SheetFieldMap.Group).Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
+            if (fields.Count > 0) return fields;
+        }
+        var props = table.Columns.Where(c => !IsComputedOnly(table, c.Id)).Select(c => c.Id).ToList();
+        return (props.Count <= 40 ? props : props.Take(DefaultVisibleLimit)).ToHashSet(StringComparer.Ordinal);
+    }
 
-    /// <summary>True for grid columns that hold a property (not Host, Document, Item...).</summary>
+    private static bool IsComputedOnly(ResultTable table, string columnId) =>
+        table.Rows.All(r => !r.Values.TryGetValue(columnId, out var v) || v.Source == PropertySource.Derived);
+
+    private List<GridColumnSpec> ColumnSpecs(DatasetNode? dataset)
+    {
+        var specs = new List<GridColumnSpec> { new(FileColumn, "", "File", false, true) };
+        if (dataset is not { IsSheetIndex: true }) specs.Add(new GridColumnSpec(ItemColumn, "", "Item", false, true));
+        if (_table is null) return specs;
+        foreach (var c in _table.Columns.Where(c => _visible.Contains(c.Id)))
+            specs.Add(new GridColumnSpec(_gridColumnByColumnId[c.Id], c.Group, c.Name, true, false));
+        return specs;
+    }
+
+    /// <summary>Column chooser data for the current table.</summary>
+    public List<ColumnGroupNode> BuildColumnGroups()
+    {
+        var groups = new List<ColumnGroupNode>();
+        if (_table is null) return groups;
+        foreach (var g in _table.Columns.GroupBy(c => c.Group))
+        {
+            var node = new ColumnGroupNode(g.Key);
+            foreach (var key in g) node.Columns.Add(new ColumnNode(node, key) { IsChecked = _visible.Contains(key.Id) });
+            node.ChildChanged();
+            groups.Add(node);
+        }
+        return groups;
+    }
+
+    public void SetVisibleColumns(IEnumerable<string> columnIds)
+    {
+        _visible = columnIds.ToHashSet(StringComparer.Ordinal);
+        if (_dataset is not null)
+        {
+            _settings.VisibleColumns[_dataset.Id] = _visible.ToList();
+            _settings.Save();
+        }
+        ColumnsChanged?.Invoke(ColumnSpecs(_dataset));
+        ApplySearch();
+    }
+
+    /// <summary>Filters rows to those containing the search text in any visible column.</summary>
+    private void ApplySearch()
+    {
+        if (_grid is null) return;
+        string s = _search.Trim();
+        if (s.Length == 0)
+        {
+            _grid.DefaultView.RowFilter = "";
+            return;
+        }
+        string like = EscapeLike(s);
+        var cols = new[] { FileColumn, ItemColumn }.Concat(_visible.Where(_gridColumnByColumnId.ContainsKey).Select(id => _gridColumnByColumnId[id]));
+        try
+        {
+            _grid.DefaultView.RowFilter = string.Join(" OR ", cols.Select(c => $"[{c}] LIKE '%{like}%'"));
+        }
+        catch (Exception ex)
+        {
+            HubLog.Warn("Search filter failed.", ex);
+        }
+    }
+
+    private static string EscapeLike(string s)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (char ch in s)
+        {
+            sb.Append(ch switch
+            {
+                '\'' => "''",
+                '[' => "[[]",
+                ']' => "[]]",
+                '*' => "[*]",
+                '%' => "[%]",
+                _ => ch.ToString(),
+            });
+        }
+        return sb.ToString();
+    }
+
     public bool IsPropertyColumn(string gridColumn) => _gridColumnIds.ContainsKey(gridColumn);
 
-    private TableRow? RowOf(DataRowView view) =>
-        _table is not null && view.Row.Table == _grid && view.Row[RowIndexColumn] is int i && i < _table.Rows.Count
+    private TableRow? RowOf(DataRowView? view) =>
+        view is not null && _table is not null && view.Row.Table == _grid && view.Row[RowIndexColumn] is int i && i < _table.Rows.Count
             ? _table.Rows[i]
             : null;
 
     /// <summary>Why this cell cannot be edited, or null if it can.</summary>
     public string? EditBlocker(DataRowView view, string gridColumn)
     {
-        if (!_gridColumnIds.TryGetValue(gridColumn, out var columnId)) return "Only property values can be edited.";
+        if (!_gridColumnIds.TryGetValue(gridColumn, out var columnId)) return "File and item names are not editable here.";
         var row = RowOf(view);
-        return row is null ? "This row is out of date: show the table again." : Editing.Blocker(row, columnId);
+        return row is null ? "This row is out of date: reload the data." : Editing.Blocker(row, columnId);
     }
 
-    /// <summary>The value the cell had when the table was built, if the user has changed it.</summary>
     public bool IsEdited(DataRowView view, string gridColumn, out string? original)
     {
         original = null;
@@ -451,7 +654,128 @@ public sealed class MainViewModel : Observable
         return !Editing.SameValue(original, row[gridColumn, DataRowVersion.Current] as string);
     }
 
-    private void OnGridValueChanged(object sender, DataColumnChangeEventArgs e) => PendingEdits = CollectEdits().Count;
+    /// <summary>Sets a cell if it is editable. Returns null on success, else why not.</summary>
+    public string? TrySetCell(DataRowView view, string gridColumn, string? value)
+    {
+        var blocker = EditBlocker(view, gridColumn);
+        if (blocker is not null) return blocker;
+        if (Editing.SameValue(view[gridColumn] as string, value)) return null;
+        view.BeginEdit();
+        view[gridColumn] = value ?? "";
+        view.EndEdit();
+        return null;
+    }
+
+    /// <summary>Same as <see cref="TrySetCell"/> addressed by table row and Nexus column id.</summary>
+    public string? TrySetValue(TableRow row, string columnId, string value)
+    {
+        if (_grid is null || _table is null) return "Nothing is loaded.";
+        if (!_gridColumnByColumnId.TryGetValue(columnId, out var gridColumn)) return "That column is not in the loaded data.";
+        int index = _table.Rows.IndexOf(row);
+        if (index < 0) return "That row is no longer loaded.";
+        var view = _grid.DefaultView.Cast<DataRowView>().FirstOrDefault(v => (int)v.Row[RowIndexColumn] == index)
+                   ?? new DataView(_grid).Cast<DataRowView>().First(v => (int)v.Row[RowIndexColumn] == index);
+        return TrySetCell(view, gridColumn, value);
+    }
+
+    /// <summary>Puts cells back to the value read from the model.</summary>
+    public int Revert(IEnumerable<(DataRowView View, string Column)> cells)
+    {
+        int n = 0;
+        foreach (var (view, column) in cells)
+        {
+            if (!IsEdited(view, column, out var original)) continue;
+            view.BeginEdit();
+            view[column] = original ?? "";
+            view.EndEdit();
+            n++;
+        }
+        Status = n == 0 ? "Nothing to revert in the selection." : $"Reverted {n} cell(s).";
+        return n;
+    }
+
+    private void OnGridValueChanged(object sender, DataColumnChangeEventArgs e)
+    {
+        // A sheet field and its source column are the same property: keep both cells in step.
+        if (!_syncing && _table is not null && e.Row[RowIndexColumn] is int i && i < _table.Rows.Count
+            && e.Column?.ColumnName is { } changedColumn && _gridColumnIds.TryGetValue(changedColumn, out var columnId)
+            && _table.Rows[i].Values.TryGetValue(columnId, out var property))
+        {
+            _syncing = true;
+            try
+            {
+                foreach (var (otherId, otherValue) in _table.Rows[i].Values)
+                {
+                    if (otherId == columnId || !ReferenceEquals(otherValue, property)) continue;
+                    if (_gridColumnByColumnId.TryGetValue(otherId, out var otherColumn) && !Equals(e.Row[otherColumn], e.ProposedValue))
+                        e.Row[otherColumn] = e.ProposedValue;
+                }
+            }
+            finally
+            {
+                _syncing = false;
+            }
+        }
+        PendingEdits = CollectEdits().Count;
+    }
+
+    // ------------------------------------------------------------------ details pane
+
+    private void BuildDetails()
+    {
+        foreach (var g in DetailGroups)
+            foreach (var r in g.Rows) r.Dispose();
+        DetailGroups.Clear();
+
+        var view = _selectedRow;
+        var row = RowOf(view);
+        if (view is null || row is null || _table is null) return;
+
+        foreach (var g in _table.Columns.Where(c => row.Values.ContainsKey(c.Id)).GroupBy(c => c.Group))
+        {
+            var group = new DetailGroup(g.Key);
+            foreach (var c in g)
+                group.Rows.Add(new DetailRow(view, _gridColumnByColumnId[c.Id], c.Group, c.Name, row.Values[c.Id], EditBlocker));
+            DetailGroups.Add(group);
+        }
+    }
+
+    // ------------------------------------------------------------------ show in the program
+
+    public async Task ShowInModelAsync(IReadOnlyList<DataRowView> views)
+    {
+        var rows = views.Select(RowOf).OfType<TableRow>().Distinct().ToList();
+        if (rows.Count == 0)
+        {
+            Status = "Select one or more rows first.";
+            return;
+        }
+        foreach (var group in rows.GroupBy(r => (Run: r.Source.Tag as ResultRun, Doc: r.Source.Result.DocumentId)))
+        {
+            var agent = group.Key.Run?.Agent;
+            if (agent is null) continue;
+            if (!agent.Connection.CanSelect)
+            {
+                Status = $"{agent.Title} cannot show items yet (update its Nexus add-in).";
+                continue;
+            }
+            try
+            {
+                var result = await agent.Connection.SelectAsync(new SelectRequest
+                {
+                    DocumentId = group.Key.Doc,
+                    ItemIds = group.Select(r => r.ItemId).Where(id => id.Length > 0).Distinct().ToList(),
+                });
+                Status = result.Message;
+            }
+            catch (AgentRequestException ex)
+            {
+                Status = $"{agent.Title}: {ex.Error.Message}";
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ edits
 
     private List<CellEdit> CollectEdits()
     {
@@ -476,20 +800,28 @@ public sealed class MainViewModel : Observable
     {
         _grid?.RejectChanges();
         PendingEdits = 0;
-        Status = "Edits discarded.";
+        Status = "Changes discarded.";
     }
 
     /// <summary>Asks before throwing away unapplied edits. True when there are none or the user agrees.</summary>
-    private bool ConfirmDiscardEdits()
+    public bool ConfirmDiscardEdits()
     {
         CommitGridEdits?.Invoke();
         if (_pendingEdits == 0) return true;
         var answer = MessageBox.Show(
-            $"You have {_pendingEdits} edit(s) that have not been applied. Discard them?",
+            $"You have {_pendingEdits} change(s) that have not been applied. Discard them?",
             "Nexus", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (answer != MessageBoxResult.Yes) return false;
         DiscardEdits();
         return true;
+    }
+
+    public bool ConfirmExit()
+    {
+        CommitGridEdits?.Invoke();
+        if (_pendingEdits == 0) return true;
+        return MessageBox.Show($"You have {_pendingEdits} change(s) that have not been applied. Exit Nexus anyway?",
+            "Nexus", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
     }
 
     private async Task ReviewAndApplyAsync()
@@ -499,17 +831,14 @@ public sealed class MainViewModel : Observable
         PendingEdits = edits.Count;
         if (edits.Count == 0) return;
 
-        var review = new ApplyChangesWindow(new ApplyChangesViewModel(edits, ApplyAsync))
-        {
-            Owner = Application.Current.MainWindow,
-        };
+        var review = new ApplyChangesWindow(new ApplyChangesViewModel(edits, ApplyAsync)) { Owner = Application.Current.MainWindow };
         review.ShowDialog();
 
         var changed = review.ViewModel.ChangedRuns;
         if (changed.Count > 0) await RereadAsync(changed);
     }
 
-    /// <summary>Sends the edits, one request per host document, and fills in each row's outcome.</summary>
+    /// <summary>Sends the edits, one request per program file, and fills in each row's outcome.</summary>
     private async Task<List<ResultRun>> ApplyAsync(IReadOnlyList<ChangeRow> rows)
     {
         _busy = true;
@@ -521,13 +850,12 @@ public sealed class MainViewModel : Observable
             {
                 var planned = edits.Select(e => byEdit[e]).ToList();
                 foreach (var r in rows.Where(r => r.Status == "" && r.Edit.ProcessId == pid && r.Edit.DocumentId == request.DocumentId && !planned.Contains(r)))
-                    r.SetOutcome("Skipped", "The same property is edited in another row; that edit is used.", null);
+                    r.SetOutcome("Skipped", "The same property is changed in another column or row; that change is used.", null);
 
-                var run = edits[0].Row.Source.Tag as ResultRun;
-                var agent = run?.Agent;
+                var agent = (edits[0].Row.Source.Tag as ResultRun)?.Agent;
                 if (agent is null)
                 {
-                    foreach (var r in planned) r.SetOutcome("Failed", "The host for this result is no longer connected.", null);
+                    foreach (var r in planned) r.SetOutcome("Failed", "The program for this file is no longer connected.", null);
                     continue;
                 }
 
@@ -536,18 +864,16 @@ public sealed class MainViewModel : Observable
                 {
                     var result = await agent.Connection.WriteAsync(request);
                     foreach (var cr in result.Results)
-                    {
-                        if (cr.Index < 0 || cr.Index >= planned.Count) continue;
-                        planned[cr.Index].SetOutcome(cr.Status.ToString(), cr.Message, cr.NewValue);
-                    }
+                        if (cr.Index >= 0 && cr.Index < planned.Count)
+                            planned[cr.Index].SetOutcome(cr.Status.ToString(), cr.Message, cr.NewValue);
                     foreach (var w in result.Warnings) HubLog.Warn($"{result.DocumentTitle}: {w}");
                     HubLog.Info($"{result.DocumentTitle}: {(result.Committed ? "committed" : "nothing committed")} " +
                                 $"({result.Results.Count(c => c.Status == ChangeStatus.Applied)} applied) in {result.ElapsedMs} ms");
                     if (result.Committed)
-                        changedRuns.AddRange(Results.Where(x => x.Agent == agent && x.Result?.DocumentId == request.DocumentId));
+                        changedRuns.AddRange(Runs.Where(x => x.Agent == agent && x.Result?.DocumentId == request.DocumentId));
                     if (result.Warnings.Count > 0)
                         foreach (var r in planned.Where(r => r.Status == "Applied"))
-                            r.Message = "Revit warning: " + string.Join("; ", result.Warnings);
+                            r.Message = "Warning: " + string.Join("; ", result.Warnings);
                 }
                 catch (AgentRequestException ex)
                 {
@@ -560,48 +886,124 @@ public sealed class MainViewModel : Observable
         {
             _busy = false;
         }
-        int applied = rows.Count(r => r.Status == "Applied");
-        Status = $"{applied} of {rows.Count} change(s) applied.";
+        Status = $"{rows.Count(r => r.Status == "Applied")} of {rows.Count} change(s) applied.";
         return changedRuns.Distinct().ToList();
     }
 
-    /// <summary>Reads changed results again so the table shows what the host now has.</summary>
+    /// <summary>Reads changed files again so the grid shows what the program now has.</summary>
     private async Task RereadAsync(IReadOnlyList<ResultRun> runs)
     {
+        if (_dataset is null) return;
         _busy = true;
         try
         {
+            var updated = Runs.ToList();
             foreach (var old in runs)
             {
                 if (old.Agent is null || old.Request is null) continue;
-                Status = $"Refreshing {old.Title}…";
+                Status = $"Refreshing {old.DocumentTitle}…";
                 var fresh = await ReadOneAsync(old.Agent, old.DocumentTitle, old.Request);
-                fresh.IsIncluded = old.IsIncluded;
-                int index = Results.IndexOf(old);
-                if (index >= 0) Results[index] = fresh;
-                if (SelectedRun == old) SelectedRun = fresh;
+                int index = updated.IndexOf(old);
+                if (index >= 0) updated[index] = fresh;
             }
+            Runs = updated;
         }
         finally
         {
             _busy = false;
         }
-        RebuildColumns();
-        BuildTable();
-        Status = $"Applied. Refreshed {runs.Count} result(s) from the host. Use Undo in Revit to revert.";
+        ShowResults(_dataset);
+        Status = "Applied and refreshed from the model. Use Undo in Revit (or U in AutoCAD) to revert.";
     }
 
-    // ---------------------------------------------------------------- export
+    // ------------------------------------------------------------------ Excel
 
-    private Task Export(string kind)
+    private Task LinkExcelAsync()
     {
-        var sources = IncludedSources().ToList();
-        if (sources.Count == 0)
+        if (_table is null) return Task.CompletedTask;
+        var vm = new ExcelLinkViewModel(_table, _sheetFields, _excelLink);
+        var window = new ExcelLinkWindow(vm) { Owner = Application.Current.MainWindow };
+        if (window.ShowDialog() == true && vm.Result is { } link)
         {
-            Status = "Nothing to export: run some readers first (and tick them in the Results list).";
-            return Task.CompletedTask;
+            link.Save();
+            ExcelLink = link;
+            _settings.ExcelWorkbook = link.WorkbookPath;
+            _settings.Save();
+            Status = $"Linked {link.Title}. Use Compare to see what differs.";
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task CompareExcelAsync()
+    {
+        if (_table is null) return;
+        if (_excelLink is null)
+        {
+            await LinkExcelAsync();
+            if (_excelLink is null) return;
+        }
+        CommitGridEdits?.Invoke();
+        var link = _excelLink;
+        if (!_table.ColumnsById.ContainsKey(link.KeyColumnId))
+        {
+            MessageBox.Show($"The loaded data has no '{link.KeyColumnId}' column to match rows on. Load the Sheets data, or link the workbook again.",
+                "Compare with Excel", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
         }
 
+        List<ExcelDiff> diffs;
+        var warnings = new List<string>();
+        try
+        {
+            var data = ExcelWorkbook.Read(link);
+            warnings.AddRange(data.Warnings);
+            diffs = ExcelCompare.Compare(_table, data, link, warnings);
+        }
+        catch (Exception ex)
+        {
+            HubLog.Warn("Reading the linked workbook failed.", ex);
+            MessageBox.Show(ex.Message, "Compare with Excel", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var vm = new CompareViewModel(link, diffs, warnings, this);
+        new CompareWindow(vm) { Owner = Application.Current.MainWindow }.ShowDialog();
+        if (vm.Outcome is { } outcome) Status = outcome;
+    }
+
+    private Task ExportExcel()
+    {
+        if (_grid is null || _table is null) return Task.CompletedTask;
+        CommitGridEdits?.Invoke();
+        Directory.CreateDirectory(NexusPaths.ExportsDir);
+        var dialog = new SaveFileDialog
+        {
+            InitialDirectory = NexusPaths.ExportsDir,
+            FileName = $"nexus-{_dataset?.Title.ToLowerInvariant().Replace(' ', '-')}-{DateTime.Now:yyyyMMdd-HHmm}",
+            Filter = "Excel workbook (*.xlsx)|*.xlsx",
+        };
+        if (dialog.ShowDialog() != true) return Task.CompletedTask;
+
+        var specs = ColumnSpecs(_dataset);
+        var headers = specs.Select(s => s.Group.Length == 0 || s.Group == SheetFieldMap.Group ? s.Name : $"{s.Group} › {s.Name}").ToList();
+        var rows = _grid.DefaultView.Cast<DataRowView>().Select(v => (IReadOnlyList<string?>)specs.Select(s => (v[s.Column] as string)?.TrimStart()).ToList());
+        try
+        {
+            ExcelWorkbook.Export(dialog.FileName, headers, rows, _dataset?.Title ?? "Nexus");
+            Status = "Exported " + dialog.FileName;
+            Process.Start(new ProcessStartInfo(dialog.FileName) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            HubLog.Error("Excel export failed", ex);
+            MessageBox.Show(ex.Message, "Export to Excel", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        return Task.CompletedTask;
+    }
+
+    private Task ExportLegacy(string kind)
+    {
+        if (_table is null) return Task.CompletedTask;
         Directory.CreateDirectory(NexusPaths.ExportsDir);
         var dialog = new SaveFileDialog
         {
@@ -610,18 +1012,15 @@ public sealed class MainViewModel : Observable
             Filter = kind == "json" ? "JSON (*.json)|*.json" : "CSV for Excel (*.csv)|*.csv",
         };
         if (dialog.ShowDialog() != true) return Task.CompletedTask;
-
         try
         {
-            var selected = CheckedColumnIds();
             switch (kind)
             {
-                case "wide": Exporters.WriteWideCsv(ResultTable.Build(sources), selected, dialog.FileName); break;
-                case "long": Exporters.WriteLongCsv(ResultTable.Build(sources), selected, dialog.FileName); break;
-                default: Exporters.WriteJson(sources, dialog.FileName); break;
+                case "wide": Exporters.WriteWideCsv(_table, _visible, dialog.FileName); break;
+                case "long": Exporters.WriteLongCsv(_table, null, dialog.FileName); break;
+                default: Exporters.WriteJson(Runs.Select(r => r.ToSource()).OfType<ResultSource>().ToList(), dialog.FileName); break;
             }
             Status = "Exported " + dialog.FileName;
-            HubLog.Info(Status);
         }
         catch (Exception ex)
         {
@@ -630,4 +1029,10 @@ public sealed class MainViewModel : Observable
         }
         return Task.CompletedTask;
     }
+
+    /// <summary>Errors and warnings of the last load, for the Messages window.</summary>
+    public IEnumerable<string> IssueLines() =>
+        Runs.SelectMany(r => r.Failed
+            ? new[] { $"{r.DocumentTitle}: {r.Error!.Code}: {r.Error.Message}" }
+            : r.Result!.Warnings.Select(w => $"{r.DocumentTitle}: {w}"));
 }

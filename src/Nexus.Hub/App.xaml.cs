@@ -94,7 +94,7 @@ public partial class App : Application
             _tray?.NotifyStillRunning();
         };
 
-        _tray = new TrayIcon(ShowWindow, () => _ = _vm.RefreshAsync(), () => ExitHub(ask: true));
+        _tray = new TrayIcon(ShowWindow, () => _vm.RefreshCommand.Execute(null), () => ExitHub(ask: true));
         _vm.HostsChanged += summary => _tray?.SetStatus(summary);
 
         _instance.Listen(command => Dispatcher.BeginInvoke(() =>
@@ -102,7 +102,7 @@ public partial class App : Application
             switch (command)
             {
                 case "show": ShowWindow(); break;
-                case "refresh": _ = _vm.RefreshAsync(); break;
+                case "refresh": _vm.RefreshCommand.Execute(null); break;
                 case "exit": ExitHub(ask: false); break;
             }
         }));
@@ -111,7 +111,7 @@ public partial class App : Application
         _poll = new DispatcherTimer { Interval = HostPollInterval };
         _poll.Tick += async (_, _) => await _vm.RefreshIfHostsChangedAsync();
         _poll.Start();
-        _ = _vm.RefreshAsync();
+        _ = _vm.StartAsync();
 
         if (!args.Contains("--background")) ShowWindow();
     }

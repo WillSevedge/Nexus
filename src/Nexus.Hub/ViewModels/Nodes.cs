@@ -1,9 +1,12 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Data;
 using Nexus.Contracts;
 using Nexus.Hub.Core;
 
 namespace Nexus.Hub.ViewModels;
 
+/// <summary>A connected program (one Revit/AutoCAD/Civil 3D process) in the left panel.</summary>
 public sealed class AgentNode : Observable
 {
     private string? _error;
@@ -18,10 +21,11 @@ public sealed class AgentNode : Observable
         get
         {
             var h = Connection.Host;
-            var modules = h.Modules.Count > 0 ? $" + {string.Join(", ", h.Modules)}" : "";
-            return $"{h.Product} {h.Version}{modules}  (pid {h.ProcessId})";
+            return $"{h.Product} {h.Version}";
         }
     }
+
+    public string Subtitle => $"pid {Connection.Host.ProcessId}" + (Connection.Host.Modules.Count > 0 ? " · " + string.Join(", ", Connection.Host.Modules) : "");
 
     public string? Error
     {
@@ -32,10 +36,12 @@ public sealed class AgentNode : Observable
     public void Refreshed()
     {
         Raise(nameof(Title));
+        Raise(nameof(Subtitle));
         Error = Connection.LastError;
     }
 }
 
+/// <summary>An open file; ticked files are loaded into the grid.</summary>
 public sealed class DocumentNode : Observable
 {
     private bool _isChecked;
@@ -49,52 +55,56 @@ public sealed class DocumentNode : Observable
     public AgentNode Agent { get; }
     public DocumentInfo Info { get; set; }
 
+    /// <summary>Raised when the user ticks or unticks the file.</summary>
+    public event Action<DocumentNode>? CheckedChanged;
+
     public bool IsChecked
     {
         get => _isChecked;
-        set => Set(ref _isChecked, value);
+        set
+        {
+            if (Set(ref _isChecked, value)) CheckedChanged?.Invoke(this);
+        }
     }
 
-    public string Title
+    /// <summary>Set without raising <see cref="CheckedChanged"/> (when restoring state).</summary>
+    public void Restore(bool isChecked) => Set(ref _isChecked, isChecked, nameof(IsChecked));
+
+    public string Title => Info.Title;
+
+    public string Flags
     {
         get
         {
             var flags = new List<string>();
             if (Info.IsActive) flags.Add("active");
             if (Info.IsReadOnly) flags.Add("read-only");
+            if (Info.IsModified) flags.Add("unsaved");
             foreach (var (k, v) in Info.Extra)
                 if (v == "True") flags.Add(k.Replace("Is", "").ToLowerInvariant());
-            return flags.Count == 0 ? Info.Title : $"{Info.Title}  [{string.Join(", ", flags)}]";
+            return string.Join(" · ", flags);
         }
     }
 
     public string ToolTip => Info.Path ?? Info.Title;
 }
 
-public sealed class ReaderNode : Observable
+/// <summary>One reader of one program, with its options (shown under Options for the dataset).</summary>
+public sealed class ReaderNode
 {
-    private bool _isChecked;
-
-    public ReaderNode(ReaderDescriptor descriptor, string hostKind)
+    public ReaderNode(ReaderDescriptor descriptor, string hostKind, string hostLabel)
     {
         Descriptor = descriptor;
         HostKind = hostKind;
+        HostLabel = hostLabel;
         foreach (var o in descriptor.Options) Options.Add(new OptionNode(o));
     }
 
     public ReaderDescriptor Descriptor { get; }
     public string HostKind { get; }
+    public string HostLabel { get; }
     public ObservableCollection<OptionNode> Options { get; } = new();
-
-    public bool IsChecked
-    {
-        get => _isChecked;
-        set => Set(ref _isChecked, value);
-    }
-
-    public string Title => Descriptor.IsImplemented ? Descriptor.DisplayName : Descriptor.DisplayName;
-    public string Subtitle => $"{HostKind} · {Descriptor.Id}";
-    public double Opacity => Descriptor.IsImplemented ? 1.0 : 0.55;
+    public string Title => $"{HostLabel}: {Descriptor.DisplayName}";
 
     public Dictionary<string, string> OptionValues() =>
         Options.Where(o => o.Value is not null).ToDictionary(o => o.Option.Name, o => o.Value!);
@@ -130,35 +140,34 @@ public sealed class OptionNode : Observable
     }
 }
 
-public sealed class ResultRun : Observable
+/// <summary>Something to look at: the cross-program sheet index, or one reader's data.</summary>
+public sealed class DatasetNode
 {
-    private bool _isIncluded = true;
+    public required string Id { get; init; }
+    public required string Title { get; init; }
+    public string Description { get; init; } = "";
+    /// <summary>"Across programs", "Revit", "AutoCAD"... (grouping in the picker).</summary>
+    public string Category { get; init; } = "";
+    /// <summary>Adds the standard Sheet › … columns.</summary>
+    public bool IsSheetIndex { get; init; }
+    /// <summary>Host kind → the reader that supplies this dataset there.</summary>
+    public Dictionary<string, ReaderNode> Readers { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public string Programs => string.Join(", ", Readers.Values.Select(r => r.HostLabel).Distinct());
+}
 
+/// <summary>One read of one file (kept for re-reading after edits and for warnings).</summary>
+public sealed class ResultRun
+{
     public required HostInfo Host { get; init; }
     public required string DocumentTitle { get; init; }
     public required string ReaderId { get; init; }
-    /// <summary>Where the result came from, so it can be read again after edits.</summary>
     public AgentNode? Agent { get; init; }
     public ReadRequest? Request { get; init; }
     public ReadResult? Result { get; init; }
     public ErrorInfo? Error { get; init; }
 
-    public bool IsIncluded
-    {
-        get => _isIncluded;
-        set => Set(ref _isIncluded, value);
-    }
-
     public string Title => $"{DocumentTitle} · {ReaderId}";
-
-    public string Summary => Error is not null
-        ? $"{Error.Code}: {Error.Message}"
-        : $"{Result!.Items.Count} items · {Result.ElapsedMs} ms" +
-          (Result.Warnings.Count > 0 ? $" · {Result.Warnings.Count} warnings" : "") +
-          (Result.Truncated ? " · truncated" : "");
-
     public bool Failed => Error is not null;
-    public string HostTitle => Host.DisplayName;
 
     public ResultSource? ToSource() => Result is null ? null : new ResultSource
     {
@@ -169,6 +178,7 @@ public sealed class ResultRun : Observable
     };
 }
 
+/// <summary>Column chooser: a group of columns.</summary>
 public sealed class ColumnGroupNode : Observable
 {
     private bool? _isChecked = false;
@@ -224,32 +234,75 @@ public sealed class ColumnNode : Observable
     }
 }
 
-/// <summary>Item tree node in the "Items" tab.</summary>
-public sealed class ItemNode
+/// <summary>Details pane: one property of the selected row, editable in place.</summary>
+public sealed class DetailRow : Observable, IDisposable
 {
-    public ItemNode(DataItem item)
+    private readonly DataRowView _view;
+    private readonly Func<DataRowView, string, string?> _blocker;
+
+    public DetailRow(DataRowView view, string gridColumn, string group, string name, PropertyValue property,
+        Func<DataRowView, string, string?> blocker)
     {
-        Item = item;
-        Children = item.Children.Select(c => new ItemNode(c)).ToList();
+        _view = view;
+        _blocker = blocker;
+        GridColumn = gridColumn;
+        Group = group;
+        Name = name;
+        Property = property;
+        ((INotifyPropertyChanged)_view).PropertyChanged += OnViewChanged;
     }
 
-    public DataItem Item { get; }
-    public List<ItemNode> Children { get; }
-    public string Title => $"{Item.ItemType}: {Item.Name}";
+    public string GridColumn { get; }
+    public string Group { get; }
+    public string Name { get; }
+    public PropertyValue Property { get; }
 
-    public IEnumerable<PropertyRow> Properties =>
-        Item.Groups.SelectMany(g => g.Properties.Select(p => new PropertyRow(g.Name, p)));
+    public string? Reason => _blocker(_view, GridColumn);
+    public bool IsEditable => Reason is null;
+    public bool IsReadOnly => !IsEditable;
+
+    public bool IsEdited
+    {
+        get
+        {
+            var row = _view.Row;
+            return row.RowState == DataRowState.Modified &&
+                   !Editing.SameValue(row[GridColumn, DataRowVersion.Original] as string, row[GridColumn] as string);
+        }
+    }
+
+    public string ToolTip => IsEdited
+        ? $"Edited. Was: {_view.Row[GridColumn, DataRowVersion.Original]}"
+        : Reason is { } r ? "Not editable: " + r
+        : $"{Property.Source}{(Property.DataType is null ? "" : " · " + Property.DataType)}{(Property.Units is null ? "" : " · " + Property.Units)}";
+
+    public string? Value
+    {
+        get => _view[GridColumn] as string;
+        set
+        {
+            if (!IsEditable || Editing.SameValue(value, Value)) return;
+            _view.BeginEdit();
+            _view[GridColumn] = value ?? "";
+            _view.EndEdit();
+        }
+    }
+
+    private void OnViewChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != GridColumn && !string.IsNullOrEmpty(e.PropertyName)) return;
+        Raise(nameof(Value));
+        Raise(nameof(IsEdited));
+        Raise(nameof(ToolTip));
+    }
+
+    public void Dispose() => ((INotifyPropertyChanged)_view).PropertyChanged -= OnViewChanged;
 }
 
-public sealed record PropertyRow(string Group, PropertyValue P)
+/// <summary>A titled list of <see cref="DetailRow"/>s.</summary>
+public sealed class DetailGroup
 {
-    public string Name => P.Name;
-    public string? Value => P.Value;
-    public string ReadOnly => P.IsReadOnly ? "Yes" : "";
-    public string? Reason => P.ReadOnlyReason;
-    public string Source => P.Source.ToString();
-    public string? Storage => P.StorageType;
-    public string? DataType => P.DataType;
-    public string? Units => P.Units;
-    public string? Id => P.Id;
+    public DetailGroup(string name) => Name = name;
+    public string Name { get; }
+    public List<DetailRow> Rows { get; } = new();
 }
