@@ -48,6 +48,38 @@ internal static class ShellIntegration
         }
     }
 
+    /// <summary>
+    /// Windows caches program icons by path, so after an update the taskbar and Start Menu can keep
+    /// showing the old icon. Tell the shell icons changed and rebuild its icon cache.
+    /// </summary>
+    public static void RefreshIcons()
+    {
+        try
+        {
+            SHChangeNotify(ShcneAssocChanged, ShcnfIdList, IntPtr.Zero, IntPtr.Zero);
+            string ie4uinit = Path.Combine(Environment.SystemDirectory, "ie4uinit.exe");
+            if (File.Exists(ie4uinit))
+            {
+                using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(ie4uinit, "-show")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                });
+                p?.WaitForExit(10000);
+            }
+        }
+        catch (Exception ex)
+        {
+            HubLog.Warn("Could not refresh the Windows icon cache.", ex);
+        }
+    }
+
+    private const int ShcneAssocChanged = 0x08000000;
+    private const uint ShcnfIdList = 0x0000;
+
+    [System.Runtime.InteropServices.DllImport("shell32.dll")]
+    private static extern void SHChangeNotify(int eventId, uint flags, IntPtr item1, IntPtr item2);
+
     public static void Unregister()
     {
         try { File.Delete(StartMenuShortcut); } catch { /* ignored */ }

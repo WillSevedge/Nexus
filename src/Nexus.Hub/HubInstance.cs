@@ -125,6 +125,7 @@ internal sealed class HubInstance : IDisposable
         }
 
         ShellIntegration.Register();
+        ShellIntegration.RefreshIcons();
         StartupRegistration.Apply();
 
         // Shell-execute so the new hub does not inherit this process's (or a build's) console handles.
