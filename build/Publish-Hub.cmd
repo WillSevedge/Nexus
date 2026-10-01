@@ -14,10 +14,19 @@ if errorlevel 1 (
 )
 
 echo Building the Nexus hub (the first build downloads packages and takes a minute)...
-dotnet publish "%ROOT%\src\Nexus.Hub\Nexus.Hub.csproj" -p:PublishProfile=Standalone -nologo -v:minimal
+rem All publish settings are on the command line (no publish profile needed).
+dotnet publish "%ROOT%\src\Nexus.Hub\Nexus.Hub.csproj" -c Release -r win-x64 --self-contained true ^
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true ^
+  -p:DebugType=embedded -p:AllowedReferenceRelatedFileExtensions=none ^
+  -o "%ROOT%\artifacts\Nexus" -nologo -v:minimal
 if errorlevel 1 (
   echo.
   echo Build failed.
+  exit /b 1
+)
+if not exist "%ROOT%\artifacts\Nexus\Nexus.exe" (
+  echo.
+  echo Build finished but artifacts\Nexus\Nexus.exe is missing.
   exit /b 1
 )
 copy /y "%ROOT%\deploy\hub\Install.cmd" "%ROOT%\artifacts\Nexus\" >nul
