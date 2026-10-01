@@ -58,6 +58,12 @@ public sealed class AgentConnection : IAsyncDisposable
     public async Task<WriteResult> WriteAsync(WriteRequest request, CancellationToken ct = default) =>
         await (await ConnectedAsync(ct).ConfigureAwait(false)).WriteAsync(request, ct).ConfigureAwait(false);
 
+    public async Task<SelectResult> SelectAsync(SelectRequest request, CancellationToken ct = default) =>
+        await (await ConnectedAsync(ct).ConfigureAwait(false)).SelectAsync(request, ct).ConfigureAwait(false);
+
+    /// <summary>True when the agent can show items (open sheets, select objects).</summary>
+    public bool CanSelect => Host.Features.Contains(AgentFeatures.Select);
+
     private async Task<AgentClient> ConnectedAsync(CancellationToken ct)
     {
         if (Client is null || !Client.IsConnected)

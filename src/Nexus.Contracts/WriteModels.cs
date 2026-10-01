@@ -5,6 +5,24 @@ public static class AgentFeatures
 {
     /// <summary>The agent accepts <see cref="MessageTypes.Write"/> requests.</summary>
     public const string Write = "write";
+    /// <summary>The agent accepts <see cref="MessageTypes.Select"/> requests (show items in the host).</summary>
+    public const string Select = "select";
+}
+
+/// <summary>Show items in the host: open the sheet/layout, or select and zoom to objects.</summary>
+public sealed class SelectRequest
+{
+    public string DocumentId { get; set; } = "";
+    /// <summary><see cref="DataItem.Id"/> values (Revit UniqueId, AutoCAD handle).</summary>
+    public List<string> ItemIds { get; set; } = new();
+}
+
+public sealed class SelectResult
+{
+    /// <summary>How many of the items were found and shown.</summary>
+    public int Shown { get; set; }
+    /// <summary>What the host did, for the status bar.</summary>
+    public string Message { get; set; } = "";
 }
 
 /// <summary>A batch of property edits for one document. Applied as one undoable host operation.</summary>

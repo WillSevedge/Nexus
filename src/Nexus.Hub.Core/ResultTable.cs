@@ -41,7 +41,15 @@ public sealed class ResultTable
     public List<ColumnKey> Columns { get; } = new();
     public List<TableRow> Rows { get; } = new();
 
-    public static ResultTable Build(IEnumerable<ResultSource> sources, bool includeChildren = true)
+    /// <summary>Column id → column, for every column in <see cref="Columns"/>.</summary>
+    public Dictionary<string, ColumnKey> ColumnsById { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Flattens results into rows and columns. With <paramref name="sheetFields"/>, adds the standard
+    /// "Sheet › …" columns first; each refers to the same property as its source column, so editing
+    /// either edits the parameter or attribute behind it.
+    /// </summary>
+    public static ResultTable Build(IEnumerable<ResultSource> sources, bool includeChildren = true, SheetFieldMap? sheetFields = null)
     {
         var table = new ResultTable();
         var known = new HashSet<string>(StringComparer.Ordinal);
@@ -50,7 +58,22 @@ public sealed class ResultTable
             foreach (var item in s.Result.Items)
                 table.AddItem(s, item, item.Name, 0, includeChildren, known);
 
+        foreach (var c in table.Columns) table.ColumnsById[c.Id] = c;
+        if (sheetFields is not null) table.AddSheetFields(sheetFields);
         return table;
+    }
+
+    private void AddSheetFields(SheetFieldMap map)
+    {
+        var fieldColumns = map.Fields.Select(f => new ColumnKey(SheetFieldMap.Group, f.Name)).ToList();
+        foreach (var row in Rows)
+            foreach (var (field, value) in map.Match(row, ColumnsById))
+                row.Values[SheetFieldMap.ColumnId(field)] = value;
+
+        // Only fields found in at least one row, in the map's order, before every other column.
+        var used = fieldColumns.Where(c => Rows.Any(r => r.Values.ContainsKey(c.Id))).ToList();
+        Columns.InsertRange(0, used);
+        foreach (var c in used) ColumnsById[c.Id] = c;
     }
 
     private void AddItem(ResultSource s, DataItem item, string path, int depth, bool includeChildren, HashSet<string> known)

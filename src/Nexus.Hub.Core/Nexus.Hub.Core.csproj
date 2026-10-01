@@ -8,4 +8,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Nexus.Contracts\Nexus.Contracts.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Excel link: read/compare/write .xlsx/.xlsm templates (MIT). -->
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
+  </ItemGroup>
 </Project>

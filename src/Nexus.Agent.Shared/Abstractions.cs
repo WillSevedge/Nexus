@@ -41,6 +41,13 @@ public interface IHostDataReader<in TDoc> where TDoc : class
     void Read(TDoc document, ReadContext context);
 }
 
+/// <summary>Shows items in the host (opens a sheet, selects and zooms to objects). Optional.</summary>
+public interface IHostSelector<in TDoc> where TDoc : class
+{
+    /// <summary>Always called on the host thread.</summary>
+    SelectResult Select(TDoc document, IReadOnlyList<string> itemIds, AgentLog log);
+}
+
 /// <summary>
 /// Applies property edits to a document. One per host; optional (agents without
 /// one answer write requests with NotImplemented and do not advertise the feature).

@@ -35,6 +35,7 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
     private readonly IDocumentProvider<TDoc> _documents;
     private readonly ReaderRegistry<TDoc> _readers;
     private readonly IHostDataWriter<TDoc>? _writer;
+    private readonly IHostSelector<TDoc>? _selector;
     private readonly AgentLog _log;
     private readonly AgentServerOptions _options;
     private readonly CancellationTokenSource _stop = new();
@@ -47,9 +48,10 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
 
     public AgentServer(HostInfo host, IHostDispatcher dispatcher, IDocumentProvider<TDoc> documents,
         ReaderRegistry<TDoc> readers, AgentLog log, AgentServerOptions? options = null,
-        IHostDataWriter<TDoc>? writer = null)
+        IHostDataWriter<TDoc>? writer = null, IHostSelector<TDoc>? selector = null)
     {
         _writer = writer;
+        _selector = selector;
         _host = WithFeatures(host);
         _dispatcher = dispatcher;
         _documents = documents;
@@ -93,6 +95,8 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
     {
         if (_writer is not null && !host.Features.Contains(AgentFeatures.Write))
             host.Features.Add(AgentFeatures.Write);
+        if (_selector is not null && !host.Features.Contains(AgentFeatures.Select))
+            host.Features.Add(AgentFeatures.Select);
         return host;
     }
 
@@ -227,6 +231,7 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
                 },
                 MessageTypes.Read => await ReadAsync(request.PayloadAs<ReadRequest>(), ct).ConfigureAwait(false),
                 MessageTypes.Write => await WriteAsync(request.PayloadAs<WriteRequest>(), ct).ConfigureAwait(false),
+                MessageTypes.Select => await SelectAsync(request.PayloadAs<SelectRequest>(), ct).ConfigureAwait(false),
                 _ => throw new AgentException(ErrorCodes.UnknownMessage, $"Unknown message type '{request.Type}'."),
             };
             return Envelope.Result(request.Id, result);
@@ -304,6 +309,23 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
 
             var counts = result.Results.GroupBy(r => r.Status).Select(g => $"{g.Count()} {g.Key.ToString().ToLowerInvariant()}");
             _log.Info($"Write to '{info.Title}': {(result.Committed ? "committed" : "not committed")}, {string.Join(", ", counts)}, {sw.ElapsedMilliseconds} ms");
+            return result;
+        }, _options.HostStartTimeout, ct).ConfigureAwait(false);
+    }
+
+    private async Task<SelectResult> SelectAsync(SelectRequest? request, CancellationToken ct)
+    {
+        if (_selector is null)
+            throw new AgentException(ErrorCodes.NotImplemented, $"{_host.Product} cannot show items yet.");
+        if (request is null || string.IsNullOrWhiteSpace(request.DocumentId) || request.ItemIds.Count == 0)
+            throw new AgentException(ErrorCodes.BadRequest, "A select request needs a documentId and at least one item id.");
+
+        return await _dispatcher.InvokeAsync(() =>
+        {
+            var doc = _documents.Find(request.DocumentId)
+                      ?? throw new AgentException(ErrorCodes.DocumentNotFound, $"Document '{request.DocumentId}' is not open (it may have been closed).");
+            var result = _selector.Select(doc, request.ItemIds, _log);
+            _log.Info($"Select {request.ItemIds.Count} item(s): {result.Message}");
             return result;
         }, _options.HostStartTimeout, ct).ConfigureAwait(false);
     }

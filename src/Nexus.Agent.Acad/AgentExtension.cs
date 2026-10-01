@@ -49,11 +49,12 @@ public sealed class AgentExtension : IExtensionApplication
             var journal = new ProbeJournal(Log);
             _objects = new ObjectPropertyReader(journal, CategoryMap.Load(dir, Log), Log);
             _readers = new ReaderRegistry<Document>();
+            _readers.Register(new SheetsReader());
             _readers.Register(new LayoutsReader(_objects));
 
             _dispatcher = new AcadDispatcher(Log);
             Server = new AgentServer<Document>(Host, _dispatcher.Queue, new AcadDocumentProvider(), _readers, Log,
-                writer: new AcadWriter());
+                writer: new AcadWriter(), selector: new AcadSelector());
             try
             {
                 _ribbon = new AcadRibbon(Log, () => Server?.Status, () => Host);

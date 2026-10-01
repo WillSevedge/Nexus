@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using Nexus.Agent;
 using Nexus.Agent.Acad.PropertyEngine;
+using Nexus.Agent.Acad.Readers;
 using Nexus.Contracts;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -97,6 +98,12 @@ internal sealed class AcadWriter : IHostDataWriter<Document>
         // Drawing-level item: system variables and database settings.
         if (change.OwnerId == docId)
         {
+            if (change.PropertyId?.StartsWith(SheetsReader.DwgPropsPrefix, StringComparison.Ordinal) == true)
+            {
+                string propId = change.PropertyId;
+                SetChecked(r, change, () => SheetsReader.CurrentDwgProp(db, propId), () => SheetsReader.SetDwgProp(db, propId, change.Value));
+                return;
+            }
             if (change.Source == PropertySource.Setting && change.PropertyId is { } id && !id.Contains('.'))
             {
                 if (!isActive)
@@ -116,6 +123,15 @@ internal sealed class AcadWriter : IHostDataWriter<Document>
 
         switch (obj)
         {
+            case Layout layout when change.PropertyId == SheetsReader.LayoutNameId:
+                SetChecked(r, change, () => layout.LayoutName, () =>
+                {
+                    string name = change.Value.Trim();
+                    if (name.Length == 0) throw new FormatException("A layout name is required.");
+                    LayoutManager.Current.RenameLayout(layout.LayoutName, name);
+                });
+                return;
+
             case AttributeReference ar:
                 SetChecked(r, change, () => ar.IsMTextAttribute ? ar.MTextAttribute?.Contents ?? ar.TextString : ar.TextString,
                     () =>

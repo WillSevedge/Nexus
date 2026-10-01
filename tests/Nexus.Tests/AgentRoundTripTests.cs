@@ -4,6 +4,7 @@ using Nexus.Hub.Core;
 
 namespace Nexus.Tests;
 
+[Collection("NexusHome")]
 public sealed class AgentRoundTripTests : IAsyncLifetime
 {
     private readonly string _home = Path.Combine(Path.GetTempPath(), "nexus-tests-" + Guid.NewGuid().ToString("N"));
