@@ -138,6 +138,11 @@ public partial class App : Application
         if (ask && _vm is not null && !_vm.ConfirmExit()) return;
         _exiting = true;
         _poll?.Stop();
+        // Close the program connections cleanly before the process ends.
+        foreach (var agent in _vm?.Agents.ToList() ?? new())
+        {
+            try { agent.Connection.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(1)); } catch { /* ignored */ }
+        }
         _window?.Close();
         Shutdown(0);
     }
@@ -152,6 +157,12 @@ public partial class App : Application
     private void OnUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         HubLog.Error("Unhandled error", e.Exception);
+        // While closing, background work stopping late is expected: log it, never show a dialog.
+        if (_exiting || e.Exception is ObjectDisposedException or OperationCanceledException)
+        {
+            e.Handled = true;
+            return;
+        }
         MessageBox.Show(e.Exception.Message, "Nexus", MessageBoxButton.OK, MessageBoxImage.Error);
         e.Handled = true;
     }

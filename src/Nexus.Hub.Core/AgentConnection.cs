@@ -21,16 +21,11 @@ public sealed class AgentConnection : IAsyncDisposable
         LastError = null;
         try
         {
-            if (Client is null || !Client.IsConnected)
-            {
-                if (Client is not null) await Client.DisposeAsync().ConfigureAwait(false);
-                Client = await AgentClient.ConnectAsync(latest.PipeName, TimeSpan.FromSeconds(3), ct).ConfigureAwait(false);
-            }
-
-            var hello = await Client.HelloAsync(ct).ConfigureAwait(false);
+            var client = await ConnectedAsync(ct).ConfigureAwait(false);
+            var hello = await client.HelloAsync(ct).ConfigureAwait(false);
             Registration.Host = hello.Host;
-            Readers = await Client.ListReadersAsync(ct).ConfigureAwait(false);
-            Documents = await Client.ListDocumentsAsync(ct).ConfigureAwait(false);
+            Readers = await client.ListReadersAsync(ct).ConfigureAwait(false);
+            Documents = await client.ListDocumentsAsync(ct).ConfigureAwait(false);
         }
         catch (AgentRequestException ex)
         {
@@ -41,11 +36,7 @@ public sealed class AgentConnection : IAsyncDisposable
         {
             LastError = ex.Message;
             HubLog.Warn($"{Host.DisplayName}: could not connect.", ex);
-            if (Client is not null)
-            {
-                await Client.DisposeAsync().ConfigureAwait(false);
-                Client = null;
-            }
+            await DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -64,19 +55,33 @@ public sealed class AgentConnection : IAsyncDisposable
     /// <summary>True when the agent can show items (open sheets, select objects).</summary>
     public bool CanSelect => Host.Features.Contains(AgentFeatures.Select);
 
+    // One reconnect at a time: a refresh and a read must not both replace (and dispose) the client.
+    private readonly SemaphoreSlim _connectLock = new(1, 1);
+
     private async Task<AgentClient> ConnectedAsync(CancellationToken ct)
     {
-        if (Client is null || !Client.IsConnected)
+        await _connectLock.WaitAsync(ct).ConfigureAwait(false);
+        try
         {
-            if (Client is not null) await Client.DisposeAsync().ConfigureAwait(false);
-            Client = await AgentClient.ConnectAsync(Registration.PipeName, TimeSpan.FromSeconds(3), ct).ConfigureAwait(false);
+            if (Client is null || !Client.IsConnected)
+            {
+                var old = Client;
+                Client = null;
+                if (old is not null) await old.DisposeAsync().ConfigureAwait(false);
+                Client = await AgentClient.ConnectAsync(Registration.PipeName, TimeSpan.FromSeconds(3), ct).ConfigureAwait(false);
+            }
+            return Client;
         }
-        return Client;
+        finally
+        {
+            _connectLock.Release();
+        }
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (Client is not null) await Client.DisposeAsync().ConfigureAwait(false);
+        var old = Client;
         Client = null;
+        if (old is not null) await old.DisposeAsync().ConfigureAwait(false);
     }
 }

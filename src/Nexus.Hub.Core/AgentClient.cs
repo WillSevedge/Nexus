@@ -117,9 +117,10 @@ public sealed class AgentClient : IAsyncDisposable
     {
         try
         {
-            while (!_cts.IsCancellationRequested)
+            var token = _cts.Token; // taken once: the source may be disposed while we wait
+            while (!token.IsCancellationRequested)
             {
-                var env = await Frames.ReadAsync(_pipe, _cts.Token).ConfigureAwait(false);
+                var env = await Frames.ReadAsync(_pipe, token).ConfigureAwait(false);
                 if (env is null) break;
                 if (_pending.TryGetValue(env.Id, out var tcs)) tcs.TrySetResult(env);
             }
@@ -139,9 +140,13 @@ public sealed class AgentClient : IAsyncDisposable
         }
     }
 
+    private int _disposed;
+
+    /// <summary>Safe to call more than once and from several callers at the same time.</summary>
     public async ValueTask DisposeAsync()
     {
-        _cts.Cancel();
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        try { _cts.Cancel(); } catch (ObjectDisposedException) { /* already gone */ }
         try { await _pipe.DisposeAsync().ConfigureAwait(false); } catch { /* ignored */ }
         if (_readLoop is not null)
         {
