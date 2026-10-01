@@ -1,6 +1,6 @@
 # Nexus
 
-Nexus connects running **Revit**, **AutoCAD** and **Civil 3D** sessions to a **hub** that runs in
+Nexus connects running **Revit**, **AutoCAD**, **Civil 3D** and **Plant 3D** sessions to a **hub** that runs in
 the background (tray icon, starts with Windows). Each host runs a small agent that answers requests
 over a named pipe; the hub finds every running agent, lists the open documents, runs *readers*
 against them, lets you edit values and write them back, and exports the results.
@@ -16,6 +16,7 @@ Later phases: Excel import/export, two-way sync and the MCP server.
 | `src/Nexus.Agent.Revit` | net10.0-windows | Revit add-in (`IExternalApplication`), ribbon status button, `ExternalEvent` request queue, readers. |
 | `src/Nexus.Agent.Acad` | net10.0-windows | AutoCAD-family core agent (`IExtensionApplication`), autoloader bundle, generic "Properties palette" reader, layouts reader, module loader. Loads in every AutoCAD-based product. |
 | `src/Nexus.Agent.Acad.Civil3D` | net10.0-windows | Civil 3D module. The only project that references the Civil 3D API. Loaded by the core only when Civil 3D is detected. |
+| `src/Nexus.Agent.Acad.Plant3D` | net10.0-windows | Plant 3D module. Reaches the Plant 3D API (project, DataLinksManager) by late binding, so it builds without Plant 3D. Loaded by the core only when Plant 3D is detected. |
 | `src/Nexus.Hub.Core` | net10.0 | UI-free hub logic: discovery, pipe client, result flattening, CSV/JSON export. |
 | `src/Nexus.Hub` | net10.0-windows (WPF) | The hub application (`Nexus.exe`). |
 | `src/Nexus.Cli` | net10.0 | `nexus` command-line client, for testing agents without the GUI. |
@@ -99,6 +100,8 @@ Runtime files (all under `%LOCALAPPDATA%\Nexus\`):
 - Revisions on sheets: `revit.sheets` has one **Yes/No** column per project revision (*Revisions on Sheet ›
   Seq. 3 - Revision 3*), like Revit's *Revisions on Sheet* dialog. Changing it adds or removes the revision on the
   sheet. A revision placed by revision clouds on the sheet is locked, as in Revit.
+- `revit.fabrication.parts`: every MEP Fabrication part (see *Fabrication* below).
+- `revit.fabrication.database`: the fabrication configuration loaded in the model (see *Fabrication* below).
 - Placeholders (registered, return `NotImplemented`): `revit.elements`, `revit.schedules`, `revit.views`, `revit.rooms`, `revit.mepsystems`.
 
 Every parameter carries:
@@ -118,6 +121,29 @@ A value is skipped when the element is not editable (see the read-only reasons a
 has changed in Revit since it was read. If Revit reports an error when committing, the whole batch
 is rolled back. Revit warnings (e.g. a duplicate mark) are passed back to the hub instead of
 showing a dialog. Editing a title block **type** parameter changes every sheet that uses that type.
+
+**Fabrication (bridge to the Fabrication CADmep database).** Revit's MEP Fabrication parts come from a
+fabrication configuration: the database (services, item files, materials, specifications, custom data…) that is
+authored in Fabrication CADmep/ESTmep. The **Fabrication** panel on the Nexus tab connects the two:
+- **Fabrication Database**: browse what the model's configuration contains (configuration name, version, location,
+  profile; services with loaded/used state, palettes and buttons; materials, specifications, insulation
+  specifications, custom data fields, part statuses, ancillaries, connectors, dampers), with filtering, and the
+  actions below.
+- **Reload**: reload the configuration from the database on disk, so changes made in CADmep reach the model
+  (reports out-of-date parts, custom data changes and disconnections). One undo step.
+- **Export MAJ**: save the selected fabrication parts (or every part in the active view) as a MAJ job that
+  CADmep, ESTmep and CAMduct open.
+- **Parts in Nexus**: open the hub on the *Fabrication parts* view.
+
+`revit.fabrication.parts` reads each part's fabrication data: item number, notes, spool name, part status,
+alias, item custom id, part type, service (name, abbreviation, type), specification, material, gauge, insulation
+specification, insulation/lining/double wall, product list entry and product data (code, name, descriptions, finish,
+install type, manufacturer, vendor), size, overall size, centerline length, weight, sheet metal area, and every
+custom data field of the database. Options: filter by service, include the Revit parameters.
+
+Editable from the hub (one transaction, one undo): **item number, notes, spool name, part status** (by its
+description), **specification, material, insulation specification** (by name or `Group: Name`; Revit refuses
+values that are not valid for the part) and **custom data** (text, or numbers parsed by the configuration's rules).
 
 **Threading.** Pipe requests never touch the Revit API. They are queued and run by an
 `IExternalEventHandler` on Revit's main thread. If Revit cannot run them within 30 s
@@ -140,11 +166,15 @@ error instead of waiting forever.
    The tab comes back after a workspace switch. `NEXUSSTATUS` prints the same details on the command line.
 
 In Civil 3D the status shows `Modules: Civil3D`, and the hub lists the host as **Civil 3D 2026**.
+In Plant 3D it shows `Modules: Plant3D`, and the hub lists the host as **Plant 3D 2026**.
 
 The core detects Civil 3D after startup, on the first idle. It looks for any of:
 - `/product C3D` on the command line,
 - a loaded `AeccDbMgd` assembly,
 - a loaded `aecc*` ObjectARX module.
+
+Plant 3D is detected the same way: `/product PLNT3D`, a loaded `PnPProjectManagerMgd`/`PnP3dObjectsMgd`/`PnPDataLinks`
+assembly, or a loaded `PnP*` module.
 
 The detection rules are in `modules.json` next to the core DLL.
 
@@ -167,6 +197,17 @@ The detection rules are in `modules.json` next to the core DLL.
   - surfaces, with statistics from `GetGeneralProperties`/`GetTinProperties`/…,
   - pipe networks, with pipes and structures as children,
   - corridors.
+
+- `plant.objects` (Plant 3D only): every Plant 3D object in model space (pipes, fittings, valves, equipment,
+  instruments, supports; P&ID symbols and lines) with its project data, the properties Plant 3D shows in the
+  Properties palette: tag, line number, size, spec, service, descriptions, and every custom property of the
+  project. Gaskets, bolt sets and welds are left out unless the `connections` option is on; `drawingProperties`
+  adds the AutoCAD properties (layer, colour…). Values are edited through the project's DataLinksManager, the
+  same store Plant 3D's Data Manager edits; when Plant 3D keeps the old value (calculated properties, tags built
+  from their parts) the hub says so. `PnP*` system properties are read-only. The drawing must be opened from the
+  Plant 3D Project Manager.
+- `plant.project` (Plant 3D only): the open project's settings, its parts (Piping, P&ID, Ortho, Iso) and every
+  drawing registered in each part.
 
 **How the generic property reader works** (`src/Nexus.Agent.Acad/PropertyEngine`)
 1. **COM/ActiveX properties.** It enumerates the object's `ITypeInfo`, the same properties the Properties palette shows. Each property is put in the palette's own category by asking the object's `ICategorizeProperties` interface.

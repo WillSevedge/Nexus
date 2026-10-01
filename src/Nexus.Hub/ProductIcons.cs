@@ -20,7 +20,7 @@ internal static class ProductIcons
     private const int Size = 48;
     private static readonly Dictionary<string, ImageSource?> Cache = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>"Civil 3D 2026", "Revit 2026", "AutoCAD 2026".</summary>
+    /// <summary>"Civil 3D 2026", "Plant 3D 2026", "Revit 2026", "AutoCAD 2026".</summary>
     public static ImageSource? For(HostInfo host, string product)
     {
         string key = $"{product} {host.Version}";
@@ -50,7 +50,7 @@ internal static class ProductIcons
             Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
             Environment.GetFolderPath(Environment.SpecialFolder.Programs),
         };
-        // e.g. "Civil 3D 2026 - English.lnk", "Revit 2026.lnk", "AutoCAD 2026 - English.lnk"
+        // e.g. "Civil 3D 2026 - English.lnk", "AutoCAD Plant 3D 2026 - English.lnk", "Revit 2026.lnk", "AutoCAD 2026 - English.lnk"
         var shortcuts = roots.Where(Directory.Exists)
             .SelectMany(r => SafeEnumerate(r, "*.lnk"))
             .Where(f => Path.GetFileNameWithoutExtension(f).Contains($"{product} {version}", StringComparison.OrdinalIgnoreCase))

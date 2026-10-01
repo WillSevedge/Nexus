@@ -214,7 +214,7 @@ public sealed class MainViewModel : Observable
         : "Nothing found";
 
     public string EmptyText => Agents.Count == 0
-        ? "Open Revit, AutoCAD or Civil 3D with the Nexus add-in. They appear on the left within a few seconds."
+        ? "Open Revit, AutoCAD, Civil 3D or Plant 3D with the Nexus add-in. They appear on the left within a few seconds."
         : Runs.Count == 0
             ? $"Tick one or more files on the left to see their {(_dataset?.Title ?? "data").ToLowerInvariant()}."
             : Runs.All(r => r.Failed)
@@ -259,6 +259,27 @@ public sealed class MainViewModel : Observable
         await LoadAsync(confirm: false);
     }
 
+    /// <summary>
+    /// Opens the view backed by a reader (asked for from a program's ribbon, e.g. Fabrication parts),
+    /// waiting briefly for the program to be found when the hub has just started.
+    /// </summary>
+    public async Task ShowReaderAsync(string readerId)
+    {
+        for (int attempt = 0; attempt < 10; attempt++)
+        {
+            var dataset = Datasets.FirstOrDefault(d => d.Readers.Values.Any(r => r.Descriptor.Id.Equals(readerId, StringComparison.OrdinalIgnoreCase)));
+            if (dataset is not null)
+            {
+                SelectedDataset = dataset;
+                return;
+            }
+            await RefreshAsync();
+            if (Datasets.Any(d => d.Readers.Values.Any(r => r.Descriptor.Id.Equals(readerId, StringComparison.OrdinalIgnoreCase)))) continue;
+            await Task.Delay(500);
+        }
+        Status = $"No connected program offers '{readerId}'. Is its Nexus add-in up to date?";
+    }
+
     public async Task RefreshAsync()
     {
         var found = AgentDiscovery.Discover();
@@ -300,10 +321,10 @@ public sealed class MainViewModel : Observable
         int docs = Agents.Sum(a => a.Documents.Count);
         if (!_busy)
             Status = found.Count == 0
-                ? "Waiting for Revit, AutoCAD or Civil 3D (with the Nexus add-in). They appear here automatically."
+                ? "Waiting for Revit, AutoCAD, Civil 3D or Plant 3D (with the Nexus add-in). They appear here automatically."
                 : $"Connected to {found.Count} program(s) with {docs} open file(s).";
         HostsChanged?.Invoke(found.Count == 0
-            ? "waiting for Revit, AutoCAD or Civil 3D"
+            ? "waiting for Revit, AutoCAD, Civil 3D or Plant 3D"
             : string.Join(", ", Agents.Select(a => a.Title)));
     }
 
@@ -376,7 +397,7 @@ public sealed class MainViewModel : Observable
             Title = "Sheets",
             Category = "Across programs",
             IsSheetIndex = true,
-            Description = "Every sheet: Revit sheets and AutoCAD/Civil 3D layouts with their title block. " +
+            Description = "Every sheet: Revit sheets and AutoCAD/Civil 3D/Plant 3D layouts with their title block. " +
                           "Number, Title, Revision, Drawn By... are matched in each program (edit the matching in sheet-fields.json).",
         };
         datasets.Add(sheets);
@@ -422,11 +443,9 @@ public sealed class MainViewModel : Observable
 
     private ReaderNode ReaderFor(HostInfo host, ReaderDescriptor d)
     {
-        string label = host.HostKind == HostKinds.AutoCAD && host.Modules.Contains("Civil3D") ? "Civil 3D" : host.Product;
-        if (host.HostKind == HostKinds.AutoCAD && label is not ("Civil 3D" or "AutoCAD")) label = "AutoCAD";
         if (!_readers.TryGetValue((host.HostKind, d.Id), out var node))
         {
-            node = new ReaderNode(d, host.HostKind, host.HostKind == HostKinds.AutoCAD ? "AutoCAD / Civil 3D" : label);
+            node = new ReaderNode(d, host.HostKind, Products.ReaderLabel(host, d.Id));
             _readers[(host.HostKind, d.Id)] = node;
         }
         return node;
@@ -452,7 +471,7 @@ public sealed class MainViewModel : Observable
             Runs = new List<ResultRun>();
             ShowResults(dataset);
             Status = Agents.Count == 0
-                ? "Waiting for Revit, AutoCAD or Civil 3D. They appear on the left automatically."
+                ? "Waiting for Revit, AutoCAD, Civil 3D or Plant 3D. They appear on the left automatically."
                 : $"Tick a file on the left to see its {dataset.Title.ToLowerInvariant()}.";
             return;
         }

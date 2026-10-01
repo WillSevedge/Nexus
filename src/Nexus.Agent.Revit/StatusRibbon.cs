@@ -9,7 +9,8 @@ using Autodesk.Revit.UI.Events;
 namespace Nexus.Agent.Revit;
 
 /// <summary>
-/// "Nexus" ribbon tab with one button that shows the hub connection status. The pipe
+/// "Nexus" ribbon tab: the Hub Link button (hub connection status) and the Fabrication tools
+/// (the bridge to the Fabrication CADmep database). The pipe
 /// server reports changes from background threads; the ribbon is updated from
 /// Revit's Idling event (UI thread).
 /// </summary>
@@ -22,6 +23,8 @@ internal sealed class StatusRibbon : IDisposable
     private readonly PushButton _button;
     private readonly Dictionary<AgentState, ImageSource> _icons = new();
     private readonly Dictionary<AgentState, ImageSource> _small = new();
+    /// <summary>Tool buttons drawn from an icon-font glyph (redrawn when the theme changes).</summary>
+    private readonly List<(PushButton Button, string Glyph)> _tools = new();
     private volatile AgentStatus? _pending;
     private AgentState _state = AgentState.Stopped;
 
@@ -45,15 +48,77 @@ internal sealed class StatusRibbon : IDisposable
         };
         _button = (PushButton)panel.AddItem(data);
 
+        try
+        {
+            AddFabricationPanel(app, assembly);
+        }
+        catch (Exception ex)
+        {
+            _log.Error("Could not create the Fabrication panel.", ex);
+        }
+
         app.Idling += OnIdling;
         try { app.ThemeChanged += OnThemeChanged; } catch { /* older Revit */ }
+    }
+
+    /// <summary>Fabrication: browse the database, reload it, export parts to a MAJ job, open the parts in the hub.</summary>
+    private void AddFabricationPanel(UIControlledApplication app, string assembly)
+    {
+        var panel = app.CreateRibbonPanel(TabName, "Fabrication");
+        bool dark = IsDark();
+
+        var database = (PushButton)panel.AddItem(new PushButtonData("NexusFabDatabase", "Fabrication\nDatabase", assembly,
+            typeof(Fabrication.FabricationDatabaseCommand).FullName)
+        {
+            ToolTip = "Browse the fabrication database loaded in this model (services, materials, specifications, insulation, custom data, part statuses, ancillaries), reload it, or export parts to Fabrication CADmep.",
+        });
+        _tools.Add((database, Database));
+
+        var reload = new PushButtonData("NexusFabReload", "Reload", assembly, typeof(Fabrication.FabricationReloadCommand).FullName)
+        {
+            ToolTip = "Reload the fabrication configuration: pull changes made in Fabrication CADmep (services, item files, custom data) into this model.",
+        };
+        var export = new PushButtonData("NexusFabExport", "Export MAJ", assembly, typeof(Fabrication.FabricationExportCommand).FullName)
+        {
+            ToolTip = "Save the selected fabrication parts (or every fabrication part in the active view) as a MAJ job for CADmep, ESTmep or CAMduct.",
+        };
+        var hub = new PushButtonData("NexusFabHub", "Parts in Nexus", assembly, typeof(Fabrication.FabricationPartsInHubCommand).FullName)
+        {
+            AvailabilityClassName = typeof(AlwaysAvailable).FullName,
+            ToolTip = "Open the Fabrication parts view in the Nexus hub to compare and bulk-edit item numbers, spools, statuses, specifications and custom data.",
+        };
+        var stacked = panel.AddStackedItems(reload, export, hub);
+        _tools.Add(((PushButton)stacked[0], Reload));
+        _tools.Add(((PushButton)stacked[1], Export));
+        _tools.Add(((PushButton)stacked[2], OpenInHub));
+        ApplyToolIcons(dark);
+    }
+
+    // Segoe Fluent Icons / MDL2 glyphs.
+    private const string Database = "\uE8F1";   // Library
+    private const string Reload = "\uE72C";     // Refresh
+    private const string Export = "\uEDE1";     // Export
+    private const string OpenInHub = "\uE8A7";  // Open in new window
+
+    private void ApplyToolIcons(bool dark)
+    {
+        foreach (var (button, glyph) in _tools)
+        {
+            button.LargeImage = RibbonIcons.Glyph(glyph, 32, dark);
+            button.Image = RibbonIcons.Glyph(glyph, 16, dark);
+        }
+    }
+
+    private static bool IsDark()
+    {
+        try { return UIThemeManager.CurrentTheme == UITheme.Dark; }
+        catch { return false; }
     }
 
     /// <summary>White N on Revit's dark theme, black N on the light theme.</summary>
     private void BuildIcons()
     {
-        bool dark = false;
-        try { dark = UIThemeManager.CurrentTheme == UITheme.Dark; } catch { /* default: light */ }
+        bool dark = IsDark();
         foreach (AgentState s in Enum.GetValues<AgentState>())
         {
             _icons[s] = RibbonIcons.Create(s, 32, dark);
@@ -68,6 +133,7 @@ internal sealed class StatusRibbon : IDisposable
             BuildIcons();
             _button.LargeImage = _icons[_state];
             _button.Image = _small[_state];
+            ApplyToolIcons(IsDark());
         }
         catch (Exception ex)
         {

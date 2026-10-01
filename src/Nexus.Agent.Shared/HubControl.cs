@@ -11,19 +11,22 @@ public static class HubControl
     /// <summary>
     /// Brings the hub window forward, starting the hub first if it is not running.
     /// Returns null on success, else a message for the user.
+    /// With <paramref name="readerId"/> (e.g. "revit.fabrication.parts") the hub opens that view.
     /// </summary>
-    public static string? Show(AgentLog log)
+    public static string? Show(AgentLog log, string? readerId = null)
     {
         try
         {
             // We are the foreground app (the user just clicked in the host); let the hub take focus.
             AllowSetForegroundWindow(AsfwAny);
-            if (Send("show")) return null;
+            if (Send(readerId is null ? "show" : "dataset " + readerId)) return null;
 
             if (!File.Exists(NexusPaths.HubExe))
                 return "The Nexus hub is not installed.\n\nBuild the solution in Visual Studio; the build installs the hub to:\n" + NexusPaths.HubInstallDir;
 
-            Process.Start(new ProcessStartInfo(NexusPaths.HubExe) { UseShellExecute = true, WorkingDirectory = NexusPaths.HubInstallDir });
+            var start = new ProcessStartInfo(NexusPaths.HubExe) { UseShellExecute = true, WorkingDirectory = NexusPaths.HubInstallDir };
+            if (readerId is not null) start.Arguments = "--dataset " + readerId;
+            Process.Start(start);
             log.Info("Started the hub: " + NexusPaths.HubExe);
             return null;
         }

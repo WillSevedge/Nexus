@@ -1,6 +1,8 @@
 using Nexus.Agent;
 using Nexus.Agent.Acad.PropertyEngine;
+using Nexus.Contracts;
 using Autodesk.AutoCAD.ApplicationServices;
+using Autodesk.AutoCAD.DatabaseServices;
 
 namespace Nexus.Agent.Acad.Modules;
 
@@ -17,16 +19,32 @@ public interface IAcadAgentModule
     void Initialize(AcadModuleContext context);
 }
 
+/// <summary>
+/// Writes back properties that a module reads itself (e.g. Plant 3D project data). Called on AutoCAD's
+/// main thread with the document locked, after the core's own transaction has closed.
+/// </summary>
+public interface IAcadPropertyWriter
+{
+    /// <summary>True for the changes this writer owns (usually by a property id prefix).</summary>
+    bool Handles(PropertyChange change);
+
+    /// <summary>Sets the value and fills in <paramref name="result"/> (Status, Message, NewValue).</summary>
+    void Apply(Document doc, ObjectId id, PropertyChange change, ChangeResult result);
+}
+
 public sealed class AcadModuleContext
 {
-    internal AcadModuleContext(AgentLog log, ReaderRegistry<Document> readers, ObjectPropertyReader objects)
+    internal AcadModuleContext(AgentLog log, ReaderRegistry<Document> readers, ObjectPropertyReader objects, List<IAcadPropertyWriter> writers)
     {
         Log = log;
         Readers = readers;
         Objects = objects;
+        Writers = writers;
     }
 
     public AgentLog Log { get; }
     public ReaderRegistry<Document> Readers { get; }
     public ObjectPropertyReader Objects { get; }
+    /// <summary>Add a writer for the properties the module's readers return.</summary>
+    public List<IAcadPropertyWriter> Writers { get; }
 }

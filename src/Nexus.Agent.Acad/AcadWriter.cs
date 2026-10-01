@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using Nexus.Agent;
+using Nexus.Agent.Acad.Modules;
 using Nexus.Agent.Acad.PropertyEngine;
 using Nexus.Agent.Acad.Readers;
 using Nexus.Contracts;
@@ -20,6 +21,12 @@ namespace Nexus.Agent.Acad;
 internal sealed class AcadWriter : IHostDataWriter<Document>
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
+
+    /// <summary>Writers added by vertical modules (Plant 3D...); filled after AutoCAD finished starting.</summary>
+    private readonly IReadOnlyList<IAcadPropertyWriter> _moduleWriters;
+
+    public AcadWriter(IReadOnlyList<IAcadPropertyWriter>? moduleWriters = null) =>
+        _moduleWriters = moduleWriters ?? Array.Empty<IAcadPropertyWriter>();
 
     public WriteResult Write(Document doc, WriteRequest request, AgentLog log, CancellationToken ct)
     {
@@ -47,6 +54,7 @@ internal sealed class AcadWriter : IHostDataWriter<Document>
             string docId = AcadDocumentProvider.Id(doc);
             bool isActive = ReferenceEquals(doc, AcApp.DocumentManager.MdiActiveDocument);
             var comChanges = new List<int>();
+            var moduleChanges = new List<(int Index, IAcadPropertyWriter Writer)>();
 
             using (var tr = db.TransactionManager.StartTransaction())
             {
@@ -55,6 +63,12 @@ internal sealed class AcadWriter : IHostDataWriter<Document>
                 for (int i = 0; i < request.Changes.Count; i++)
                 {
                     var change = request.Changes[i];
+                    var moduleWriter = _moduleWriters.FirstOrDefault(w => w.Handles(change));
+                    if (moduleWriter is not null)
+                    {
+                        moduleChanges.Add((i, moduleWriter));
+                        continue;
+                    }
                     if (change.Source == PropertySource.Com)
                     {
                         comChanges.Add(i);
@@ -72,6 +86,22 @@ internal sealed class AcadWriter : IHostDataWriter<Document>
             {
                 var change = request.Changes[i];
                 Run(result.Results[i], change, log, () => ApplyCom(db, change, result.Results[i]));
+            }
+
+            // Module data (e.g. Plant 3D properties) is stored by the module's own API, outside our transaction.
+            foreach (var (i, writer) in moduleChanges)
+            {
+                var change = request.Changes[i];
+                var r = result.Results[i];
+                Run(r, change, log, () =>
+                {
+                    if (!long.TryParse(change.OwnerId, NumberStyles.HexNumber, Inv, out long h) || !db.TryGetObjectId(new Handle(h), out var id) || id.IsErased)
+                    {
+                        r.Message = "The object no longer exists.";
+                        return;
+                    }
+                    writer.Apply(doc, id, change, r);
+                });
             }
         }
 

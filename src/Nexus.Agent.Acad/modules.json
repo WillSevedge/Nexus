@@ -10,6 +10,16 @@
         "loadedAssemblies": [ "AeccDbMgd" ],
         "loadedArxPrefixes": [ "aecc" ]
       }
+    },
+    {
+      "name": "Plant3D",
+      "assembly": "Nexus.Agent.Acad.Plant3D.dll",
+      "productName": "Plant 3D",
+      "detect": {
+        "commandLineProducts": [ "PLNT3D" ],
+        "loadedAssemblies": [ "PnPProjectManagerMgd", "PnP3dObjectsMgd", "PnPDataLinks" ],
+        "loadedArxPrefixes": [ "PnP" ]
+      }
     }
   ]
 }

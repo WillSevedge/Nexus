@@ -31,6 +31,9 @@ public partial class App : Application
     private void OnStartup(object sender, StartupEventArgs e)
     {
         var args = e.Args.Select(a => a.ToLowerInvariant()).ToHashSet();
+        // --dataset <reader id>: open that view (from a program's ribbon, e.g. Fabrication parts).
+        int datasetArg = Array.FindIndex(e.Args, a => a.Equals("--dataset", StringComparison.OrdinalIgnoreCase));
+        string? dataset = datasetArg >= 0 && datasetArg + 1 < e.Args.Length ? e.Args[datasetArg + 1] : null;
 
         if (args.Contains("--install"))
         {
@@ -74,7 +77,7 @@ public partial class App : Application
             else
             {
                 // Already running: bring it forward (unless this is the sign-in start) and leave.
-                if (!args.Contains("--background")) HubInstance.Send("show");
+                if (!args.Contains("--background")) HubInstance.Send(dataset is null ? "show" : "dataset " + dataset);
                 _instance.Dispose();
                 Shutdown(0);
                 return;
@@ -109,6 +112,10 @@ public partial class App : Application
                 case "show": ShowWindow(); break;
                 case "refresh": _vm.RefreshCommand.Execute(null); break;
                 case "exit": ExitHub(ask: false); break;
+                case var c when c.StartsWith("dataset ", StringComparison.Ordinal):
+                    ShowWindow();
+                    _ = _vm.ShowReaderAsync(c["dataset ".Length..].Trim());
+                    break;
             }
         }));
 
@@ -119,6 +126,7 @@ public partial class App : Application
         _ = _vm.StartAsync();
 
         if (!args.Contains("--background")) ShowWindow();
+        if (dataset is not null) _ = _vm.ShowReaderAsync(dataset);
     }
 
     private void ShowWindow()

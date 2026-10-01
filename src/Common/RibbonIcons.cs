@@ -43,6 +43,26 @@ internal static class RibbonIcons
         return bmp;
     }
 
+    /// <summary>
+    /// A Windows icon-font glyph (Segoe Fluent Icons, or Segoe MDL2 Assets on Windows 10) for a tool button,
+    /// in the ribbon's text colour.
+    /// </summary>
+    public static ImageSource Glyph(string glyph, int size, bool darkUi)
+    {
+        var font = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets");
+        var brush = darkUi ? new SolidColorBrush(Color.FromRgb(0xF2, 0xF2, 0xF2)) : new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F));
+        brush.Freeze();
+        var text = new FormattedText(glyph, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+            new Typeface(font, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), size * 0.875, brush, 1.0);
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+            dc.DrawText(text, new Point((size - text.Width) / 2, (size - text.Height) / 2));
+        var bmp = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
+        bmp.Render(visual);
+        bmp.Freeze();
+        return bmp;
+    }
+
     private static BitmapImage? Load(string name)
     {
         using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name);

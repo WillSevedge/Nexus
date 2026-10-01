@@ -3,7 +3,7 @@
   Nexus autoloader bundle. Generated into
   %APPDATA%\Autodesk\ApplicationPlugins\Nexus.bundle\PackageContents.xml by the build.
   Platform="AutoCAD*" loads the core agent in AutoCAD and every AutoCAD-based
-  vertical (Civil 3D, Map 3D, ...). Vertical modules (e.g. Civil 3D) are loaded
+  vertical (Civil 3D, Plant 3D, Map 3D, ...). Vertical modules (Civil 3D, Plant 3D) are loaded
   by the core at runtime, only when the vertical is detected.
   One <Components> element per supported release; the build adds/updates them.
 -->
@@ -11,7 +11,7 @@
                     AutodeskProduct="AutoCAD"
                     ProductType="Application"
                     Name="Nexus Agent"
-                    Description="Connects AutoCAD and Civil 3D to the Nexus hub application."
+                    Description="Connects AutoCAD, Civil 3D and Plant 3D to the Nexus hub application."
                     AppVersion="0.1.0"
                     Author="Nexus"
                     Icon="./Contents/Resources/Nexus.ico"

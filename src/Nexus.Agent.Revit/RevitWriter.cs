@@ -1,5 +1,6 @@
 using System.Globalization;
 using Nexus.Agent;
+using Nexus.Agent.Revit.Fabrication;
 using Nexus.Contracts;
 using Autodesk.Revit.DB;
 
@@ -120,6 +121,8 @@ internal sealed class RevitWriter : IHostDataWriter<Document>
 
         if (change.PropertyId?.StartsWith(RevisionsOnSheets.IdPrefix, StringComparison.Ordinal) == true)
             return ApplyRevisionOnSheet(doc, element, change, r);
+        if (FabricationParts.Handles(change.PropertyId))
+            return ApplyFabrication(doc, element, change, r);
 
         var p = FindParameter(element, change);
         if (p is null)
@@ -195,6 +198,43 @@ internal sealed class RevitWriter : IHostDataWriter<Document>
         r.NewValue = show.Value ? "Yes" : "No";
         r.Status = changed ? ChangeStatus.Applied : ChangeStatus.Unchanged;
         return () => RevisionsOnSheets.State(sheet, revision);
+    }
+
+    /// <summary>Fabrication data of an MEP Fabrication part (item number, spool, status, custom data...).</summary>
+    private static Func<string?>? ApplyFabrication(Document doc, Element element, PropertyChange change, ChangeResult r)
+    {
+        if (element is not FabricationPart part)
+        {
+            r.Status = ChangeStatus.Failed;
+            r.Message = "This is not a fabrication part.";
+            return null;
+        }
+        var config = FabricationDatabase.Configured(doc);
+        if (config is null)
+        {
+            r.Message = FabricationDatabase.NotConfigured;
+            return null;
+        }
+
+        string id = change.PropertyId!;
+        string before = FabricationParts.Current(part, config, id);
+        if (change.ExpectedRawValue is not null && !string.Equals(before, change.ExpectedRawValue, StringComparison.Ordinal))
+        {
+            r.Message = $"Changed in Revit since it was read (now '{before}'). Run the reader again.";
+            return null;
+        }
+
+        string? error = FabricationParts.Set(part, config, id, change.Value);
+        if (error is not null)
+        {
+            r.Status = ChangeStatus.Failed;
+            r.Message = error;
+            return null;
+        }
+        string after = FabricationParts.Current(part, config, id);
+        r.NewValue = after;
+        r.Status = string.Equals(after, before, StringComparison.Ordinal) ? ChangeStatus.Unchanged : ChangeStatus.Applied;
+        return () => FabricationParts.Current(part, config, id);
     }
 
     /// <summary>Returns null on success, else why the value was not accepted.</summary>

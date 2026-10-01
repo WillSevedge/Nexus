@@ -6,7 +6,7 @@ using Nexus.Hub.Core;
 
 namespace Nexus.Hub.ViewModels;
 
-/// <summary>A connected program (one Revit/AutoCAD/Civil 3D process) in the left panel.</summary>
+/// <summary>A connected program (one Revit/AutoCAD/Civil 3D/Plant 3D process) in the left panel.</summary>
 public sealed class AgentNode : Observable
 {
     private string? _error;
@@ -62,6 +62,7 @@ public sealed class AgentNode : Observable
     {
         "Revit" => "R",
         "Civil 3D" => "C3D",
+        "Plant 3D" => "P3D",
         _ => "A",
     };
 
@@ -69,12 +70,11 @@ public sealed class AgentNode : Observable
     {
         "Revit" => "#1F72C7",
         "Civil 3D" => "#0F8E8C",
+        "Plant 3D" => "#6A4C93",
         _ => "#C8102E",
     };
 
-    private string Product => Connection.Host.Product.Contains("Civil", StringComparison.OrdinalIgnoreCase) || Connection.Host.Modules.Contains("Civil3D")
-        ? "Civil 3D"
-        : Connection.Host.HostKind == HostKinds.Revit ? "Revit" : "AutoCAD";
+    private string Product => Products.Of(Connection.Host);
 
     public string? Error
     {
@@ -215,6 +215,10 @@ public sealed class DatasetNode
         : Id.EndsWith("revisions", StringComparison.Ordinal) ? "\uE81C"
         : Id.EndsWith("layouts", StringComparison.Ordinal) ? "\uE8A1"
         : Id.Contains("civil", StringComparison.OrdinalIgnoreCase) ? "\uE909"
+        : Id.Contains("fabrication.database", StringComparison.OrdinalIgnoreCase) ? "\uE8F1"
+        : Id.Contains("fabrication", StringComparison.OrdinalIgnoreCase) ? "\uE90F"
+        : Id.Contains("plant.project", StringComparison.OrdinalIgnoreCase) ? "\uE8B7"
+        : Id.Contains("plant", StringComparison.OrdinalIgnoreCase) ? "\uE7B8"
         : "\uE8FD";
 }
 

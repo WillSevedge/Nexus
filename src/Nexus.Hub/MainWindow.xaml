@@ -181,7 +181,7 @@
 
           <!-- Files, per program -->
           <TextBlock Text="FILES" Style="{StaticResource SectionLabel}" />
-          <TextBlock Text="Open Revit, AutoCAD or Civil 3D. They appear here automatically." TextWrapping="Wrap" Margin="14,0,14,0"
+          <TextBlock Text="Open Revit, AutoCAD, Civil 3D or Plant 3D. They appear here automatically." TextWrapping="Wrap" Margin="14,0,14,0"
                      Foreground="{DynamicResource TextFillColorTertiaryBrush}" FontSize="12">
             <TextBlock.Style>
               <Style TargetType="TextBlock">
@@ -338,7 +338,7 @@
 
         <StackPanel Orientation="Horizontal">
           <Button Style="{StaticResource CommandButton}" Command="{Binding ShowInModelCommand}"
-                  ToolTip="Open the sheet, or select and zoom to the selected rows, in Revit / AutoCAD / Civil 3D">
+                  ToolTip="Open the sheet, or select and zoom to the selected rows, in Revit / AutoCAD / Civil 3D / Plant 3D">
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="&#xE8A7;" Style="{StaticResource Glyph}" />
               <TextBlock Text="Show in model" Margin="8,0,0,0" />

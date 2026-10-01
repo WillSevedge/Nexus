@@ -58,7 +58,7 @@ internal sealed class TrayIcon : IDisposable
         if (_toldAboutBackground) return;
         _toldAboutBackground = true;
         _icon.ShowBalloonTip(4000, "Nexus is still running",
-            "Nexus stays in the background to connect Revit, AutoCAD and Civil 3D. Click the tray icon to open it, or right-click it to exit.",
+            "Nexus stays in the background to connect Revit, AutoCAD, Civil 3D and Plant 3D. Click the tray icon to open it, or right-click it to exit.",
             WinForms.ToolTipIcon.Info);
     }
 

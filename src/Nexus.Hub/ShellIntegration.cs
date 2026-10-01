@@ -22,7 +22,7 @@ internal static class ShellIntegration
         string exe = NexusPaths.HubExe;
         try
         {
-            CreateShortcut(StartMenuShortcut, exe, "Nexus hub: view and edit Revit, AutoCAD and Civil 3D data");
+            CreateShortcut(StartMenuShortcut, exe, "Nexus hub: view and edit Revit, AutoCAD, Civil 3D and Plant 3D data");
         }
         catch (Exception ex)
         {
