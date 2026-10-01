@@ -38,10 +38,12 @@ internal static class Dialogs
         return new FindReplace(find.Text, replace.Text, matchCase.IsChecked == true, whole.IsChecked == true, selection.IsChecked == true);
     }
 
-    public static void ShowMessages(Window owner, IEnumerable<string> issues, IEnumerable<string> log)
+    public static void ShowMessages(Window owner, IEnumerable<string> issues, IEnumerable<string> log, IEnumerable<string>? editing = null)
     {
         var tabs = new TabControl();
         tabs.Items.Add(new TabItem { Header = "Last load", Content = new ListBox { ItemsSource = issues.DefaultIfEmpty("No errors or warnings.").ToList() } });
+        if (editing is not null)
+            tabs.Items.Add(new TabItem { Header = "Editing", Content = new ListBox { ItemsSource = editing.ToList(), FontFamily = new FontFamily("Consolas") } });
         tabs.Items.Add(new TabItem { Header = "Log", Content = new ListBox { ItemsSource = log.Reverse().ToList(), FontFamily = new FontFamily("Consolas") } });
         new Window
         {

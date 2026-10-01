@@ -1081,6 +1081,35 @@ public sealed class MainViewModel : Observable
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// What can be edited in the loaded data, per program and column group, and why the rest is locked.
+    /// </summary>
+    public IEnumerable<string> EditingReport()
+    {
+        if (_table is null || _table.Rows.Count == 0)
+        {
+            yield return "Nothing is loaded.";
+            yield break;
+        }
+        foreach (var host in _table.Rows.GroupBy(r => r.Host))
+        {
+            var cells = host.SelectMany(r => r.Values
+                    .Where(v => !v.Key.StartsWith(SheetFieldMap.Group + " ›", StringComparison.Ordinal))
+                    .Select(v => (Group: _table.ColumnsById.TryGetValue(v.Key, out var k) ? k.Group : "", Blocker: Editing.Blocker(r, v.Key))))
+                .ToList();
+            var features = host.First().Source.Host.Features;
+            yield return $"{host.Key}: {cells.Count(c => c.Blocker is null)} editable, {cells.Count(c => c.Blocker is not null)} locked " +
+                         $"(add-in features: {(features.Count == 0 ? "none - update the add-in" : string.Join(", ", features))})";
+            foreach (var g in cells.GroupBy(c => c.Group).OrderBy(g => g.Key))
+            {
+                int editable = g.Count(c => c.Blocker is null);
+                var reasons = g.Where(c => c.Blocker is not null).GroupBy(c => c.Blocker!).OrderByDescending(r => r.Count())
+                    .Take(3).Select(r => $"{r.Count()} × {r.Key}");
+                yield return $"    {g.Key}: {editable} editable" + (editable == g.Count() ? "" : "; locked: " + string.Join("; ", reasons));
+            }
+        }
+    }
+
     /// <summary>Errors and warnings of the last load, for the Messages window.</summary>
     public IEnumerable<string> IssueLines() =>
         Runs.SelectMany(r => r.Failed

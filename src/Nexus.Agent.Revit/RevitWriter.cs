@@ -19,7 +19,8 @@ internal sealed class RevitWriter : IHostDataWriter<Document>
             result.Results.Add(new ChangeResult { Index = i, Status = ChangeStatus.Skipped });
 
         string? docBlocker = doc.IsLinked ? "Linked document (read-only)"
-            : doc.IsReadOnly ? "Document is read-only"
+            : doc.IsReadOnlyFile ? "The file is open read-only"
+            : doc.IsReadOnly ? "Revit is busy (for example showing a warning). Close any dialog in Revit and apply again"
             : doc.IsModifiable ? "Revit is in the middle of another edit" : null;
         if (docBlocker is not null)
         {

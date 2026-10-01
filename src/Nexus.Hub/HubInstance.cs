@@ -191,8 +191,12 @@ internal sealed class HubInstance : IDisposable
         }
     }
 
+    private bool _disposed;
+
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
         _stop.Cancel();
         if (_owned)
         {

@@ -59,18 +59,13 @@ internal static class ParameterReader
             FillDataType(p, pv);
             FillValue(doc, p, pv);
 
-            bool userModifiable = true;
-            try { userModifiable = p.UserModifiable; } catch { /* not applicable */ }
-
+            // Note: Parameter.UserModifiable is NOT a lock. Revit reports it false for many parameters
+            // (e.g. sheet parameters, shared parameters created as not user-modifiable) whose values
+            // the API can still set. Only IsReadOnly (calculated/driven values) blocks an edit.
             if (p.IsReadOnly)
             {
                 pv.IsReadOnly = true;
                 pv.ReadOnlyReason = "Read-only parameter (calculated or controlled by Revit)";
-            }
-            else if (!userModifiable)
-            {
-                pv.IsReadOnly = true;
-                pv.ReadOnlyReason = "Not user-modifiable";
             }
             else if (editBlocker is not null)
             {

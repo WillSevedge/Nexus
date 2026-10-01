@@ -77,6 +77,15 @@ public sealed class WriteTests : IAsyncLifetime
         Assert.Equal(("d2", "d2-1"), (_writer.Applied.Single().Doc, _writer.Applied.Single().Change.OwnerId));
     }
 
+    [Fact]
+    public async Task Disposing_a_client_twice_at_once_does_not_throw()
+    {
+        var client = await AgentClient.ConnectAsync(_writable.PipeName, TimeSpan.FromSeconds(5));
+        await client.HelloAsync();
+        await Task.WhenAll(client.DisposeAsync().AsTask(), client.DisposeAsync().AsTask(), Task.Run(async () => await client.DisposeAsync()));
+        await client.DisposeAsync();
+    }
+
     [Theory]
     [InlineData(false, "d1", ErrorCodes.NotImplemented)]
     [InlineData(true, "zzz", ErrorCodes.DocumentNotFound)]
