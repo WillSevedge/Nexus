@@ -204,6 +204,8 @@ one per Windows user, an **N** icon in the notification area (on Windows 11 new 
 hidden area behind **^** next to the clock; drag it onto the taskbar to keep it visible), and it
 starts when you sign in to Windows.
 
+- **Easiest:** double-click **`Install-Hub.cmd`** in the repository folder (`C:\Users\<you>\source\repos\Nexus`).
+  It builds the hub and installs or updates it; run it again after pulling hub changes.
 - **Build it.** `build\Publish-Hub.cmd` makes one self-contained `artifacts\Nexus\Nexus.exe` (about 75 MB)
   plus `Install.cmd`. It runs on any 64-bit Windows 10/11 PC: no .NET, Visual Studio or Autodesk product needed.
   `build\Publish-Hub.cmd install` also installs it on this PC. (Visual Studio: right-click `Nexus.Hub` →

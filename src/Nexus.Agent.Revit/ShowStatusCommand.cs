@@ -24,7 +24,7 @@ public sealed class ShowStatusCommand : IExternalCommand
                     : $"Pipe: {status.PipeName}\n" +
                       $"Hub connections: {status.Clients}\n" +
                       $"Requests handled: {status.RequestsHandled}\n" +
-                      $"Host: {app?.Host?.DisplayName}\n" +
+                      $"Host: {app?.Host?.Name}\n" +
                       (status.LastError is null ? "" : $"Last error: {status.LastError}\n"),
                 FooterText = "Log: " + (app?.Log.FilePath ?? NexusPaths.LogsDir),
             };

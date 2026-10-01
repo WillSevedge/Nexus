@@ -30,6 +30,10 @@ public sealed class HostInfo
     public List<string> Features { get; set; } = new();
     public string? LogFile { get; set; }
 
+    /// <summary>For people: "Revit 2026", "Civil 3D 2026".</summary>
+    public string Name => $"{Product} {Version}";
+
+    /// <summary>For logs: includes the process id.</summary>
     public string DisplayName => $"{Product} {Version} (pid {ProcessId})";
 }
 

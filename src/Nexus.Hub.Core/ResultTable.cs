@@ -80,7 +80,7 @@ public sealed class ResultTable
     {
         var row = new TableRow
         {
-            Host = s.Host.DisplayName,
+            Host = s.Host.Name,
             Document = s.DocumentTitle,
             Reader = s.Result.ReaderId,
             Path = path,

@@ -16,16 +16,40 @@ public sealed class AgentNode : Observable
     public AgentConnection Connection { get; }
     public ObservableCollection<DocumentNode> Documents { get; } = new();
 
-    public string Title
+    /// <summary>1, 2... when the same program is open more than once (set by the view model).</summary>
+    public int Instance { get; set; } = 1;
+    public bool HasSiblings { get; set; }
+
+    /// <summary>"Revit 2026", or "Revit 2026 #2" for a second session.</summary>
+    public string Title => Connection.Host.Name + (HasSiblings ? $"  #{Instance}" : "");
+
+    public string Subtitle
     {
         get
         {
-            var h = Connection.Host;
-            return $"{h.Product} {h.Version}";
+            int n = Documents.Count;
+            return n == 0 ? "No files open" : n == 1 ? "1 file open" : $"{n} files open";
         }
     }
 
-    public string Subtitle => $"pid {Connection.Host.ProcessId}" + (Connection.Host.Modules.Count > 0 ? " · " + string.Join(", ", Connection.Host.Modules) : "");
+    /// <summary>Product badge letter(s) and colour, like the Autodesk product icons.</summary>
+    public string Badge => Product switch
+    {
+        "Revit" => "R",
+        "Civil 3D" => "C3D",
+        _ => "A",
+    };
+
+    public string BadgeColor => Product switch
+    {
+        "Revit" => "#1F72C7",
+        "Civil 3D" => "#0F8E8C",
+        _ => "#C8102E",
+    };
+
+    private string Product => Connection.Host.Product.Contains("Civil", StringComparison.OrdinalIgnoreCase) || Connection.Host.Modules.Contains("Civil3D")
+        ? "Civil 3D"
+        : Connection.Host.HostKind == HostKinds.Revit ? "Revit" : "AutoCAD";
 
     public string? Error
     {
@@ -37,6 +61,8 @@ public sealed class AgentNode : Observable
     {
         Raise(nameof(Title));
         Raise(nameof(Subtitle));
+        Raise(nameof(Badge));
+        Raise(nameof(BadgeColor));
         Error = Connection.LastError;
     }
 }
@@ -153,6 +179,13 @@ public sealed class DatasetNode
     /// <summary>Host kind → the reader that supplies this dataset there.</summary>
     public Dictionary<string, ReaderNode> Readers { get; } = new(StringComparer.OrdinalIgnoreCase);
     public string Programs => string.Join(", ", Readers.Values.Select(r => r.HostLabel).Distinct());
+
+    /// <summary>Segoe Fluent Icons glyph for the navigation list.</summary>
+    public string Icon => IsSheetIndex ? "\uE7C3"
+        : Id.EndsWith("projectinfo", StringComparison.Ordinal) ? "\uE946"
+        : Id.EndsWith("layouts", StringComparison.Ordinal) ? "\uE8A1"
+        : Id.Contains("civil", StringComparison.OrdinalIgnoreCase) ? "\uE909"
+        : "\uE8FD";
 }
 
 /// <summary>One read of one file (kept for re-reading after edits and for warnings).</summary>

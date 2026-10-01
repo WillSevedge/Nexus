@@ -3,12 +3,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Nexus - Apply changes" Height="520" Width="1100" WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False" Icon="Assets/Nexus.ico">
-  <DockPanel Margin="10">
+  <DockPanel Margin="20">
     <TextBlock DockPanel.Dock="Top" Text="{Binding Summary}" TextWrapping="Wrap" Margin="0,0,0,8" />
 
     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-      <Button Content="Apply to the model" Command="{Binding ApplyCommand}" FontWeight="SemiBold" IsDefault="True" />
-      <Button Content="{Binding CloseLabel}" IsCancel="True" Click="OnClose" />
+      <Button Margin="8,0,0,0" Content="Apply to the model" Command="{Binding ApplyCommand}" Style="{DynamicResource AccentButtonStyle}" IsDefault="True" />
+      <Button Margin="8,0,0,0" Content="{Binding CloseLabel}" IsCancel="True" Click="OnClose" />
     </StackPanel>
 
     <DataGrid ItemsSource="{Binding Changes}" AutoGenerateColumns="False" IsReadOnly="True"
@@ -17,13 +17,13 @@
         <Style TargetType="DataGridRow">
           <Style.Triggers>
             <DataTrigger Binding="{Binding Status}" Value="Applied">
-              <Setter Property="Background" Value="#E3F4E6" />
+              <Setter Property="Background" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}" />
             </DataTrigger>
             <DataTrigger Binding="{Binding Status}" Value="Skipped">
-              <Setter Property="Background" Value="#FFF3D6" />
+              <Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}" />
             </DataTrigger>
             <DataTrigger Binding="{Binding Status}" Value="Failed">
-              <Setter Property="Background" Value="#FBE3E1" />
+              <Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBackgroundBrush}" />
             </DataTrigger>
           </Style.Triggers>
         </Style>

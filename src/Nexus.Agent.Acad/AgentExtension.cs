@@ -128,7 +128,7 @@ public sealed class AgentCommands
             return;
         }
         ed.WriteMessage($"\nNexus agent: {s.State}" +
-                        $"\n  Host: {app!.Host?.DisplayName}  Modules: {string.Join(", ", app.Host?.Modules ?? new())}" +
+                        $"\n  Host: {app!.Host?.Name}  Modules: {string.Join(", ", app.Host?.Modules ?? new())}" +
                         $"\n  Pipe: {s.PipeName}" +
                         $"\n  Hub connections: {s.Clients}  Requests: {s.RequestsHandled}" +
                         (s.LastError is null ? "" : $"\n  Last error: {s.LastError}") +

@@ -138,7 +138,7 @@ internal sealed class AcadRibbon : IDisposable
         string text = s is null
             ? "The Nexus agent is not running. See the log for details."
             : $"State: {s.State}\n" +
-              $"Host: {host?.DisplayName}{(host?.Modules.Count > 0 ? "  (modules: " + string.Join(", ", host.Modules) + ")" : "")}\n" +
+              $"Host: {host?.Name}{(host?.Modules.Count > 0 ? "  (modules: " + string.Join(", ", host.Modules) + ")" : "")}\n" +
               $"Pipe: {s.PipeName}\n" +
               $"Hub connections: {s.Clients}\n" +
               $"Requests handled: {s.RequestsHandled}\n" +

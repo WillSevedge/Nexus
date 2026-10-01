@@ -72,10 +72,12 @@ public partial class MainWindow : Window
                 IsReadOnly = !spec.Editable,
             };
             if (spec.Editable) column.CellStyle = CellStyle(spec.Column, baseCellStyle);
-            else column.CellStyle = new Style(typeof(DataGridCell), baseCellStyle)
+            else
             {
-                Setters = { new Setter(ForegroundProperty, Brushes.DimGray) },
-            };
+                var style = new Style(typeof(DataGridCell), baseCellStyle);
+                style.Setters.Add(new Setter(ForegroundProperty, new DynamicResourceExtension("TextFillColorSecondaryBrush")));
+                column.CellStyle = style;
+            }
             TableGrid.Columns.Add(column);
         }
         TableGrid.FrozenColumnCount = specs.Count(s => s.Frozen);
@@ -84,14 +86,15 @@ public partial class MainWindow : Window
     private static object Header(GridColumnSpec spec)
     {
         var panel = new StackPanel { ToolTip = spec.Group.Length == 0 ? spec.Name : $"{spec.Group} › {spec.Name}" };
-        panel.Children.Add(new TextBlock
+        var group = new TextBlock
         {
-            Text = spec.Group.Length == 0 ? " " : spec.Group,
+            Text = spec.Group.Length == 0 || spec.Group == Nexus.Hub.Core.SheetFieldMap.Group ? " " : spec.Group,
             FontSize = 10,
-            Foreground = Brushes.Gray,
             TextTrimming = TextTrimming.CharacterEllipsis,
             MaxWidth = 220,
-        });
+        };
+        group.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorTertiaryBrush");
+        panel.Children.Add(group);
         panel.Children.Add(new TextBlock { Text = spec.Name, FontWeight = FontWeights.SemiBold });
         return panel;
     }
@@ -135,6 +138,15 @@ public partial class MainWindow : Window
             menu.DataContext = DataContext;
             menu.IsOpen = true;
         }
+    }
+
+    /// <summary>The views list sits inside the sidebar's scroll viewer: pass the mouse wheel on to it.</summary>
+    private void OnNestedScroll(object sender, MouseWheelEventArgs e)
+    {
+        if (e.Handled || sender is not UIElement element) return;
+        e.Handled = true;
+        var parent = VisualTreeHelper.GetParent(element) as UIElement;
+        parent?.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta) { RoutedEvent = MouseWheelEvent, Source = sender });
     }
 
     private void OnMessages(object sender, RoutedEventArgs e) => Dialogs.ShowMessages(this, _vm.IssueLines(), _vm.Log);
@@ -368,8 +380,12 @@ internal enum CellAspect { Background, Foreground, ToolTip }
 
 internal sealed class CellStateConverter : IMultiValueConverter
 {
-    private static readonly Brush EditedBackground = Frozen(new SolidColorBrush(Color.FromRgb(0xFF, 0xF1, 0xB8)));
-    private static readonly Brush LockedForeground = Frozen(new SolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80)));
+    // Theme brushes (light or dark), with fallbacks if the theme does not define them.
+    private static Brush EditedBackground => Theme("SystemFillColorCautionBackgroundBrush", Color.FromRgb(0xFF, 0xF1, 0xB8));
+    private static Brush LockedForeground => Theme("TextFillColorTertiaryBrush", Color.FromRgb(0x80, 0x80, 0x80));
+
+    private static Brush Theme(string key, Color fallback) =>
+        Application.Current?.TryFindResource(key) as Brush ?? Frozen(new SolidColorBrush(fallback));
 
     private readonly MainViewModel _vm;
     private readonly string _column;

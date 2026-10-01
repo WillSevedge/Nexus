@@ -195,6 +195,31 @@ public sealed class MainViewModel : Observable
     }
 
     public bool HasPendingEdits => _pendingEdits > 0;
+
+    private bool _showDetails = true;
+
+    /// <summary>Details pane on the right (toggled from the command bar).</summary>
+    public bool ShowDetails
+    {
+        get => _showDetails;
+        set => Set(ref _showDetails, value);
+    }
+
+    /// <summary>Nothing to show yet: the grid is replaced by a short explanation.</summary>
+    public bool IsEmpty => !_busy && (_table is null || _table.Rows.Count == 0);
+
+    public string EmptyTitle => Agents.Count == 0 ? "Waiting for your programs"
+        : Runs.Count == 0 ? "No files selected"
+        : Runs.All(r => r.Failed) ? "Could not read the files"
+        : "Nothing found";
+
+    public string EmptyText => Agents.Count == 0
+        ? "Open Revit, AutoCAD or Civil 3D with the Nexus add-in. They appear on the left within a few seconds."
+        : Runs.Count == 0
+            ? $"Tick one or more files on the left to see their {(_dataset?.Title ?? "data").ToLowerInvariant()}."
+            : Runs.All(r => r.Failed)
+                ? string.Join(Environment.NewLine, Runs.Select(r => $"{r.DocumentTitle}: {r.Error!.Message}"))
+                : $"The selected files have no {(_dataset?.Title ?? "data").ToLowerInvariant()}.";
     public string PendingText => _pendingEdits == 1 ? "1 change not yet applied" : $"{_pendingEdits} changes not yet applied";
 
     public ExcelLink? ExcelLink
@@ -257,7 +282,21 @@ public sealed class MainViewModel : Observable
             return RefreshAgentAsync(node, reg);
         }));
 
+        // Number sessions of the same program ("Revit 2026 #2") instead of showing process ids.
+        foreach (var same in Agents.GroupBy(a => a.Connection.Host.Name))
+        {
+            int n = 0;
+            foreach (var a in same.OrderBy(a => a.Connection.Host.ProcessStartUtc))
+            {
+                a.Instance = ++n;
+                a.HasSiblings = same.Count() > 1;
+                a.Refreshed();
+            }
+        }
+
         RebuildDatasets();
+        Raise(nameof(EmptyTitle));
+        Raise(nameof(EmptyText));
         int docs = Agents.Sum(a => a.Documents.Count);
         if (!_busy)
             Status = found.Count == 0
@@ -419,6 +458,7 @@ public sealed class MainViewModel : Observable
         }
 
         _busy = true;
+        Raise(nameof(IsEmpty));
         Status = $"Reading {dataset.Title.ToLowerInvariant()} from {docs.Count} file(s)…";
         try
         {
@@ -476,6 +516,9 @@ public sealed class MainViewModel : Observable
     private void ShowResults(DatasetNode dataset)
     {
         BuildTable(dataset);
+        Raise(nameof(IsEmpty));
+        Raise(nameof(EmptyTitle));
+        Raise(nameof(EmptyText));
         int files = Runs.Count(r => !r.Failed);
         Summary = _table is null ? "" : $"{files} file{(files == 1 ? "" : "s")} · {_table.Rows.Count} row{(_table.Rows.Count == 1 ? "" : "s")}";
         Raise(nameof(HasIssues));
