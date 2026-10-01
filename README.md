@@ -93,6 +93,12 @@ Runtime files (all under `%LOCALAPPDATA%\Nexus\`):
   - `Current Revision`: number on the sheet, date, description, sequence, issued, issued by/to, plus the sheet's revision history.
   - `Element`: element id, unique id, workset, and whether the element can be edited.
 - `revit.projectinfo`: every Project Information parameter.
+- `revit.revisions`: every revision (Sheet Issues/Revisions) in sequence order: sequence, revision number, numbering
+  sequence, issued, all revision parameters (date, description, issued to/by, visibility…; editable until issued),
+  and the sheets it is on (and on which it comes from revision clouds).
+- Revisions on sheets: `revit.sheets` has one **Yes/No** column per project revision (*Revisions on Sheet ›
+  Seq. 3 - Revision 3*), like Revit's *Revisions on Sheet* dialog. Changing it adds or removes the revision on the
+  sheet. A revision placed by revision clouds on the sheet is locked, as in Revit.
 - Placeholders (registered, return `NotImplemented`): `revit.elements`, `revit.schedules`, `revit.views`, `revit.rooms`, `revit.mepsystems`.
 
 Every parameter carries:
@@ -258,6 +264,9 @@ starts when you sign in to Windows.
     **F2** sets one value for all, **Ctrl+H** finds and replaces, **Delete** clears, **Ctrl+Z** reverts;
   - click a header to sort; **Ctrl+F** searches all visible columns; **Columns…** picks the columns (remembered per view).
 - **Details** (right). Every property of the selected row, grouped, editable in place.
+- **Revisions on sheets** (toolbar or right-click, Revit sheets). Select one or more sheets and tick which revisions
+  they show: a tick means on every selected sheet, a dash means on some. Or select Yes/No cells and press **Space**.
+  Changes are pending until *Review & apply*, like any edit.
 - **Show in model** (toolbar, details or right-click). Revit opens the sheet (or selects and zooms to elements);
   AutoCAD/Civil 3D switches to the drawing and layout, selects the objects and zooms to them.
 - **Changes bar** (bottom). **Review & apply…** lists every change (old → new), writes them, and shows each outcome:

@@ -232,7 +232,47 @@ public partial class MainWindow : Window
             case Key.Z when ctrl: Revert(); e.Handled = true; break;
             case Key.Delete when Keyboard.Modifiers == ModifierKeys.None: Clear(); e.Handled = true; break;
             case Key.F2 when SelectedCellsOrdered().Count > 1: SetValue(); e.Handled = true; break;
+            case Key.Space when Keyboard.Modifiers == ModifierKeys.None && ToggleYesNo(): e.Handled = true; break;
         }
+    }
+
+    /// <summary>
+    /// Revisions on sheets: tick which revisions the selected sheets show (like Revit's dialog, for many sheets at once).
+    /// </summary>
+    private void OnRevisions(object sender, RoutedEventArgs e)
+    {
+        TableGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        var rows = SelectedRows();
+        var states = _vm.RevisionStates(rows);
+        if (rows.Count == 0 || states.Count == 0)
+        {
+            _vm.Status = "Select one or more Revit sheets first (click a row; Ctrl+click or Shift+click for more).";
+            return;
+        }
+        var changes = Dialogs.AskRevisions(this, rows.Count, states);
+        if (changes is null || changes.Count == 0) return;
+        _vm.SetRevisions(rows, changes);
+    }
+
+    /// <summary>Space on selected Yes/No cells: all become Yes, or all No if they already are.</summary>
+    private bool ToggleYesNo()
+    {
+        var cells = SelectedCellsOrdered().Where(c => _vm.IsPropertyColumn(c.Column)).ToList();
+        if (cells.Count == 0) return false;
+        var values = cells.Select(c => (c.View[c.Column] as string ?? "").Trim()).ToList();
+        if (!values.All(v => v.Equals("Yes", StringComparison.OrdinalIgnoreCase) || v.Equals("No", StringComparison.OrdinalIgnoreCase)))
+            return false;
+        string next = values.All(v => v.Equals("Yes", StringComparison.OrdinalIgnoreCase)) ? "No" : "Yes";
+        int done = 0;
+        var skipped = new List<string>();
+        foreach (var c in cells)
+        {
+            var reason = _vm.TrySetCell(c.View, c.Column, next);
+            if (reason is null) done++;
+            else skipped.Add(reason);
+        }
+        Report($"Set to {next}:", done, skipped);
+        return true;
     }
 
     private void OnPaste(object sender, RoutedEventArgs e) => Paste();

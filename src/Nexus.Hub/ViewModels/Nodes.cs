@@ -212,6 +212,7 @@ public sealed class DatasetNode
     /// <summary>Segoe Fluent Icons glyph for the navigation list.</summary>
     public string Icon => IsSheetIndex ? "\uE7C3"
         : Id.EndsWith("projectinfo", StringComparison.Ordinal) ? "\uE946"
+        : Id.EndsWith("revisions", StringComparison.Ordinal) ? "\uE81C"
         : Id.EndsWith("layouts", StringComparison.Ordinal) ? "\uE8A1"
         : Id.Contains("civil", StringComparison.OrdinalIgnoreCase) ? "\uE909"
         : "\uE8FD";

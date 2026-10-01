@@ -34,7 +34,8 @@ internal sealed class RevitWriter : IHostDataWriter<Document>
             : $"Nexus: edit {request.Changes.Count} values";
 
         var failures = new FailureCollector();
-        var applied = new List<(ChangeResult Result, Parameter Parameter)>();
+        // Each applied change with a way to read its value again after the commit.
+        var applied = new List<(ChangeResult Result, Func<string?> Current)>();
 
         using var transaction = new Transaction(doc, undoName);
         var handling = transaction.GetFailureHandlingOptions();
@@ -53,8 +54,8 @@ internal sealed class RevitWriter : IHostDataWriter<Document>
                 var r = result.Results[i];
                 try
                 {
-                    var p = Apply(doc, change, r);
-                    if (p is not null && r.Status == ChangeStatus.Applied) applied.Add((r, p));
+                    var current = Apply(doc, change, r);
+                    if (current is not null && r.Status == ChangeStatus.Applied) applied.Add((r, current));
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -93,15 +94,15 @@ internal sealed class RevitWriter : IHostDataWriter<Document>
         result.Committed = true;
         result.UndoName = undoName;
         // Report values as Revit shows them after the commit (formulas, formatting, rounding).
-        foreach (var (r, p) in applied)
+        foreach (var (r, current) in applied)
         {
-            try { r.NewValue = ParameterReader.CurrentValue(doc, p).Value; } catch { /* keep the pre-commit value */ }
+            try { r.NewValue = current(); } catch { /* keep the pre-commit value */ }
         }
         return result;
     }
 
-    /// <summary>Sets one value inside the open transaction. Returns the parameter when it was set.</summary>
-    private static Parameter? Apply(Document doc, PropertyChange change, ChangeResult r)
+    /// <summary>Sets one value inside the open transaction. Returns how to read the value back when it was set.</summary>
+    private static Func<string?>? Apply(Document doc, PropertyChange change, ChangeResult r)
     {
         var element = string.IsNullOrEmpty(change.OwnerId) ? null : doc.GetElement(change.OwnerId);
         if (element is null)
@@ -116,6 +117,9 @@ internal sealed class RevitWriter : IHostDataWriter<Document>
             r.Message = blocker;
             return null;
         }
+
+        if (change.PropertyId?.StartsWith(RevisionsOnSheets.IdPrefix, StringComparison.Ordinal) == true)
+            return ApplyRevisionOnSheet(doc, element, change, r);
 
         var p = FindParameter(element, change);
         if (p is null)
@@ -148,7 +152,49 @@ internal sealed class RevitWriter : IHostDataWriter<Document>
         var after = ParameterReader.CurrentValue(doc, p);
         r.NewValue = after.Value;
         r.Status = string.Equals(after.RawValue, before.RawValue, StringComparison.Ordinal) ? ChangeStatus.Unchanged : ChangeStatus.Applied;
-        return p;
+        return () => ParameterReader.CurrentValue(doc, p).Value;
+    }
+
+    /// <summary>Shows or hides a revision on a sheet ("Revisions on Sheet").</summary>
+    private static Func<string?>? ApplyRevisionOnSheet(Document doc, Element element, PropertyChange change, ChangeResult r)
+    {
+        if (element is not ViewSheet sheet)
+        {
+            r.Status = ChangeStatus.Failed;
+            r.Message = "Revisions can only be shown on sheets.";
+            return null;
+        }
+        if (doc.GetElement(change.PropertyId![RevisionsOnSheets.IdPrefix.Length..]) is not Revision revision)
+        {
+            r.Message = "The revision no longer exists.";
+            return null;
+        }
+
+        string before = RevisionsOnSheets.State(sheet, revision);
+        if (change.ExpectedRawValue is not null && !string.Equals(before, change.ExpectedRawValue, StringComparison.Ordinal))
+        {
+            r.Message = $"Changed in Revit since it was read (now '{before}'). Run the reader again.";
+            return null;
+        }
+        bool? show = ParseYesNo(change.Value);
+        if (show is null)
+        {
+            r.Status = ChangeStatus.Failed;
+            r.Message = $"'{change.Value}' is not Yes or No.";
+            return null;
+        }
+
+        string? error = RevisionsOnSheets.Set(sheet, revision, show.Value);
+        if (error is not null)
+        {
+            r.Status = ChangeStatus.Failed;
+            r.Message = error;
+            return null;
+        }
+        string after = RevisionsOnSheets.State(sheet, revision);
+        r.NewValue = after;
+        r.Status = after == before ? ChangeStatus.Unchanged : ChangeStatus.Applied;
+        return () => RevisionsOnSheets.State(sheet, revision);
     }
 
     /// <summary>Returns null on success, else why the value was not accepted.</summary>

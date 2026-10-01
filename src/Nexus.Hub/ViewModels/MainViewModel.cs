@@ -519,6 +519,7 @@ public sealed class MainViewModel : Observable
         Raise(nameof(IsEmpty));
         Raise(nameof(EmptyTitle));
         Raise(nameof(EmptyText));
+        Raise(nameof(HasRevisionColumns));
         int files = Runs.Count(r => !r.Failed);
         Summary = _table is null ? "" : $"{files} file{(files == 1 ? "" : "s")} · {_table.Rows.Count} row{(_table.Rows.Count == 1 ? "" : "s")}";
         Raise(nameof(HasIssues));
@@ -591,7 +592,10 @@ public sealed class MainViewModel : Observable
         }
         if (dataset.IsSheetIndex)
         {
+            // The standard sheet columns, then one Yes/No column per revision (when the project has a sensible number).
             var fields = table.Columns.Where(c => c.Group == SheetFieldMap.Group).Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
+            var revisions = table.Columns.Where(c => c.Group == RevisionsGroup).Select(c => c.Id).ToList();
+            if (revisions.Count <= 30) fields.UnionWith(revisions);
             if (fields.Count > 0) return fields;
         }
         var props = table.Columns.Where(c => !IsComputedOnly(table, c.Id)).Select(c => c.Id).ToList();
@@ -684,6 +688,58 @@ public sealed class MainViewModel : Observable
         view is not null && _table is not null && view.Row.Table == _grid && view.Row[RowIndexColumn] is int i && i < _table.Rows.Count
             ? _table.Rows[i]
             : null;
+
+    // ------------------------------------------------------------------ revisions on sheets
+
+    /// <summary>Group of the per-revision Yes/No columns on Revit sheets.</summary>
+    public const string RevisionsGroup = "Revisions on Sheet";
+
+    public bool HasRevisionColumns => _table?.Columns.Any(c => c.Group == RevisionsGroup) == true;
+
+    /// <summary>
+    /// For the given sheet rows: each revision, and whether it is on all of them (true), none (false)
+    /// or some (null). Rows without revision columns (AutoCAD layouts, placeholders) are ignored.
+    /// </summary>
+    public List<(string ColumnId, string Label, bool? State, int Locked)> RevisionStates(IReadOnlyList<DataRowView> views)
+    {
+        var list = new List<(string, string, bool?, int)>();
+        if (_table is null) return list;
+        foreach (var c in _table.Columns.Where(c => c.Group == RevisionsGroup))
+        {
+            string gridColumn = _gridColumnByColumnId[c.Id];
+            var values = views.Where(v => RowOf(v)?.Values.ContainsKey(c.Id) == true)
+                .Select(v => string.Equals(GridEdits.Value(v.Row, gridColumn), "Yes", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (values.Count == 0) continue;
+            bool? state = values.All(x => x) ? true : values.All(x => !x) ? false : null;
+            int locked = views.Count(v => RowOf(v)?.Values.ContainsKey(c.Id) == true && EditBlocker(v, gridColumn) is not null);
+            list.Add((c.Id, c.Name, state, locked));
+        }
+        return list;
+    }
+
+    /// <summary>Shows/hides revisions on the given sheets (staged as normal edits). Returns a status line.</summary>
+    public string SetRevisions(IReadOnlyList<DataRowView> views, IReadOnlyDictionary<string, bool> changes)
+    {
+        int done = 0;
+        var skipped = new List<string>();
+        foreach (var view in views)
+        {
+            var row = RowOf(view);
+            if (row is null) continue;
+            foreach (var (columnId, show) in changes)
+            {
+                if (!row.Values.ContainsKey(columnId)) continue;
+                var reason = TrySetCell(view, _gridColumnByColumnId[columnId], show ? "Yes" : "No");
+                if (reason is null) done++;
+                else skipped.Add($"{row.Key}: {reason}");
+            }
+        }
+        Status = skipped.Count == 0
+            ? $"Updated {done} revision setting(s). Review & apply to write them to Revit."
+            : $"Updated {done}; {skipped.Count} could not be changed ({skipped[0]}).";
+        return Status;
+    }
 
     /// <summary>Why this cell cannot be edited, or null if it can.</summary>
     public string? EditBlocker(DataRowView view, string gridColumn)

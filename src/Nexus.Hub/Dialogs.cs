@@ -38,6 +38,52 @@ internal static class Dialogs
         return new FindReplace(find.Text, replace.Text, matchCase.IsChecked == true, whole.IsChecked == true, selection.IsChecked == true);
     }
 
+    /// <summary>
+    /// "Revisions on sheets": one checkbox per revision, ticked when on all selected sheets, a dash when on
+    /// some. Returns only the revisions the user changed (true = show on every selected sheet).
+    /// </summary>
+    public static Dictionary<string, bool>? AskRevisions(Window owner, int sheetCount,
+        IReadOnlyList<(string ColumnId, string Label, bool? State, int Locked)> revisions)
+    {
+        var boxes = new List<(string Id, bool? Initial, CheckBox Box)>();
+        var list = new StackPanel();
+        foreach (var (id, label, state, locked) in revisions)
+        {
+            var box = new CheckBox
+            {
+                Content = locked > 0 ? $"{label}   (fixed by revision clouds on {locked} sheet{(locked == 1 ? "" : "s")})" : label,
+                IsThreeState = state is null,
+                IsChecked = state,
+                Margin = new Thickness(0, 3, 0, 3),
+            };
+            // After the first click a mixed box is a plain on/off choice.
+            box.Click += (_, _) => box.IsThreeState = false;
+            boxes.Add((id, state, box));
+            list.Children.Add(box);
+        }
+        var body = new StackPanel();
+        body.Children.Add(new ScrollViewer { Content = list, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        var hint = new TextBlock
+        {
+            Text = "Ticked: shown on every selected sheet. Dash: on some of them (left as is unless you change it). " +
+                   "Revisions placed by revision clouds stay on their sheets, as in Revit.",
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = 460,
+            Margin = new Thickness(0, 10, 0, 0),
+        };
+        hint.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        body.Children.Add(hint);
+
+        var window = Shell(owner, "Revisions on sheets",
+            $"Revisions shown on the {sheetCount} selected sheet{(sheetCount == 1 ? "" : "s")}:", body, out var ok);
+        if (window.ShowDialog() != true || !ok()) return null;
+
+        var changes = new Dictionary<string, bool>(StringComparer.Ordinal);
+        foreach (var (id, initial, box) in boxes)
+            if (box.IsChecked is bool now && now != initial) changes[id] = now;
+        return changes;
+    }
+
     public static void ShowMessages(Window owner, IEnumerable<string> issues, IEnumerable<string> log, IEnumerable<string>? editing = null)
     {
         var tabs = new TabControl();

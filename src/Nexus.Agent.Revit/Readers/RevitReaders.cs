@@ -10,6 +10,7 @@ internal static class RevitReaders
         var registry = new ReaderRegistry<Document>();
         registry.Register(new SheetsReader());
         registry.Register(new ProjectInfoReader());
+        registry.Register(new RevisionsReader());
 
         // TODO: future readers. Registered so the hub lists them; they return NotImplemented.
         registry.Register(new PlaceholderReader<Document>("revit.elements", "Model elements by category", "Elements",

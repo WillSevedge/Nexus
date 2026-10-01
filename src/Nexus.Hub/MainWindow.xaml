@@ -350,6 +350,14 @@
               <TextBlock Text="Reload" Margin="8,0,0,0" />
             </StackPanel>
           </Button>
+          <Button Style="{StaticResource CommandButton}" Click="OnRevisions"
+                  Visibility="{Binding HasRevisionColumns, Converter={StaticResource BoolToVis}}"
+                  ToolTip="Choose which revisions are shown on the selected sheets">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="&#xE81C;" Style="{StaticResource Glyph}" />
+              <TextBlock Text="Revisions on sheets" Margin="8,0,0,0" />
+            </StackPanel>
+          </Button>
           <Rectangle Width="1" Height="20" Margin="6,0" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" />
           <Button Style="{StaticResource CommandButton}" Click="OnColumns" ToolTip="Choose the columns">
             <StackPanel Orientation="Horizontal">
@@ -438,6 +446,7 @@
               <DataGrid.ContextMenu>
                 <ContextMenu>
                   <MenuItem Header="Show in model" Command="{Binding ShowInModelCommand}" FontWeight="SemiBold" />
+                  <MenuItem Header="Revisions on sheets…" Click="OnRevisions" />
                   <Separator />
                   <MenuItem Header="Copy" Command="ApplicationCommands.Copy" InputGestureText="Ctrl+C" />
                   <MenuItem Header="Paste" Click="OnPaste" InputGestureText="Ctrl+V" />

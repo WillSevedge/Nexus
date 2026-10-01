@@ -105,6 +105,8 @@ public enum PropertySource
     Derived,
     /// <summary>System variable / drawing setting.</summary>
     Setting,
+    /// <summary>Whether something is assigned to the item (e.g. a revision shown on a sheet): Yes/No.</summary>
+    Assignment,
 }
 
 public sealed class PropertyValue

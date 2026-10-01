@@ -21,7 +21,7 @@ internal sealed class SheetsReader : IHostDataReader<Document>
         {
             ReaderOption.Bool("titleBlockInstance", "Title block instance parameters", true),
             ReaderOption.Bool("titleBlockType", "Title block type parameters", true),
-            ReaderOption.Bool("revisions", "Current revision details", true),
+            ReaderOption.Bool("revisions", "Current revision and revisions on each sheet", true),
             ReaderOption.Bool("hiddenParameters", "Include parameters not shown in Properties", true),
             ReaderOption.Bool("placeholders", "Include placeholder sheets", true),
         },
@@ -42,12 +42,14 @@ internal sealed class SheetsReader : IHostDataReader<Document>
             .OrderBy(s => s.SheetNumber, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        var projectRevisions = revisions ? RevisionsOnSheets.ProjectRevisions(doc) : new List<Revision>();
+
         foreach (var sheet in sheets)
         {
             ctx.Cancellation.ThrowIfCancellationRequested();
             try
             {
-                ctx.Items.Add(ReadSheet(doc, sheet, ctx, tbInstance, tbType, revisions, hidden));
+                ctx.Items.Add(ReadSheet(doc, sheet, ctx, tbInstance, tbType, revisions, hidden, projectRevisions));
             }
             catch (Exception ex)
             {
@@ -58,7 +60,7 @@ internal sealed class SheetsReader : IHostDataReader<Document>
     }
 
     private static DataItem ReadSheet(Document doc, ViewSheet sheet, ReadContext ctx,
-        bool tbInstance, bool tbType, bool revisions, bool hidden)
+        bool tbInstance, bool tbType, bool revisions, bool hidden, IReadOnlyList<Revision> projectRevisions)
     {
         string? blocker = Editability.Blocker(doc, sheet);
         var item = new DataItem
@@ -76,7 +78,11 @@ internal sealed class SheetsReader : IHostDataReader<Document>
         item.Groups.AddRange(ParameterReader.ReadGroups(doc, sheet, "Sheet · ", blocker, hidden));
 
         if (revisions)
+        {
             item.Groups.Add(ReadRevisions(doc, sheet));
+            if (!sheet.IsPlaceholder && projectRevisions.Count > 0)
+                item.Groups.Add(RevisionsOnSheets.Group(sheet, projectRevisions, blocker));
+        }
 
         if (tbInstance || tbType)
             ReadTitleBlocks(doc, sheet, item, tbInstance, tbType, hidden, ctx);
