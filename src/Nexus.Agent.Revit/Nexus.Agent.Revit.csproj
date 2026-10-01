@@ -24,8 +24,7 @@
   <ItemGroup>
     <!-- Nexus N ribbon images and the code that adds the status dot (shared with the other add-in). -->
     <Compile Include="..\Common\RibbonIcons.cs" Link="Common\RibbonIcons.cs" />
-    <EmbeddedResource Include="..\Common\Resources\Nexus-16.png" LogicalName="Nexus-16.png" Link="Common\Nexus-16.png" />
-    <EmbeddedResource Include="..\Common\Resources\Nexus-32.png" LogicalName="Nexus-32.png" Link="Common\Nexus-32.png" />
+    <EmbeddedResource Include="..\Common\Resources\Nexus-N-*.png" LogicalName="%(Filename)%(Extension)" Link="Common\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

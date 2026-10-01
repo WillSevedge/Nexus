@@ -8,7 +8,7 @@ internal sealed class TrayIcon : IDisposable
 {
     private readonly WinForms.NotifyIcon _icon;
     private readonly WinForms.ToolStripMenuItem _startWithWindows;
-    private readonly Icon _image;
+    private Icon _image;
     private bool _toldAboutBackground;
 
     public TrayIcon(Action open, Action refresh, Action exit)
@@ -37,6 +37,8 @@ internal sealed class TrayIcon : IDisposable
             ContextMenuStrip = menu,
             Visible = true,
         };
+        // The taskbar can be dark or light: use the white or black N to match, and follow changes.
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         _icon.MouseClick += (_, e) =>
         {
             if (e.Button == WinForms.MouseButtons.Left) open();
@@ -62,16 +64,50 @@ internal sealed class TrayIcon : IDisposable
 
     public void Dispose()
     {
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
         _icon.Visible = false;
         _icon.Dispose();
         _image.Dispose();
     }
 
-    /// <summary>The embedded Nexus.ico at the tray's icon size (sharp at any display scaling).</summary>
+    /// <summary>The Nexus N for the notification area, white on a dark taskbar and black on a light one.</summary>
     private static Icon CreateIcon()
     {
-        using var stream = typeof(TrayIcon).Assembly.GetManifestResourceStream("Nexus.ico")
-                           ?? throw new InvalidOperationException("Nexus.ico is not embedded.");
+        string name = TaskbarIsDark() ? "Nexus-tray-white.ico" : "Nexus-tray-black.ico";
+        using var stream = typeof(TrayIcon).Assembly.GetManifestResourceStream(name)
+                           ?? typeof(TrayIcon).Assembly.GetManifestResourceStream("Nexus.ico")
+                           ?? throw new InvalidOperationException("The tray icon is not embedded.");
         return new Icon(stream, WinForms.SystemInformation.SmallIconSize);
+    }
+
+    private static bool TaskbarIsDark()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            // SystemUsesLightTheme: 1 = light taskbar/Start, 0 = dark (also the default on Windows 10 and 11).
+            return key?.GetValue("SystemUsesLightTheme") is not int light || light == 0;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    private void OnUserPreferenceChanged(object sender, Microsoft.Win32.UserPreferenceChangedEventArgs e)
+    {
+        if (e.Category is not (Microsoft.Win32.UserPreferenceCategory.General or Microsoft.Win32.UserPreferenceCategory.VisualStyle)) return;
+        try
+        {
+            var next = CreateIcon();
+            var old = _image;
+            _icon.Icon = next;
+            _image = next;
+            old.Dispose();
+        }
+        catch
+        {
+            // Keep the current icon.
+        }
     }
 }

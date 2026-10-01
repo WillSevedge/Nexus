@@ -30,6 +30,8 @@
     <!-- Source for build\make-icons.py; not used at run time. -->
     <None Include="Assets\Nexus-logo.png" />
     <EmbeddedResource Include="Assets\Nexus.ico" LogicalName="Nexus.ico" />
+    <EmbeddedResource Include="Assets\Nexus-tray-white.ico" LogicalName="Nexus-tray-white.ico" />
+    <EmbeddedResource Include="Assets\Nexus-tray-black.ico" LogicalName="Nexus-tray-black.ico" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Nexus.Hub.Core\Nexus.Hub.Core.csproj" />

@@ -24,8 +24,7 @@
   <ItemGroup>
     <!-- Nexus N ribbon images and the code that adds the status dot (shared with the other add-in). -->
     <Compile Include="..\Common\RibbonIcons.cs" Link="Common\RibbonIcons.cs" />
-    <EmbeddedResource Include="..\Common\Resources\Nexus-16.png" LogicalName="Nexus-16.png" Link="Common\Nexus-16.png" />
-    <EmbeddedResource Include="..\Common\Resources\Nexus-32.png" LogicalName="Nexus-32.png" Link="Common\Nexus-32.png" />
+    <EmbeddedResource Include="..\Common\Resources\Nexus-N-*.png" LogicalName="%(Filename)%(Extension)" Link="Common\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
@@ -48,6 +47,9 @@
     <Copy SourceFiles="@(_NexusAcadFiles)"
           DestinationFiles="@(_NexusAcadFiles->'$(AcadBundleContentDir)%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" Retries="0" ContinueOnError="WarnAndContinue" />
+    <!-- Icon shown for the bundle in AutoCAD's App Manager. -->
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\Nexus.Hub\Assets\Nexus.ico" DestinationFolder="$(AcadBundleDir)Contents\Resources\"
+          SkipUnchangedFiles="true" ContinueOnError="WarnAndContinue" />
     <Copy SourceFiles="$(MSBuildThisFileDirectory)..\..\deploy\autocad\PackageContents.xml" DestinationFolder="$(AcadBundleDir)"
           SkipUnchangedFiles="true" ContinueOnError="WarnAndContinue" />
     <Message Importance="high" Text="Nexus: deployed AutoCAD $(HostYear) bundle to $(AcadBundleDir) (if copy warnings appeared above, close AutoCAD/Civil 3D and rebuild)" />

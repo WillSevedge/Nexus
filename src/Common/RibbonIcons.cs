@@ -6,8 +6,9 @@ using System.Windows.Media.Imaging;
 namespace Nexus.Agent;
 
 /// <summary>
-/// Ribbon button images for the Revit and AutoCAD add-ins: the Nexus N with a small dot
-/// showing the hub connection state. Linked into both add-in projects (needs WPF).
+/// Ribbon button images for the Revit and AutoCAD add-ins: the Nexus N (white on dark ribbons,
+/// black on light ribbons) with a small dot showing the hub connection state.
+/// Linked into both add-in projects (needs WPF).
 /// </summary>
 internal static class RibbonIcons
 {
@@ -20,9 +21,9 @@ internal static class RibbonIcons
     };
 
     /// <summary>The N at <paramref name="size"/> (16 or 32) with the status dot in the lower right corner.</summary>
-    public static ImageSource Create(AgentState state, int size)
+    public static ImageSource Create(AgentState state, int size, bool darkUi)
     {
-        var logo = Load(size <= 16 ? "Nexus-16.png" : "Nexus-32.png");
+        var logo = Load($"Nexus-N-{(darkUi ? "white" : "black")}-{(size <= 16 ? 16 : 32)}.png");
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
         {
@@ -31,7 +32,8 @@ internal static class RibbonIcons
             var center = new Point(size - r - 0.5, size - r - 0.5);
             var fill = new SolidColorBrush(StateColor(state));
             fill.Freeze();
-            var ring = new Pen(Brushes.White, Math.Max(1, size / 16.0));
+            // Ring in the ribbon's own background colour, so the dot stands off the N.
+            var ring = new Pen(darkUi ? new SolidColorBrush(Color.FromRgb(0x3B, 0x44, 0x53)) : Brushes.White, Math.Max(1, size / 16.0));
             ring.Freeze();
             dc.DrawEllipse(fill, ring, center, r, r);
         }

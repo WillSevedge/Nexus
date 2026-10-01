@@ -23,6 +23,7 @@ internal sealed class StatusRibbon : IDisposable
     private readonly Dictionary<AgentState, ImageSource> _icons = new();
     private readonly Dictionary<AgentState, ImageSource> _small = new();
     private volatile AgentStatus? _pending;
+    private AgentState _state = AgentState.Stopped;
 
     public StatusRibbon(UIControlledApplication app, AgentLog log)
     {
@@ -33,22 +34,45 @@ internal sealed class StatusRibbon : IDisposable
         var panel = app.CreateRibbonPanel(TabName, "Hub Link");
         string assembly = Assembly.GetExecutingAssembly().Location;
 
-        foreach (AgentState s in Enum.GetValues<AgentState>())
-        {
-            _icons[s] = RibbonIcons.Create(s, 32);
-            _small[s] = RibbonIcons.Create(s, 16);
-        }
+        BuildIcons();
 
         var data = new PushButtonData("NexusStatus", "Hub:\nStarting", assembly, typeof(ShowStatusCommand).FullName)
         {
             AvailabilityClassName = typeof(AlwaysAvailable).FullName,
             ToolTip = "Nexus agent status. Click for details or to show the Nexus hub.",
             LargeImage = _icons[AgentState.Stopped],
-            Image = RibbonIcons.Create(AgentState.Stopped, 16),
+            Image = _small[AgentState.Stopped],
         };
         _button = (PushButton)panel.AddItem(data);
 
         app.Idling += OnIdling;
+        try { app.ThemeChanged += OnThemeChanged; } catch { /* older Revit */ }
+    }
+
+    /// <summary>White N on Revit's dark theme, black N on the light theme.</summary>
+    private void BuildIcons()
+    {
+        bool dark = false;
+        try { dark = UIThemeManager.CurrentTheme == UITheme.Dark; } catch { /* default: light */ }
+        foreach (AgentState s in Enum.GetValues<AgentState>())
+        {
+            _icons[s] = RibbonIcons.Create(s, 32, dark);
+            _small[s] = RibbonIcons.Create(s, 16, dark);
+        }
+    }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e)
+    {
+        try
+        {
+            BuildIcons();
+            _button.LargeImage = _icons[_state];
+            _button.Image = _small[_state];
+        }
+        catch (Exception ex)
+        {
+            _log.Warn("Could not update the ribbon icon for the new theme.", ex);
+        }
     }
 
     /// <summary>Called from any thread.</summary>
@@ -70,6 +94,7 @@ internal sealed class StatusRibbon : IDisposable
             };
             _button.ToolTip = $"State: {status.State}\nPipe: {status.PipeName}\nHub connections: {status.Clients}\nRequests: {status.RequestsHandled}"
                               + (status.LastError is null ? "" : $"\nLast error: {status.LastError}");
+            _state = status.State;
             _button.LargeImage = _icons[status.State];
             _button.Image = _small[status.State];
         }
@@ -82,5 +107,6 @@ internal sealed class StatusRibbon : IDisposable
     public void Dispose()
     {
         try { _app.Idling -= OnIdling; } catch { /* ignored */ }
+        try { _app.ThemeChanged -= OnThemeChanged; } catch { /* ignored */ }
     }
 }

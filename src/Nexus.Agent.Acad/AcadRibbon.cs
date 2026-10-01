@@ -36,11 +36,7 @@ internal sealed class AcadRibbon : IDisposable
         _log = log;
         _status = status;
         _host = host;
-        foreach (AgentState s in Enum.GetValues<AgentState>())
-        {
-            _large[s] = RibbonIcons.Create(s, 32);
-            _small[s] = RibbonIcons.Create(s, 16);
-        }
+        BuildIcons();
 
         if (ComponentManager.Ribbon is not null) Create();
         else ComponentManager.ItemInitialized += OnItemInitialized;
@@ -62,6 +58,24 @@ internal sealed class AcadRibbon : IDisposable
     {
         // Switching workspace rebuilds the ribbon without our tab.
         if (string.Equals(e.Name, "WSCURRENT", StringComparison.OrdinalIgnoreCase)) Create();
+        // Dark/light interface: switch between the white and black N.
+        if (string.Equals(e.Name, "COLORTHEME", StringComparison.OrdinalIgnoreCase))
+        {
+            BuildIcons();
+            ApplyStatus(_status());
+        }
+    }
+
+    /// <summary>White N on AutoCAD's dark theme (COLORTHEME 0), black N on the light theme.</summary>
+    private void BuildIcons()
+    {
+        bool dark = true;
+        try { dark = Convert.ToInt32(AcApp.GetSystemVariable("COLORTHEME")) == 0; } catch { /* default: dark */ }
+        foreach (AgentState s in Enum.GetValues<AgentState>())
+        {
+            _large[s] = RibbonIcons.Create(s, 32, dark);
+            _small[s] = RibbonIcons.Create(s, 16, dark);
+        }
     }
 
     private void Create()

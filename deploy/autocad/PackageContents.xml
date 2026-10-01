@@ -14,6 +14,7 @@
                     Description="Connects AutoCAD and Civil 3D to the Nexus hub application."
                     AppVersion="0.1.0"
                     Author="Nexus"
+                    Icon="./Contents/Resources/Nexus.ico"
                     ProductCode="{8C2B6F40-3E1D-4B7A-9E52-6A0F1D3C7B21}"
                     UpgradeCode="{1F9E3A57-2C4B-4D8E-A6B1-7E0C5D2F9A34}">
   <CompanyDetails Name="Nexus" />
