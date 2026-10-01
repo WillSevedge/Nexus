@@ -91,6 +91,9 @@ public sealed class ApplyChangesViewModel : Observable
 
     public string CloseLabel => _applied ? "Close" : "Cancel";
 
+    /// <summary>Raised after applying when every change went through, so the window can close itself.</summary>
+    public event Action? Succeeded;
+
     private async Task ApplyAsync()
     {
         _applying = true;
@@ -109,5 +112,8 @@ public sealed class ApplyChangesViewModel : Observable
         Summary = "Done: " + string.Join(", ", counts) + "." +
                   (Changes.Any(c => c.Status is "Failed" or "Skipped") ? " See the Message column for why." : "") +
                   (ChangedRuns.Count > 0 ? " The table will refresh from the model when you close this window." : "");
+
+        // Keep the window open only when something needs explaining.
+        if (Changes.All(c => c.Status is "Applied" or "Unchanged")) Succeeded?.Invoke();
     }
 }

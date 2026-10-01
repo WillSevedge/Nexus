@@ -12,6 +12,7 @@ public partial class ApplyChangesWindow : Window
         ViewModel = viewModel;
         DataContext = viewModel;
         Closing += (_, e) => e.Cancel = viewModel.IsApplying;
+        viewModel.Succeeded += Close;
     }
 
     public ApplyChangesViewModel ViewModel { get; }

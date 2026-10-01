@@ -50,14 +50,20 @@ internal static class RevisionsOnSheets
     /// <summary>Current Yes/No for one revision on one sheet.</summary>
     public static string State(ViewSheet sheet, Revision r) => sheet.GetAllRevisionIds().Contains(r.Id) ? "Yes" : "No";
 
-    /// <summary>Shows or hides the revision on the sheet (inside an open transaction). Returns null or why not.</summary>
-    public static string? Set(ViewSheet sheet, Revision r, bool show)
+    /// <summary>
+    /// Shows or hides the revision on the sheet (inside an open transaction). Returns null or why not;
+    /// <paramref name="changed"/> says whether the sheet was modified.
+    /// Note: GetAllRevisionIds only reflects the change after Revit regenerates, so do not use it
+    /// to check the result inside the transaction.
+    /// </summary>
+    public static string? Set(ViewSheet sheet, Revision r, bool show, out bool changed)
     {
+        changed = false;
         var added = sheet.GetAdditionalRevisionIds().ToList();
         bool onSheet = sheet.GetAllRevisionIds().Contains(r.Id);
         if (show)
         {
-            if (onSheet) return null;
+            if (onSheet || added.Contains(r.Id)) return null;
             added.Add(r.Id);
         }
         else
@@ -67,6 +73,7 @@ internal static class RevisionsOnSheets
                 return "This revision is on the sheet because of revision clouds on it; remove the clouds to remove the revision.";
         }
         sheet.SetAdditionalRevisionIds(added);
+        changed = true;
         return null;
     }
 }

@@ -184,16 +184,16 @@ internal sealed class RevitWriter : IHostDataWriter<Document>
             return null;
         }
 
-        string? error = RevisionsOnSheets.Set(sheet, revision, show.Value);
+        string? error = RevisionsOnSheets.Set(sheet, revision, show.Value, out bool changed);
         if (error is not null)
         {
             r.Status = ChangeStatus.Failed;
             r.Message = error;
             return null;
         }
-        string after = RevisionsOnSheets.State(sheet, revision);
-        r.NewValue = after;
-        r.Status = after == before ? ChangeStatus.Unchanged : ChangeStatus.Applied;
+        // The sheet's revision list updates when Revit regenerates (at commit); report from what was set.
+        r.NewValue = show.Value ? "Yes" : "No";
+        r.Status = changed ? ChangeStatus.Applied : ChangeStatus.Unchanged;
         return () => RevisionsOnSheets.State(sheet, revision);
     }
 
