@@ -54,7 +54,8 @@ public sealed class ObjectPropertyReader
 
     public DataItem Read(DBObject obj, Transaction tr, ObjectReadOptions options, string? documentBlocker)
     {
-        string? blocker = documentBlocker ?? EntityBlocker(obj, tr);
+        // Locked layers do not block edits: the writer unlocks the layer for the change and locks it again.
+        string? blocker = documentBlocker;
         var item = new DataItem
         {
             Id = obj.ObjectId.IsNull ? "" : obj.ObjectId.Handle.ToString(),
@@ -176,7 +177,7 @@ public sealed class ObjectPropertyReader
             {
                 if (tr.GetObject(id, OpenMode.ForRead, false, true) is not AttributeReference ar) continue;
                 string value = ar.IsMTextAttribute ? ar.MTextAttribute?.Contents ?? ar.TextString : ar.TextString;
-                string? reason = ar.IsConstant ? "Constant attribute" : blocker ?? EntityBlocker(ar, tr);
+                string? reason = ar.IsConstant ? "Constant attribute" : blocker;
                 attrs.Properties.Add(new PropertyValue
                 {
                     Name = ar.Tag,
@@ -277,18 +278,6 @@ public sealed class ObjectPropertyReader
 
     /// <summary>Property id of a table cell (zero-based row and column).</summary>
     public static string TableCellId(int row, int column) => FormattableString.Invariant($"Cell:{row},{column}");
-
-    public static string? EntityBlocker(DBObject obj, Transaction tr)
-    {
-        if (obj is not Entity e) return null;
-        try
-        {
-            if (tr.GetObject(e.LayerId, OpenMode.ForRead) is LayerTableRecord layer && layer.IsLocked)
-                return $"Layer '{layer.Name}' is locked";
-        }
-        catch { /* ignored */ }
-        return null;
-    }
 
     public static string EffectiveName(BlockReference br, Transaction tr)
     {

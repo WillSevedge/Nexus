@@ -11,7 +11,9 @@ internal static class Editability
     public static string? Blocker(Document doc, Element element)
     {
         if (doc.IsLinked) return "Linked document (read-only)";
-        if (doc.IsReadOnly) return "Document is read-only";
+        // IsReadOnlyFile is the file state; Document.IsReadOnly is a passing state (e.g. while Revit
+        // processes warnings) and must not lock values when they are read.
+        if (doc.IsReadOnlyFile) return "The file is open read-only";
         if (!doc.IsWorkshared) return null;
 
         try

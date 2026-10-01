@@ -50,6 +50,8 @@ internal sealed class AcadWriter : IHostDataWriter<Document>
 
             using (var tr = db.TransactionManager.StartTransaction())
             {
+                // Title blocks usually sit on locked layers: unlock them for the edit, lock them again before committing.
+                _layers = new LockedLayers();
                 for (int i = 0; i < request.Changes.Count; i++)
                 {
                     var change = request.Changes[i];
@@ -60,7 +62,9 @@ internal sealed class AcadWriter : IHostDataWriter<Document>
                     }
                     Run(result.Results[i], change, log, () => Apply(db, tr, docId, isActive, change, result.Results[i]));
                 }
+                _layers.RelockAll(tr);
                 tr.Commit();
+                _layers = null;
             }
 
             // COM setters open the object themselves, so they run after the transaction has closed everything.
@@ -218,13 +222,31 @@ internal sealed class AcadWriter : IHostDataWriter<Document>
     private static void ApplyCom(Database db, PropertyChange change, ChangeResult r)
     {
         object? com;
-        using (var tr = db.TransactionManager.StartOpenCloseTransaction())
+        var layers = new LockedLayers();
+        using (var tr = db.TransactionManager.StartTransaction())
         {
-            var obj = Open(db, tr, change.OwnerId, r);
+            var obj = Open(db, tr, change.OwnerId, r, layers);
             if (obj is null) return;
             com = obj.AcadObject;
             tr.Commit();
         }
+        try
+        {
+            ApplyComValue(com, change, r);
+        }
+        finally
+        {
+            if (layers.Any)
+            {
+                using var tr = db.TransactionManager.StartTransaction();
+                layers.RelockAll(tr);
+                tr.Commit();
+            }
+        }
+    }
+
+    private static void ApplyComValue(object? com, PropertyChange change, ChangeResult r)
+    {
         if (com is null || !Marshal.IsComObject(com)) throw new FormatException("This object has no ActiveX properties.");
 
         // Id looks like "IAcadLine.Layer (dispid 1234)".
@@ -246,8 +268,14 @@ internal sealed class AcadWriter : IHostDataWriter<Document>
 
     // ------------------------------------------------------------------ helpers
 
-    /// <summary>Opens the object for read; null (with a reason) if it is gone or on a locked layer.</summary>
-    private static DBObject? Open(Database db, Transaction tr, string handle, ChangeResult r)
+    /// <summary>Layers unlocked during the current transaction write.</summary>
+    [ThreadStatic] private static LockedLayers? _layers;
+
+    /// <summary>
+    /// Opens the object for read; null (with a reason) if it is gone. If it (or, for an attribute, its
+    /// block) is on a locked layer, the layer is unlocked so the edit can be made; it is locked again afterwards.
+    /// </summary>
+    private static DBObject? Open(Database db, Transaction tr, string handle, ChangeResult r, LockedLayers? layers = null)
     {
         if (!long.TryParse(handle, NumberStyles.HexNumber, Inv, out long h) || !db.TryGetObjectId(new Handle(h), out var id) || id.IsErased)
         {
@@ -255,13 +283,39 @@ internal sealed class AcadWriter : IHostDataWriter<Document>
             return null;
         }
         var obj = tr.GetObject(id, OpenMode.ForRead, false, true);
-        var blocker = ObjectPropertyReader.EntityBlocker(obj, tr);
-        if (blocker is not null)
+        layers ??= _layers;
+        if (layers is not null)
         {
-            r.Message = blocker + ".";
-            return null;
+            layers.Unlock(tr, obj);
+            if (obj is AttributeReference ar && !ar.OwnerId.IsNull)
+                layers.Unlock(tr, tr.GetObject(ar.OwnerId, OpenMode.ForRead));
         }
         return obj;
+    }
+
+    private sealed class LockedLayers
+    {
+        private readonly HashSet<ObjectId> _unlocked = new();
+
+        public bool Any => _unlocked.Count > 0;
+
+        public void Unlock(Transaction tr, DBObject obj)
+        {
+            if (obj is not Entity e || _unlocked.Contains(e.LayerId)) return;
+            if (tr.GetObject(e.LayerId, OpenMode.ForRead) is not LayerTableRecord layer || !layer.IsLocked) return;
+            layer.UpgradeOpen();
+            layer.IsLocked = false;
+            _unlocked.Add(e.LayerId);
+        }
+
+        public void RelockAll(Transaction tr)
+        {
+            foreach (var id in _unlocked)
+            {
+                if (tr.GetObject(id, OpenMode.ForWrite) is LayerTableRecord layer) layer.IsLocked = true;
+            }
+            _unlocked.Clear();
+        }
     }
 
     /// <summary>Skips if the value changed since it was read, sets it, and reports Applied/Unchanged.</summary>

@@ -183,8 +183,9 @@ slightly slower because of this; later reads are not.
 - drawing settings, and system variables of the active drawing.
 
 Values that refer to other objects (layer/style ids, COM objects) are not editable yet; the `Layer`
-property (text) is. A value is skipped when its layer is locked, the drawing is read-only, or it changed in
-the drawing since it was read. Edits run with the document locked from the application context, so they are
+property (text) is. Objects on locked layers (title blocks usually are) can be edited: the layer is unlocked
+for the change and locked again. A value is skipped when the drawing is read-only or it changed in the
+drawing since it was read. Edits run with the document locked from the application context, so they are
 recorded in AutoCAD's undo history (`U`).
 
 **Threading.** Requests are marshaled to AutoCAD's main thread and run only in the

@@ -149,7 +149,7 @@ public partial class MainWindow : Window
         parent?.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta) { RoutedEvent = MouseWheelEvent, Source = sender });
     }
 
-    private void OnMessages(object sender, RoutedEventArgs e) => Dialogs.ShowMessages(this, _vm.IssueLines(), _vm.Log);
+    private void OnMessages(object sender, RoutedEventArgs e) => Dialogs.ShowMessages(this, _vm.IssueLines(), _vm.Log, _vm.EditingReport());
 
     // ------------------------------------------------------------------ selection
 

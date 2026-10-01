@@ -124,7 +124,7 @@ internal sealed class SheetsReader : IHostDataReader<Document>
         if (titleBlock is { } chosen)
         {
             tb.Properties.Add(ObjectPropertyReader.Derived("Title Block Name", chosen.Name));
-            string? blockBlocker = docBlocker ?? ObjectPropertyReader.EntityBlocker(chosen.Block, tr);
+            string? blockBlocker = docBlocker; // locked layers are unlocked briefly when applying
             foreach (var ar in chosen.Attributes)
             {
                 string value = ar.IsMTextAttribute ? ar.MTextAttribute?.Contents ?? ar.TextString : ar.TextString;

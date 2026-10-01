@@ -54,7 +54,7 @@ internal sealed class RevitDocumentProvider : IDocumentProvider<Document>
             Id = Id(doc),
             Title = doc.Title,
             Path = string.IsNullOrEmpty(doc.PathName) ? null : doc.PathName,
-            IsReadOnly = doc.IsReadOnly,
+            IsReadOnly = doc.IsReadOnlyFile,
             IsModified = doc.IsModified,
         };
         info.Extra["IsWorkshared"] = doc.IsWorkshared.ToString();
