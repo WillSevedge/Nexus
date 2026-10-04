@@ -155,6 +155,14 @@ public partial class MainWindow : Window
 
     private void OnRename(object sender, RoutedEventArgs e) => OpenRename();
 
+    private void OnHistory(object sender, RoutedEventArgs e) => OpenHistory();
+
+    private void OpenHistory()
+    {
+        TableGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        new HistoryWindow(new HistoryViewModel(_vm)) { Owner = this }.ShowDialog();
+    }
+
     /// <summary>The selected rows (more than one), else every row shown, in the order shown.</summary>
     private void OpenRename()
     {

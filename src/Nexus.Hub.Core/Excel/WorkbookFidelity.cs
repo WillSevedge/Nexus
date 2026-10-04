@@ -32,7 +32,7 @@ public sealed class WorkbookSnapshot
     public Dictionary<string, (string ContentType, string Hash)> Parts { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Worksheet name → its features and cells.</summary>
-    public Dictionary<string, SheetSnapshot> Sheets { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, WorksheetSnapshot> Sheets { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Workbook-level XML that must survive: defined names, sheet list, workbook properties (codeName for VBA).</summary>
     public Dictionary<string, string> WorkbookFeatures { get; } = new(StringComparer.Ordinal);
@@ -83,7 +83,7 @@ public sealed class WorkbookSnapshot
             if (rid is null || !wbRels.TryGetValue(rid, out var rel)) continue;
             var xml = Load(zip, rel.Target);
             if (xml?.Root is null || xml.Root.Name != Main + "worksheet") continue;
-            var ss = new SheetSnapshot { PartName = rel.Target };
+            var ss = new WorksheetSnapshot { PartName = rel.Target };
             foreach (var f in SheetFeatures)
             {
                 var all = xml.Root.Elements(Main + f).ToList();
@@ -257,7 +257,7 @@ public sealed class WorkbookSnapshot
         contentType.Length == 0 ? "unknown type" : contentType[(contentType.LastIndexOf('/') + 1)..];
 }
 
-public sealed class SheetSnapshot
+public sealed class WorksheetSnapshot
 {
     public string PartName { get; init; } = "";
     public Dictionary<string, string> Features { get; } = new(StringComparer.Ordinal);

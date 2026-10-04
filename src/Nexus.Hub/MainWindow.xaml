@@ -391,6 +391,12 @@
               <TextBlock Text="Rename" Margin="8,0,0,0" />
             </StackPanel>
           </Button>
+          <Button Style="{StaticResource CommandButton}" Click="OnHistory" ToolTip="Snapshots: what changed since an issue, and every change applied with Nexus">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="&#xE81C;" Style="{StaticResource Glyph}" />
+              <TextBlock Text="History" Margin="8,0,0,0" />
+            </StackPanel>
+          </Button>
           <ToggleButton Style="{StaticResource CommandToggle}" IsChecked="{Binding Health.IsOpen}"
                         Visibility="{Binding Health.IsAvailable, Converter={StaticResource BoolToVis}}"
                         ToolTip="Sheet health: checks every sheet in the open files (duplicate numbers, template placeholders, naming, spaces...)">

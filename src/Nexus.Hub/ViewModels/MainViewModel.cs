@@ -7,6 +7,7 @@ using Microsoft.Win32;
 using Nexus.Contracts;
 using Nexus.Hub.Core;
 using Nexus.Hub.Core.Excel;
+using Nexus.Hub.Core.History;
 
 namespace Nexus.Hub.ViewModels;
 
@@ -1084,6 +1085,12 @@ public sealed class MainViewModel : Observable
     {
         _busy = true;
         var changedRuns = new List<ResultRun>();
+        // History: the sheet set as it was, so "what changed since" can always go back to before this apply.
+        if (CaptureSnapshot($"Before applying {rows.Count} change{(rows.Count == 1 ? "" : "s")}", SheetSnapshot.KindBeforeApply) is { } before)
+        {
+            try { SnapshotStore.Save(before); }
+            catch (Exception ex) { HubLog.Warn("Could not save the before-apply snapshot.", ex); }
+        }
         try
         {
             var byEdit = rows.ToDictionary(r => r.Edit);
@@ -1126,10 +1133,28 @@ public sealed class MainViewModel : Observable
         finally
         {
             _busy = false;
+            ChangeLog.Append(rows.Where(r => r.Status == "Applied").Select(r => new ChangeLogEntry
+            {
+                TimeUtc = DateTime.UtcNow,
+                User = Environment.UserName,
+                Program = r.Edit.Row.Source.Host.Name,
+                File = r.Document,
+                Item = r.Item,
+                Property = r.Property,
+                Before = r.OldValue,
+                After = r.Result ?? r.NewValue,
+                Status = r.Status,
+            }));
         }
         Status = $"{rows.Count(r => r.Status == "Applied")} of {rows.Count} change(s) applied.";
         return changedRuns.Distinct().ToList();
     }
+
+    /// <summary>The sheet set as read from the files (Sheets view only; null otherwise).</summary>
+    public SheetSnapshot? CaptureSnapshot(string name, string kind) =>
+        _dataset is { IsSheetIndex: true } && _table is not null ? SheetSnapshot.Capture(_table.Rows, name, kind) : null;
+
+    public bool IsSheetsView => _dataset is { IsSheetIndex: true };
 
     /// <summary>Reads changed files again so the grid shows what the program now has.</summary>
     private async Task RereadAsync(IReadOnlyList<ResultRun> runs)
