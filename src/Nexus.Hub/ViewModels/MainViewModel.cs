@@ -738,13 +738,29 @@ public sealed class MainViewModel : Observable
         bool Unique(string id) => id == SheetFieldMap.NumberColumnId
                                   || rows.Any(r => r.Values.TryGetValue(id, out var v) && v.Id is "SHEET_NUMBER" or "Layout:Name");
 
-        foreach (var (id, label) in new[] { (SheetFieldMap.NumberColumnId, "Sheet number"), (SheetFieldMap.ColumnId("Title"), "Sheet title") })
-            if (_table.ColumnsById.ContainsKey(id) && Editable(id)) fields.Add(new RenameField(id, label, Unique(id)));
+        // Properties already offered (a standard field and the parameter it shows are the same property).
+        var offered = new HashSet<PropertyValue>(ReferenceEqualityComparer.Instance);
+        bool AlreadyOffered(string id) => rows.All(r => !r.Values.TryGetValue(id, out var v) || offered.Contains(v));
+        void Offer(string id, string label)
+        {
+            fields.Add(new RenameField(id, label, Unique(id)));
+            foreach (var r in rows)
+                if (r.Values.TryGetValue(id, out var v)) offered.Add(v);
+        }
 
-        var names = _table.Columns.Where(c => _visible.Contains(c.Id)).GroupBy(c => c.Name).ToDictionary(g => g.Key, g => g.Count());
+        // Standard fields first. When every row names the property the same way (all Revit: "Sheet Number",
+        // "Sheet Name"), use that name; across programs, the general one covers Revit and AutoCAD together.
+        foreach (var (id, general) in new[] { (SheetFieldMap.NumberColumnId, "Sheet number (all programs)"), (SheetFieldMap.ColumnId("Title"), "Sheet title (all programs)") })
+        {
+            if (!_table.ColumnsById.ContainsKey(id) || !Editable(id)) continue;
+            var names = rows.Where(r => r.Values.ContainsKey(id)).Select(r => r.Values[id].Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            Offer(id, names.Count == 1 ? names[0] : general);
+        }
+
+        var counts = _table.Columns.Where(c => _visible.Contains(c.Id)).GroupBy(c => c.Name).ToDictionary(g => g.Key, g => g.Count());
         foreach (var c in _table.Columns.Where(c => _visible.Contains(c.Id) && c.Group != SheetFieldMap.Group))
-            if (Editable(c.Id))
-                fields.Add(new RenameField(c.Id, names[c.Name] > 1 ? $"{c.Name}  ({c.Group})" : c.Name, Unique(c.Id)));
+            if (Editable(c.Id) && !AlreadyOffered(c.Id))
+                Offer(c.Id, counts[c.Name] > 1 ? $"{c.Name}  ({c.Group})" : c.Name);
         return fields;
     }
 
