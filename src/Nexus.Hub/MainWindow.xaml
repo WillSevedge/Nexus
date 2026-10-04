@@ -345,7 +345,45 @@
       </Grid.RowDefinitions>
 
       <!-- Title + search -->
-      <DockPanel Grid.Row="0">
+      <!-- Welcome: nothing connected yet (the title, toolbar and table appear once a program is open) -->
+      <Grid Grid.Row="0" Grid.RowSpan="5" Visibility="{Binding NoPrograms, Converter={StaticResource BoolToVis}}">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="520">
+          <TextBlock Text="&#xE8A1;" Style="{StaticResource Glyph}" FontSize="44" HorizontalAlignment="Center"
+                     Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+          <TextBlock Text="Waiting for your programs" FontSize="26" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,14,0,6" />
+          <TextBlock Text="Nexus connects to Revit, AutoCAD, Civil 3D and Plant 3D while they run. Nothing to set up here."
+                     TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+          <Border Style="{StaticResource Card}" Padding="20,16" Margin="0,24,0,0">
+            <StackPanel>
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Border Width="26" Height="26" CornerRadius="13" Background="{DynamicResource AccentFillColorDefaultBrush}">
+                  <TextBlock Text="1" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="400"
+                           Text="Open a model or drawing in Revit, AutoCAD, Civil 3D or Plant 3D." />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Border Width="26" Height="26" CornerRadius="13" Background="{DynamicResource AccentFillColorDefaultBrush}">
+                  <TextBlock Text="2" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="400"
+                           Text="It appears under Files on the left within a few seconds. Tick the files to work with." />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal">
+                <Border Width="26" Height="26" CornerRadius="13" Background="{DynamicResource AccentFillColorDefaultBrush}">
+                  <TextBlock Text="3" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="400"
+                           Text="Pick what to see under Data: Sheets, Revisions, Fabrication Parts…" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+          <TextBlock Text="Don't see your program? Make sure its Nexus add-in is loaded (Nexus tab on its ribbon)." TextWrapping="Wrap"
+                     TextAlignment="Center" FontSize="12" Margin="0,14,0,0" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+        </StackPanel>
+      </Grid>
+
+      <DockPanel Grid.Row="0" Visibility="{Binding HasPrograms, Converter={StaticResource BoolToVis}}">
         <Border DockPanel.Dock="Right" Width="320" CornerRadius="6" VerticalAlignment="Center">
           <Grid>
             <TextBox x:Name="SearchBox" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged, Delay=250}" Padding="34,6,8,6" />
@@ -382,7 +420,7 @@
       </DockPanel>
 
       <!-- Command bar -->
-      <DockPanel Grid.Row="1" Margin="-8,12,0,10">
+      <DockPanel Grid.Row="1" Margin="-8,12,0,10" Visibility="{Binding HasPrograms, Converter={StaticResource BoolToVis}}">
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
           <ToggleButton Style="{StaticResource CommandToggle}" IsChecked="{Binding ShowDetails}" ToolTip="Show or hide the details pane">
             <StackPanel Orientation="Horizontal">
@@ -556,7 +594,7 @@
         </DockPanel>
       </Border>
 
-      <Grid Grid.Row="3">
+      <Grid Grid.Row="3" Visibility="{Binding HasPrograms, Converter={StaticResource BoolToVis}}">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" />
           <ColumnDefinition Width="Auto" />
@@ -746,7 +784,7 @@
       </Grid>
 
       <!-- Status + changes -->
-      <DockPanel Grid.Row="4" Margin="0,12,0,0">
+      <DockPanel Grid.Row="4" Margin="0,12,0,0" Visibility="{Binding HasPrograms, Converter={StaticResource BoolToVis}}">
         <Border DockPanel.Dock="Right" CornerRadius="8" Padding="14,8" Margin="12,0,0,0"
                 Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"

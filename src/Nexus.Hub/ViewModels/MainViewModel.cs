@@ -240,6 +240,7 @@ public sealed class MainViewModel : Observable
 
     /// <summary>At least one program is connected (the Data section of the sidebar shows).</summary>
     public bool HasPrograms => Agents.Count > 0;
+    public bool NoPrograms => Agents.Count == 0;
 
     /// <summary>Nothing to show yet: the grid is replaced by a short explanation.</summary>
     public bool IsEmpty => !_busy && (_table is null || _table.Rows.Count == 0);
@@ -354,6 +355,7 @@ public sealed class MainViewModel : Observable
         RebuildDatasets();
         Raise(nameof(EmptyTitle));
         Raise(nameof(HasPrograms));
+        Raise(nameof(NoPrograms));
         Raise(nameof(EmptyText));
         int docs = Agents.Sum(a => a.Documents.Count);
         if (!_busy)
@@ -641,6 +643,7 @@ public sealed class MainViewModel : Observable
         Raise(nameof(IsEmpty));
         Raise(nameof(EmptyTitle));
         Raise(nameof(HasPrograms));
+        Raise(nameof(NoPrograms));
         Raise(nameof(EmptyText));
         Raise(nameof(HasRevisionColumns));
         int files = Runs.Count(r => !r.Failed);
