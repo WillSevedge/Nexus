@@ -15,7 +15,7 @@ public sealed class AgentLog
 
     public AgentLog(string name)
     {
-        string file = $"{name}-{DateTime.Now:yyyyMMdd}-{Environment.ProcessId}.log";
+        string file = $"{name}-{DateTime.Now:yyyyMMdd}-{Compat.ProcessId}.log";
         FilePath = Path.Combine(NexusPaths.LogsDir, file);
         try { Directory.CreateDirectory(NexusPaths.LogsDir); } catch { /* ignored */ }
     }

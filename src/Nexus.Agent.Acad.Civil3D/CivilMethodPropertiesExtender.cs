@@ -30,7 +30,7 @@ internal sealed class CivilMethodPropertiesExtender : IObjectPropertyExtender
     {
         foreach (var (methodName, groupName) in Methods)
         {
-            var method = obj.GetType().GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance, Type.EmptyTypes);
+            var method = obj.GetType().GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
             if (method is null || method.ReturnType == typeof(void)) continue;
 
             object? result;

@@ -17,8 +17,8 @@ public static class Frames
 
         byte[] header = new byte[4];
         BinaryPrimitives.WriteInt32LittleEndian(header, body.Length);
-        await stream.WriteAsync(header, ct).ConfigureAwait(false);
-        await stream.WriteAsync(body, ct).ConfigureAwait(false);
+        await stream.WriteAsync(header, 0, header.Length, ct).ConfigureAwait(false);
+        await stream.WriteAsync(body, 0, body.Length, ct).ConfigureAwait(false);
         await stream.FlushAsync(ct).ConfigureAwait(false);
     }
 
@@ -46,7 +46,7 @@ public static class Frames
         int read = 0;
         while (read < buffer.Length)
         {
-            int n = await stream.ReadAsync(buffer.AsMemory(read), ct).ConfigureAwait(false);
+            int n = await stream.ReadAsync(buffer, read, buffer.Length - read, ct).ConfigureAwait(false);
             if (n == 0)
             {
                 if (read == 0) return false;

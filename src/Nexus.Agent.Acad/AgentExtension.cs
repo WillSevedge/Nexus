@@ -36,6 +36,8 @@ public sealed class AgentExtension : IExtensionApplication
     public void Initialize()
     {
         Instance = this;
+        // 2024 (.NET Framework): load our own copies of the libraries we ship if the program has others.
+        Compat.ResolveDependenciesFrom(System.IO.Path.GetDirectoryName(typeof(Compat).Assembly.Location) ?? AppContext.BaseDirectory);
         try
         {
             string dir = Path.GetDirectoryName(typeof(AgentExtension).Assembly.Location) ?? AppContext.BaseDirectory;

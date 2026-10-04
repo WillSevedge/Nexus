@@ -119,7 +119,7 @@ internal sealed class StatusRibbon : IDisposable
     private void BuildIcons()
     {
         bool dark = IsDark();
-        foreach (AgentState s in Enum.GetValues<AgentState>())
+        foreach (AgentState s in Compat.EnumValues<AgentState>())
         {
             _icons[s] = RibbonIcons.Create(s, 32, dark);
             _small[s] = RibbonIcons.Create(s, 16, dark);

@@ -42,7 +42,7 @@ public static class HubControl
     {
         try
         {
-            using var pipe = new NamedPipeClientStream(".", Protocol.HubControlPipe, PipeDirection.Out, PipeOptions.CurrentUserOnly);
+            using var pipe = Compat.CreateUserOnlyClient(Protocol.HubControlPipe, PipeDirection.Out);
             pipe.Connect(timeoutMs);
             using var writer = new StreamWriter(pipe) { AutoFlush = true };
             writer.WriteLine(command);

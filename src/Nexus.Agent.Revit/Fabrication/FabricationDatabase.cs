@@ -224,7 +224,7 @@ internal sealed class FabricationDatabase
     {
         var c = Configuration;
         var seen = new HashSet<int>();
-        foreach (var type in Enum.GetValues<FabricationAncillaryType>())
+        foreach (var type in Compat.EnumValues<FabricationAncillaryType>())
         {
             if (type == FabricationAncillaryType.Unknown) continue;
             IList<int> ids;

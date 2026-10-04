@@ -44,7 +44,7 @@ internal sealed class SheetsReader : IHostDataReader<Document>
         string? docBlocker = doc.IsReadOnly ? "Drawing is read-only" : null;
         string docId = AcadDocumentProvider.Id(doc);
         var patterns = (ctx.GetString("titleBlockNames") ?? "")
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            .Split(',').Select(p => p.Trim()).Where(p => p.Length > 0).ToArray();
 
         using var docLock = AcadDocumentProvider.LockForRead(doc);
         var db = doc.Database;

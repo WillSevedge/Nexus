@@ -127,9 +127,7 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
             NamedPipeServerStream? server = null;
             try
             {
-                server = new NamedPipeServerStream(PipeName, PipeDirection.InOut,
-                    NamedPipeServerStream.MaxAllowedServerInstances, PipeTransmissionMode.Byte,
-                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+                server = Compat.CreateUserOnlyServer(PipeName);
 
                 await server.WaitForConnectionAsync(ct).ConfigureAwait(false);
                 var connected = server;

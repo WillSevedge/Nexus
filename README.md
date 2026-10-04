@@ -11,12 +11,12 @@ Later phases: Excel import/export, two-way sync and the MCP server.
 
 | Project | Target | What it is |
 |---|---|---|
-| `src/Nexus.Contracts` | net10.0 | *Shared.Contracts*: message envelope, DTOs (host, document, reader, item, property), pipe framing. No dependencies. |
-| `src/Nexus.Agent.Shared` | net10.0 | *Shared.Agent*: pipe server, discovery file, request dispatch, host-thread work queue, reader registry, logging. No NuGet dependencies (loaded inside the hosts). |
-| `src/Nexus.Agent.Revit` | net10.0-windows | Revit add-in (`IExternalApplication`), ribbon status button, `ExternalEvent` request queue, readers. |
-| `src/Nexus.Agent.Acad` | net10.0-windows | AutoCAD-family core agent (`IExtensionApplication`), autoloader bundle, generic "Properties palette" reader, layouts reader, module loader. Loads in every AutoCAD-based product. |
-| `src/Nexus.Agent.Acad.Civil3D` | net10.0-windows | Civil 3D module. The only project that references the Civil 3D API. Loaded by the core only when Civil 3D is detected. |
-| `src/Nexus.Agent.Acad.Plant3D` | net10.0-windows | Plant 3D module. Reaches the Plant 3D API (project, DataLinksManager) by late binding, so it builds without Plant 3D. Loaded by the core only when Plant 3D is detected. |
+| `src/Nexus.Contracts` | net48; net8.0; net10.0 | *Shared.Contracts*: message envelope, DTOs (host, document, reader, item, property), pipe framing. No dependencies. |
+| `src/Nexus.Agent.Shared` | net48; net8.0; net10.0 | *Shared.Agent*: pipe server, discovery file, request dispatch, host-thread work queue, reader registry, logging. No NuGet dependencies (loaded inside the hosts). |
+| `src/Nexus.Agent.Revit` | per year (see *Program years*) | Revit add-in (`IExternalApplication`), ribbon status button, `ExternalEvent` request queue, readers. |
+| `src/Nexus.Agent.Acad` | per year (see *Program years*) | AutoCAD-family core agent (`IExtensionApplication`), autoloader bundle, generic "Properties palette" reader, layouts reader, module loader. Loads in every AutoCAD-based product. |
+| `src/Nexus.Agent.Acad.Civil3D` | per year (see *Program years*) | Civil 3D module. The only project that references the Civil 3D API. Loaded by the core only when Civil 3D is detected. |
+| `src/Nexus.Agent.Acad.Plant3D` | per year (see *Program years*) | Plant 3D module. Reaches the Plant 3D API (project, DataLinksManager) by late binding, so it builds without Plant 3D. Loaded by the core only when Plant 3D is detected. |
 | `src/Nexus.Hub.Core` | net10.0 | UI-free hub logic: discovery, pipe client, result flattening, CSV/JSON export. |
 | `src/Nexus.Hub` | net10.0-windows (WPF) | The hub application (`Nexus.exe`). |
 | `src/Nexus.Cli` | net10.0 | `nexus` command-line client, for testing agents without the GUI. |
@@ -28,9 +28,10 @@ Deployment templates are in `deploy/`.
 
 ## Prerequisites
 
-- Windows, Visual Studio 2026 (includes the .NET 10 SDK). The 2026 hosts (Revit 2026 with API 26.5+, AutoCAD 2026, Civil 3D 2026) run on .NET 10, so every project targets .NET 10.
-- Revit 2026 and/or AutoCAD 2026 / Civil 3D 2026 installed in the default folders
-  (`C:\Program Files\Autodesk\Revit 2026\`, `C:\Program Files\Autodesk\AutoCAD 2026\`).
+- Windows, Visual Studio 2026 (includes the .NET 10 SDK; it builds the .NET Framework 4.8 and .NET 8 add-ins too).
+- Any of Revit 2024-2027 and/or AutoCAD / Civil 3D / Plant 3D 2024-2027 installed in the default folders
+  (`C:\Program Files\Autodesk\Revit 20xx\`, `C:\Program Files\Autodesk\AutoCAD 20xx\`). Years that are
+  not installed still build, against Autodesk's reference packages.
 
 Autodesk API DLLs are referenced from those install folders with `Private=false`, so they
 are never copied or redistributed. If a product is **not** installed on the build machine (e.g. CI),
@@ -38,6 +39,34 @@ the build falls back to compile-only reference packages (`Nice3point.Revit.Api.*
 `AutoCAD.NET`, `Civil3D.NET`) with `ExcludeAssets=runtime`. These are never copied either. The build
 prints which one it used. To point at a different install folder, pass
 `/p:RevitInstallDir=...\` or `/p:AutoCadInstallDir=...\`.
+
+## Program years
+
+The hub is one program for every year. The add-ins are built once per program year:
+
+| Year | Runtime | Revit | AutoCAD / Civil 3D / Plant 3D |
+|---|---|---|---|
+| 2024 | .NET Framework 4.8 | 2024 | 2024 (R24.3) |
+| 2025 | .NET 8 | 2025 | 2025 (R25.0) |
+| 2026 | .NET 10 | 2026 (API 26.5+) | 2026 (R25.1) |
+| 2027 | .NET 10 | 2027 | 2027 (R26.0) |
+
+- **Visual Studio** builds 2026 (the default). To build another year from Visual Studio, pick the solution
+  configuration `Debug.2024`, `Debug.2025` or `Debug.2027` (add them in Configuration Manager if missing), or use
+  the script below.
+- **`build\Build-AllYears.cmd`** builds every year, installs each year's add-in on this PC when that program year
+  is installed here, and collects them all in `artifacts\addins\` with **`Install-Addins.cmd`**. Copy that folder
+  to another PC and double-click `Install-Addins.cmd`: it installs Revit 2024-2027 and the AutoCAD / Civil 3D /
+  Plant 3D bundle for whatever years that PC has. (Install the hub there with `Install-Hub.cmd` or the
+  `artifacts\Nexus` folder.)
+- Each add-in project builds into `bin\{year}\` and `obj\{year}\`, so years do not overwrite each other.
+- Year-specific code uses the symbols `HOST2024`... and `HOST2025_OR_GREATER`... (`build/HostVersions.props`).
+  .NET Framework builds get `src/Common/NetFrameworkPolyfills.cs` (newer library methods), PolySharp (newer C#
+  features) and System.Text.Json, which ships next to the 2024 add-ins; a resolver loads those copies if the
+  program has other versions loaded.
+- The GitHub check builds every year's add-ins on every push.
+- Adding a year (2028...): add a row to `build/HostVersions.props` (runtime, API package versions, AutoCAD
+  R-number), a `<Components>` block to `deploy/autocad/PackageContents.xml`, and the year to the scripts' lists.
 
 ## Build and deploy
 
@@ -53,14 +82,15 @@ dotnet build Nexus.sln -c Debug
 dotnet test tests\Nexus.Tests
 ```
 
-On Windows, every build deploys the add-ins automatically:
+On Windows, every build installs the add-ins automatically for the year being built, if that program year is
+installed on this PC (`{year}` below):
 
 | What | Where |
 |---|---|
-| Revit manifest | `%APPDATA%\Autodesk\Revit\Addins\2026\Nexus.addin` |
-| Revit add-in files | `%APPDATA%\Autodesk\Revit\Addins\2026\Nexus\` |
+| Revit manifest | `%APPDATA%\Autodesk\Revit\Addins\{year}\Nexus.addin` |
+| Revit add-in files | `%APPDATA%\Autodesk\Revit\Addins\{year}\Nexus\` |
 | AutoCAD bundle manifest | `%APPDATA%\Autodesk\ApplicationPlugins\Nexus.bundle\PackageContents.xml` |
-| AutoCAD core + Civil 3D module | `%APPDATA%\Autodesk\ApplicationPlugins\Nexus.bundle\Contents\2026\` |
+| AutoCAD core + Civil 3D and Plant 3D modules | `%APPDATA%\Autodesk\ApplicationPlugins\Nexus.bundle\Contents\{year}\` (one bundle, one folder per year) |
 | Hub | not deployed by the build: it is a separate program, installed with `build\Publish-Hub.cmd install` (see *Hub*) into `%LOCALAPPDATA%\Nexus\Hub\Nexus.exe` |
 
 Add `/p:DeployToHost=false` to build without deploying. `dotnet clean` removes the deployed files.
@@ -445,7 +475,7 @@ The hub, IPC and export code do not change.
 The core never references the vertical's API.
 
 **Add a host version (e.g. 2027).**
-1. Add a row to `build/HostVersions.props`. A commented 2027 row is there; set its API package versions and AutoCAD R-number (it stays on `net10.0-windows`).
+1. Add a row to `build/HostVersions.props` (runtime, API package versions, AutoCAD R-number); see *Program years*.
 2. Add `Debug.2027;Release.2027` to `Directory.Build.props` and to the solution configurations.
 3. Add a `<Components>` block for R26.0 in `deploy/autocad/PackageContents.xml`.
 

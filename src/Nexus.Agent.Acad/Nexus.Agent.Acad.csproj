@@ -41,7 +41,7 @@
 
   <!-- Deploy the core agent + bundle manifest (Windows only). Skipped while AutoCAD has it loaded. -->
   <Target Name="NexusDeployAcadBundle" AfterTargets="Build" DependsOnTargets="NexusCheckAcadRunning"
-          Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false' and '$(_NexusAcadInUse)' != 'true'">
+          Condition="'$(NexusAcadDeploy)' == 'true' and '$(_NexusAcadInUse)' != 'true'">
     <ItemGroup>
       <_NexusAcadFiles Include="$(TargetDir)**\*.*" />
     </ItemGroup>
@@ -66,7 +66,7 @@
   </Target>
 
   <Target Name="NexusCleanAcadBundle" AfterTargets="Clean" DependsOnTargets="NexusCheckAcadRunning"
-          Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false' and '$(_NexusAcadInUse)' != 'true'">
+          Condition="'$(NexusAcadDeploy)' == 'true' and '$(_NexusAcadInUse)' != 'true'">
     <RemoveDir Directories="$(AcadBundleContentDir)" ContinueOnError="true" />
   </Target>
 </Project>

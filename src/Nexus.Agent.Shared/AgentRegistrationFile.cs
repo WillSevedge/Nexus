@@ -12,7 +12,7 @@ public static class AgentRegistrationFile
         string path = NexusPaths.RegistrationFile(registration.Host.ProcessId);
         string tmp = path + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(registration, Json.Indented));
-        File.Move(tmp, path, overwrite: true);
+        Compat.MoveOverwrite(tmp, path);
         return path;
     }
 

@@ -24,6 +24,8 @@ public sealed class AgentApplication : IExternalApplication
     public Result OnStartup(UIControlledApplication application)
     {
         Instance = this;
+        // 2024 (.NET Framework): load our own copies of the libraries we ship if the program has others.
+        Compat.ResolveDependenciesFrom(System.IO.Path.GetDirectoryName(typeof(Compat).Assembly.Location) ?? AppContext.BaseDirectory);
         try
         {
             var app = application.ControlledApplication;

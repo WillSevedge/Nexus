@@ -92,7 +92,12 @@ internal sealed class PlantApi
         {
             var link = LinkIn(project, name, id);
             if (link is null) continue;
-            if (db is not null) _partOfDrawing.AddOrUpdate(db, name);
+            if (db is not null)
+            {
+                // ConditionalWeakTable.AddOrUpdate does not exist on .NET Framework (2024).
+                _partOfDrawing.Remove(db);
+                _partOfDrawing.Add(db, name);
+            }
             return link;
         }
         return null;

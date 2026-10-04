@@ -62,8 +62,7 @@ public sealed class AcadDocumentProvider : IDocumentProvider<Document>
     {
         string fingerprint;
         try { fingerprint = doc.Database.FingerprintGuid; } catch { fingerprint = ""; }
-        byte[] hash = SHA1.HashData(Encoding.UTF8.GetBytes($"{doc.Name}|{fingerprint}".ToLowerInvariant()));
-        return "dwg-" + Convert.ToHexString(hash, 0, 6).ToLowerInvariant();
+        return "dwg-" + Compat.Sha1Hex($"{doc.Name}|{fingerprint}".ToLowerInvariant(), 6).ToLowerInvariant();
     }
 
     /// <summary>

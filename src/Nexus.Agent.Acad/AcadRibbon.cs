@@ -71,7 +71,7 @@ internal sealed class AcadRibbon : IDisposable
     {
         bool dark = true;
         try { dark = Convert.ToInt32(AcApp.GetSystemVariable("COLORTHEME")) == 0; } catch { /* default: dark */ }
-        foreach (AgentState s in Enum.GetValues<AgentState>())
+        foreach (AgentState s in Compat.EnumValues<AgentState>())
         {
             _large[s] = RibbonIcons.Create(s, 32, dark);
             _small[s] = RibbonIcons.Create(s, 16, dark);

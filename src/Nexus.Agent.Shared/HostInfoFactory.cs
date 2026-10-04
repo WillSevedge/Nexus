@@ -20,7 +20,7 @@ public static class HostInfoFactory
             Product = product,
             Version = version,
             Build = build,
-            ProcessId = Environment.ProcessId,
+            ProcessId = Compat.ProcessId,
             ProcessStartUtc = start,
             MachineName = Environment.MachineName,
             UserName = Environment.UserName,

@@ -77,7 +77,6 @@ internal sealed class RevitDocumentProvider : IDocumentProvider<Document>
     public static string Id(Document doc)
     {
         string key = $"{doc.PathName}|{doc.Title}|{doc.IsLinked}".ToLowerInvariant();
-        byte[] hash = SHA1.HashData(Encoding.UTF8.GetBytes(key));
-        return "rvt-" + Convert.ToHexString(hash, 0, 6).ToLowerInvariant();
+        return "rvt-" + Compat.Sha1Hex(key, 6).ToLowerInvariant();
     }
 }

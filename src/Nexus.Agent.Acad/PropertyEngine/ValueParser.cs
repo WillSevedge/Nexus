@@ -21,7 +21,7 @@ public static class ValueParser
             return ParseBool(t) ?? throw new FormatException($"'{text}' is not Yes or No.");
         if (target.IsEnum)
         {
-            if (Enum.TryParse(target, t.Replace(" ", ""), ignoreCase: true, out var e)) return e;
+            if (TryParseEnum(target, t.Replace(" ", ""), out var e)) return e;
             throw new FormatException($"'{text}' is not one of: {string.Join(", ", Enum.GetNames(target).Take(12))}{(Enum.GetNames(target).Length > 12 ? ", ..." : "")}.");
         }
         if (target == typeof(double)) return Number(t, text);
@@ -83,9 +83,20 @@ public static class ValueParser
         }
         if (short.TryParse(t, NumberStyles.Integer, Inv, out var aci) && aci is >= 1 and <= 255)
             return Color.FromColorIndex(ColorMethod.ByAci, aci);
-        var rgb = t.Split(',', StringSplitOptions.TrimEntries);
+        var rgb = t.Split(',').Select(p => p.Trim()).ToArray();
         if (rgb.Length == 3 && rgb.All(p => byte.TryParse(p, NumberStyles.Integer, Inv, out _)))
             return Color.FromRgb(byte.Parse(rgb[0], Inv), byte.Parse(rgb[1], Inv), byte.Parse(rgb[2], Inv));
         throw new FormatException($"'{original}' is not a color. Use ByLayer, ByBlock, a color number 1-255, a name like Red, or R,G,B.");
     }
+
+    /// <summary>Enum by name, ignoring case (works on .NET Framework too, which lacks Enum.TryParse(Type...)).</summary>
+    private static bool TryParseEnum(Type type, string text, out object value)
+    {
+        value = null!;
+        if (text.Length == 0 || char.IsDigit(text[0]) || text[0] == '-' || !Enum.GetNames(type).Any(n => n.Equals(text, StringComparison.OrdinalIgnoreCase)))
+            return false;
+        value = Enum.Parse(type, text, ignoreCase: true);
+        return true;
+    }
 }
+

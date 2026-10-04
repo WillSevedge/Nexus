@@ -49,7 +49,7 @@
   </Target>
 
   <Target Name="NexusDeployCivilModule" AfterTargets="Build" DependsOnTargets="NexusCheckAcadRunning"
-          Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false' and '$(_NexusAcadInUse)' != 'true'">
+          Condition="'$(NexusAcadDeploy)' == 'true' and '$(_NexusAcadInUse)' != 'true'">
     <Copy SourceFiles="$(TargetPath);$(TargetDir)$(TargetName).pdb" DestinationFolder="$(AcadBundleContentDir)"
           SkipUnchangedFiles="true" Retries="0" ContinueOnError="WarnAndContinue" />
     <Message Importance="high" Text="Nexus: deployed Civil 3D module to $(AcadBundleContentDir)" />
