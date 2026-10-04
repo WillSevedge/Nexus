@@ -184,11 +184,8 @@
 
     <!-- ===================== Sidebar ===================== -->
     <DockPanel Grid.Column="0" Background="{DynamicResource LayerOnMicaBaseAltFillColorDefaultBrush}">
-      <!-- Brand -->
-      <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="16,18,16,4">
-        <Image x:Name="BrandLogo" Source="Assets/Nexus-dark.png" Width="24" Height="24" RenderOptions.BitmapScalingMode="HighQuality" />
-        <TextBlock Text="Nexus" FontSize="20" FontWeight="SemiBold" Margin="10,0,0,0" VerticalAlignment="Center" />
-      </StackPanel>
+      <!-- No brand block: the window title bar shows the name and icon. -->
+      <Border DockPanel.Dock="Top" Height="10" />
 
       <!-- Excel link -->
       <Border DockPanel.Dock="Bottom" Style="{StaticResource Card}" Margin="10,8,10,12" Padding="12,10">
@@ -413,7 +410,7 @@
               <TextBlock Text="Reload" Margin="8,0,0,0" />
             </StackPanel>
           </Button>
-          <Button Style="{StaticResource CommandButton}" Click="OnRename" ToolTip="Rename and renumber the selected rows (or every row shown), with a preview">
+          <Button Style="{StaticResource CommandButton}" Click="OnRename" ToolTip="Rename &amp; Renumber: sheet numbers and names of the selected sheets (or every sheet shown), with a preview">
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="&#xE8AC;" Style="{StaticResource Glyph}" />
               <TextBlock Text="Rename" Margin="8,0,0,0" />
@@ -572,7 +569,7 @@
                   <MenuItem Header="Set value for selected cells…" Click="OnSetValue" InputGestureText="F2" />
                   <MenuItem Header="Fill down" Click="OnFillDown" InputGestureText="Ctrl+D" />
                   <MenuItem Header="Find and replace…" Click="OnFindReplace" InputGestureText="Ctrl+H" />
-                  <MenuItem Header="Rename and renumber…" Click="OnRename" InputGestureText="Ctrl+R" />
+                  <MenuItem Header="Rename &amp; Renumber…" Click="OnRename" InputGestureText="Ctrl+R" />
                   <MenuItem Header="Clear selected cells" Click="OnClear" InputGestureText="Delete" />
                   <MenuItem Header="Revert selected cells" Click="OnRevert" InputGestureText="Ctrl+Z" />
                 </ContextMenu>

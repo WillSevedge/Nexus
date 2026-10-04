@@ -49,27 +49,6 @@ public partial class MainWindow : Window
         InputBindings.Add(new KeyBinding(new RelayCommand(() => { SearchBox.Focus(); SearchBox.SelectAll(); return Task.CompletedTask; }), Key.F, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(_vm.RefreshCommand, Key.F5, ModifierKeys.None));
         InputBindings.Add(new KeyBinding(new RelayCommand(() => { OpenPalette(); return Task.CompletedTask; }), Key.K, ModifierKeys.Control));
-
-        // The N follows Windows light/dark mode, like the rest of the window.
-        UpdateBrandLogo();
-        Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
-        Closed += (_, _) => Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
-    }
-
-    private void OnUserPreferenceChanged(object sender, Microsoft.Win32.UserPreferenceChangedEventArgs e) =>
-        Dispatcher.BeginInvoke(UpdateBrandLogo);
-
-    private void UpdateBrandLogo()
-    {
-        bool dark = false;
-        try
-        {
-            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
-            dark = key?.GetValue("AppsUseLightTheme") is int light && light == 0;
-        }
-        catch { /* default: light */ }
-        BrandLogo.Source = new System.Windows.Media.Imaging.BitmapImage(
-            new Uri($"pack://application:,,,/Assets/Nexus-{(dark ? "light" : "dark")}.png"));
     }
 
     // ------------------------------------------------------------------ columns
@@ -181,7 +160,7 @@ public partial class MainWindow : Window
 
         Command("Review & apply changes", "\uE73E", _vm.ApplyChangesCommand, _vm.PendingText, "save write commit apply");
         Command("Discard changes", "\uE7A7", _vm.DiscardChangesCommand, "Undo every edit not applied yet", "undo revert cancel");
-        Action("Rename & renumber…", "\uE8AC", OpenRename, "Selected rows, or every row shown", "renumber sequence replace find case prefix suffix");
+        Action("Rename & Renumber…", "\uE8AC", OpenRename, "Sheet numbers and names of the selected sheets, or every sheet shown", "renumber sequence replace find case prefix suffix sheet number name");
         Action("Sheet health", "\uE95E", () => _vm.Health.IsOpen = true, _vm.Health.Summary, "check qa qc issues errors duplicates", _vm.Health.IsAvailable);
         Action("History and snapshots", "\uE81C", OpenHistory, "What changed since an issue; change log", "snapshot compare changes log audit");
         Command("Show in model", "\uE8A7", _vm.ShowInModelCommand, "Open or zoom to the selected rows in their program", "zoom select open");
@@ -243,7 +222,7 @@ public partial class MainWindow : Window
         var fields = _vm.RenameFields(rows);
         if (fields.Count == 0)
         {
-            _vm.Status = "None of these values can be edited.";
+            _vm.Status = "Rename & Renumber changes sheet numbers and names: open the Sheets view (or select sheets that can be edited).";
             return;
         }
         string scope = selected.Count > 1 ? $"{rows.Count} selected rows, in the order shown" : $"All {rows.Count} rows shown, in the order shown";

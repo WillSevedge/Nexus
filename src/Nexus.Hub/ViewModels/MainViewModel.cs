@@ -727,39 +727,20 @@ public sealed class MainViewModel : Observable
     public TableRow? TableRowOf(DataRowView view) => RowOf(view);
 
     /// <summary>
-    /// Columns that can be renamed in bulk for these rows: sheet number and title first (even when hidden),
-    /// then every visible column with at least one editable value. Sheet numbers and layout names are unique.
+    /// What Rename &amp; Renumber can change: Sheet Number and Sheet Name only (each under its one name in every
+    /// program: the Revit parameter or the AutoCAD title block attribute). Sheet numbers are unique.
     /// </summary>
     public List<RenameField> RenameFields(IReadOnlyList<TableRow> rows)
     {
         var fields = new List<RenameField>();
         if (_table is null) return fields;
-        bool Editable(string id) => rows.Any(r => r.Values.TryGetValue(id, out var v) && v.Source != PropertySource.Derived && Editing.Blocker(r, id) is null);
-        bool Unique(string id) => id == SheetFieldMap.NumberColumnId
-                                  || rows.Any(r => r.Values.TryGetValue(id, out var v) && v.Id is "SHEET_NUMBER" or "Layout:Name");
-
-        // Properties already offered (a standard field and the parameter it shows are the same property).
-        var offered = new HashSet<PropertyValue>(ReferenceEqualityComparer.Instance);
-        bool AlreadyOffered(string id) => rows.All(r => !r.Values.TryGetValue(id, out var v) || offered.Contains(v));
-        void Offer(string id, string label)
-        {
-            fields.Add(new RenameField(id, label, Unique(id)));
-            foreach (var r in rows)
-                if (r.Values.TryGetValue(id, out var v)) offered.Add(v);
-        }
-
-        // Standard fields first, under their one name in every program (Sheet Number, Sheet Name): they change
-        // the Revit parameter and the AutoCAD title block attribute alike.
         foreach (var field in new[] { SheetFieldMap.NumberField, "Title" })
         {
             string id = SheetFieldMap.ColumnId(field);
-            if (_table.ColumnsById.ContainsKey(id) && Editable(id)) Offer(id, SheetFieldMap.DisplayName(field));
+            bool editable = rows.Any(r => r.Values.TryGetValue(id, out var v) && v.Source != PropertySource.Derived && Editing.Blocker(r, id) is null);
+            if (_table.ColumnsById.ContainsKey(id) && editable)
+                fields.Add(new RenameField(id, SheetFieldMap.DisplayName(field), Unique: field == SheetFieldMap.NumberField));
         }
-
-        var counts = _table.Columns.Where(c => _visible.Contains(c.Id)).GroupBy(c => c.Label).ToDictionary(g => g.Key, g => g.Count());
-        foreach (var c in _table.Columns.Where(c => _visible.Contains(c.Id) && c.Group != SheetFieldMap.Group))
-            if (Editable(c.Id) && !AlreadyOffered(c.Id))
-                Offer(c.Id, counts[c.Label] > 1 ? $"{c.Label}  ({c.Group})" : c.Label);
         return fields;
     }
 

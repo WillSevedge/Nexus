@@ -11,7 +11,7 @@ public sealed record RenameField(string ColumnId, string Label, bool Unique)
 }
 
 /// <summary>
-/// Rename &amp; renumber: pick a column (sheet number, title...), a way to change it (renumber from a pattern,
+/// Rename &amp; Renumber: pick Sheet Number or Sheet Name, a way to change it (renumber from a pattern,
 /// find &amp; replace, capitals, add or remove text), see every result before anything changes, then stage the
 /// changes as ordinary edits (applied with Review &amp; apply).
 /// </summary>

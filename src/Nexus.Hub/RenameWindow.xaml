@@ -1,7 +1,7 @@
 <Window x:Class="Nexus.Hub.RenameWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Nexus - Rename and renumber" Height="680" Width="1080" MinWidth="820" MinHeight="480"
+        Title="Nexus - Rename &amp; Renumber" Height="680" Width="1080" MinWidth="820" MinHeight="480"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Icon="Assets/Nexus.ico">
   <Window.Resources>
     <BooleanToVisibilityConverter x:Key="BoolToVis" />
@@ -20,7 +20,7 @@
   <DockPanel Margin="24,18,24,20">
     <!-- Header -->
     <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
-      <TextBlock Text="Rename &amp; renumber" FontSize="24" FontWeight="SemiBold" />
+      <TextBlock Text="Rename &amp; Renumber" FontSize="24" FontWeight="SemiBold" />
       <TextBlock Text="{Binding Scope}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" />
     </StackPanel>
 

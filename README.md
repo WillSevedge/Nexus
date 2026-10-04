@@ -339,10 +339,10 @@ The first column of the table shows each sheet's state (✓, or the worst findin
 open Health). Click a finding to jump to that cell. **Fix** and **Fix all** stage values like your own edits:
 nothing changes in the files until **Review & apply**. The checks are in `Nexus.Hub.Core/Health/SheetHealth.cs`.
 
-### Rename and renumber
+### Rename & Renumber
 
 **Rename** (command bar, right-click, Ctrl+R) works on the selected rows, or every row shown, in the order shown.
-Pick the column (sheet number and title first, then any visible editable column) and how to change it:
+Pick **Sheet Number** or **Sheet Name** (the Revit parameter or the AutoCAD title block attribute) and how to change it:
 
 - **Renumber** from a pattern: `#` is the counter, padded to the number of `#`s (`A1##` → A101, A102…), with a
   start and a step. No `#` adds the number at the end.
