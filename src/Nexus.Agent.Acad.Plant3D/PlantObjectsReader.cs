@@ -31,7 +31,7 @@ internal sealed class PlantObjectsReader : IHostDataReader<Document>
     public ReaderDescriptor Descriptor { get; } = new()
     {
         Id = "plant.objects",
-        DisplayName = "Plant 3D objects",
+        DisplayName = "Plant 3D Objects",
         Domain = "Plant 3D",
         Description = "Pipes, fittings, valves, equipment, instruments, supports (and P&ID symbols and lines) with their Plant 3D project data: " +
                       "tag, line number, size, spec, service, descriptions... Values are edited through Plant 3D's project database.",

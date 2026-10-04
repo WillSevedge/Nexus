@@ -159,7 +159,7 @@ public sealed class ReaderNode
     public string HostKind { get; }
     public string HostLabel { get; }
     public ObservableCollection<OptionNode> Options { get; } = new();
-    public string Title => $"{HostLabel}: {Descriptor.DisplayName}";
+    public string Title => $"{HostLabel}: {Products.TitleCase(Descriptor.DisplayName)}";
 
     public Dictionary<string, string> OptionValues() =>
         Options.Where(o => o.Value is not null).ToDictionary(o => o.Option.Name, o => o.Value!);

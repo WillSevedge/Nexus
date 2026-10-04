@@ -22,7 +22,7 @@ internal sealed class CivilObjectsReader : IHostDataReader<Document>
     public ReaderDescriptor Descriptor { get; } = new()
     {
         Id = "civil3d.objects",
-        DisplayName = "Civil 3D objects",
+        DisplayName = "Civil 3D Objects",
         Domain = "Civil 3D",
         Description = "Alignments (+ profiles), surfaces, pipe networks (+ pipes, structures) and corridors with all properties.",
         Options =

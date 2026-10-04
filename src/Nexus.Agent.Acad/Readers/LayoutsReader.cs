@@ -51,7 +51,7 @@ internal sealed class LayoutsReader : IHostDataReader<Document>
     public ReaderDescriptor Descriptor { get; } = new()
     {
         Id = "acad.layouts",
-        DisplayName = "Layouts (sheets)",
+        DisplayName = "Layouts (Sheets)",
         Domain = "Layouts",
         Description = "Every layout with its page setup/plot/view settings, every paper space object with all properties, and optionally model space objects visible through viewports.",
         Options =

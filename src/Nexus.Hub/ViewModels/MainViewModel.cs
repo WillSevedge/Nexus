@@ -455,7 +455,7 @@ public sealed class MainViewModel : Observable
                 var ds = new DatasetNode
                 {
                     Id = id,
-                    Title = d.DisplayName,
+                    Title = Products.TitleCase(d.DisplayName),
                     Category = reader.HostLabel,
                     Description = d.Description,
                 };

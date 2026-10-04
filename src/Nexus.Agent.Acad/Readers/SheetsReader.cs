@@ -25,7 +25,7 @@ internal sealed class SheetsReader : IHostDataReader<Document>
     public ReaderDescriptor Descriptor { get; } = new()
     {
         Id = "acad.sheets",
-        DisplayName = "Sheets (layouts + title block)",
+        DisplayName = "Sheets (Layouts + Title Block)",
         Domain = "Sheets",
         Description = "One row per layout: layout and page setup, every title block attribute, and the drawing properties (DWGPROPS). Use Layouts for every paper space object.",
         Options =

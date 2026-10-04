@@ -16,7 +16,7 @@ internal sealed class FabricationPartsReader : IHostDataReader<Document>
     public ReaderDescriptor Descriptor { get; } = new()
     {
         Id = "revit.fabrication.parts",
-        DisplayName = "Fabrication parts",
+        DisplayName = "Fabrication Parts",
         Domain = "Fabrication",
         Description = "MEP Fabrication parts (ductwork, pipework, hangers): item number, notes, spool, status, service, specification, " +
                       "material, insulation, product list data and custom data from the fabrication database. Item number, notes, spool, " +
@@ -98,7 +98,7 @@ internal sealed class FabricationDatabaseReader : IHostDataReader<Document>
     public ReaderDescriptor Descriptor { get; } = new()
     {
         Id = "revit.fabrication.database",
-        DisplayName = "Fabrication database",
+        DisplayName = "Fabrication Database",
         Domain = "Fabrication",
         Description = "The fabrication configuration loaded in the model (from Fabrication CADmep): services (loaded/used, palettes, buttons), " +
                       "materials, specifications, insulation specifications, custom data, part statuses, ancillaries, connectors and dampers.",
