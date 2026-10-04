@@ -84,6 +84,40 @@ public sealed class SheetIndexAndExcelTests : IDisposable
     }
 
     [Fact]
+    public void Layout_name_is_the_sheet_name_when_there_is_no_title_block()
+    {
+        var bare = new DataItem
+        {
+            Id = "h-L2", ItemType = "Layout", Name = "C-301 Utility Plan", Key = "C-301 Utility Plan",
+            Groups = { new PropertyGroup("Layout") { Properties = { P("Layout Name", "C-301 Utility Plan", "Layout:Name", PropertySource.Managed) } } },
+        };
+        var t = ResultTable.Build(new[]
+        {
+            new ResultSource { Host = Acad, DocumentTitle = "C-Utility.dwg",
+                Result = new ReadResult { ReaderId = "acad.sheets", DocumentId = "dwg-2", Items = { bare } } },
+        }, sheetFields: SheetFieldMap.Default());
+        var row = Assert.Single(t.Rows);
+        Assert.Equal("C-301 Utility Plan", row.Values["Sheet › Title"].Value);
+        Assert.False(row.Values.ContainsKey("Sheet › Number"));
+        // Editing the sheet name renames the layout.
+        Assert.Same(row.Values["Layout › Layout Name"], row.Values["Sheet › Title"]);
+    }
+
+    [Fact]
+    public void Saved_field_map_moves_layout_name_from_number_to_name()
+    {
+        var map = SheetFieldMap.Default();
+        var layout = map.Fields.Single(f => f.Name == "Title").Rules.Last();
+        map.Fields.Single(f => f.Name == "Title").Rules.Remove(layout);
+        map.Fields.Single(f => f.Name == SheetFieldMap.NumberField).Rules.Add(layout);
+
+        Assert.True(SheetFieldMap.MoveLayoutNameToTitle(map));
+        Assert.DoesNotContain(map.Fields.Single(f => f.Name == SheetFieldMap.NumberField).Rules, r => r.Group == "Layout");
+        Assert.Contains(map.Fields.Single(f => f.Name == "Title").Rules, r => r.Group == "Layout");
+        Assert.False(SheetFieldMap.MoveLayoutNameToTitle(map));
+    }
+
+    [Fact]
     public void Excel_link_compares_and_writes_both_ways()
     {
         string path = Path.Combine(_dir, "Sheet Index.xlsx");

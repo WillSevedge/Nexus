@@ -68,7 +68,12 @@ public sealed class SheetFieldMap
             if (File.Exists(path))
             {
                 var map = JsonSerializer.Deserialize<SheetFieldMap>(File.ReadAllText(path), FileOptions);
-                if (map is { Fields.Count: > 0 }) return map;
+                if (map is { Fields.Count: > 0 })
+                {
+                    if (MoveLayoutNameToTitle(map))
+                        File.WriteAllText(path, JsonSerializer.Serialize(map, FileOptions));
+                    return map;
+                }
             }
             var defaults = Default();
             Directory.CreateDirectory(NexusPaths.Root);
@@ -80,6 +85,26 @@ public sealed class SheetFieldMap
             HubLog.Warn($"Could not read {path}; using the built-in sheet fields.", ex);
             return Default();
         }
+    }
+
+    /// <summary>
+    /// Maps written before the layout name moved from Sheet Number to Sheet Name: move it.
+    /// Returns true when the map changed.
+    /// </summary>
+    public static bool MoveLayoutNameToTitle(SheetFieldMap map)
+    {
+        static bool IsLayoutName(FieldRule r) =>
+            string.Equals(r.Host, HostKinds.AutoCAD, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(r.Group, "Layout", StringComparison.OrdinalIgnoreCase)
+            && r.Names.Any(n => Normalize(n) == "LAYOUTNAME");
+
+        var number = map.Fields.FirstOrDefault(f => f.Name == NumberField);
+        var rule = number?.Rules.FirstOrDefault(IsLayoutName);
+        if (number is null || rule is null) return false;
+        number.Rules.Remove(rule);
+        var title = map.Fields.FirstOrDefault(f => f.Name == "Title");
+        if (title is not null && !title.Rules.Any(IsLayoutName)) title.Rules.Add(rule);
+        return true;
     }
 
     /// <summary>Finds each field's property in a row. Returns field name → property (fields not found are absent).</summary>
@@ -132,13 +157,14 @@ public sealed class SheetFieldMap
                     Revit("SHEET_NUMBER"),
                     Tag("DWGNO", "DWG_NO", "DWGNUM", "DRAWINGNO", "DRAWING_NO", "DRAWING_NUMBER", "DWG_NUMBER",
                         "SHEETNO", "SHEET_NO", "SHEETNUMBER", "SHEET_NUMBER", "SHTNO", "SHT_NO", "SHEET", "NUMBER", "DWG"),
-                    Acad("Layout", "Layout Name"),
                 } },
                 new SheetField { Name = "Title", Rules =
                 {
                     Revit("SHEET_NAME"),
                     Tag("TITLE", "DWGTITLE", "DWG_TITLE", "DRAWINGTITLE", "DRAWING_TITLE", "SHEETTITLE", "SHEET_TITLE",
                         "SHEETNAME", "SHEET_NAME", "TITLE1", "TITLE_1", "TITLELINE1"),
+                    // Most teams keep one sheet per drawing, so the layout name names the sheet.
+                    Acad("Layout", "Layout Name"),
                 } },
                 new SheetField { Name = "Revision", Rules =
                 {

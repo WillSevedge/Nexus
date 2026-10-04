@@ -43,7 +43,7 @@ public sealed class SheetSnapshot
             CreatedUtc = DateTime.UtcNow,
             User = Environment.UserName,
         };
-        foreach (var row in rows.Where(r => r.Values.ContainsKey(SheetFieldMap.NumberColumnId)))
+        foreach (var row in rows.Where(r => r.Values.ContainsKey(SheetFieldMap.NumberColumnId) || r.Values.ContainsKey(SheetFieldMap.ColumnId("Title"))))
         {
             var sheet = new SnapshotSheet
             {
