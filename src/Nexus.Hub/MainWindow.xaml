@@ -208,31 +208,7 @@
 
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel>
-          <!-- Views -->
-          <TextBlock Text="VIEWS" Style="{StaticResource SectionLabel}" />
-          <ListBox ItemsSource="{Binding Source={StaticResource DatasetsView}}" SelectedItem="{Binding SelectedDataset}"
-                   ItemContainerStyle="{StaticResource NavItem}" Background="Transparent" BorderThickness="0"
-                   ScrollViewer.HorizontalScrollBarVisibility="Disabled" PreviewMouseWheel="OnNestedScroll">
-            <ListBox.GroupStyle>
-              <GroupStyle>
-                <GroupStyle.HeaderTemplate>
-                  <DataTemplate>
-                    <TextBlock Text="{Binding Name}" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="16,8,0,2" />
-                  </DataTemplate>
-                </GroupStyle.HeaderTemplate>
-              </GroupStyle>
-            </ListBox.GroupStyle>
-            <ListBox.ItemTemplate>
-              <DataTemplate DataType="{x:Type vm:DatasetNode}">
-                <StackPanel Orientation="Horizontal" ToolTip="{Binding Description}">
-                  <TextBlock Text="{Binding Icon}" Style="{StaticResource Glyph}" Width="22" />
-                  <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="6,0,0,0" TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-
-          <!-- Files, per program -->
+          <!-- Files first: the programs open and their files (tick the ones to work with) -->
           <TextBlock Text="FILES" Style="{StaticResource SectionLabel}" />
           <TextBlock Text="Open Revit, AutoCAD, Civil 3D or Plant 3D. They appear here automatically." TextWrapping="Wrap" Margin="14,0,14,0"
                      Foreground="{DynamicResource TextFillColorTertiaryBrush}" FontSize="12">
@@ -312,6 +288,33 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
+
+          <!-- What to see in those files: shown once a program is connected -->
+          <StackPanel Visibility="{Binding HasPrograms, Converter={StaticResource BoolToVis}}">
+          <TextBlock Text="DATA" Style="{StaticResource SectionLabel}" />
+          <ListBox ItemsSource="{Binding Source={StaticResource DatasetsView}}" SelectedItem="{Binding SelectedDataset}"
+                   ItemContainerStyle="{StaticResource NavItem}" Background="Transparent" BorderThickness="0"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled" PreviewMouseWheel="OnNestedScroll">
+            <ListBox.GroupStyle>
+              <GroupStyle>
+                <GroupStyle.HeaderTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding Name}" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="16,8,0,2" />
+                  </DataTemplate>
+                </GroupStyle.HeaderTemplate>
+              </GroupStyle>
+            </ListBox.GroupStyle>
+            <ListBox.ItemTemplate>
+              <DataTemplate DataType="{x:Type vm:DatasetNode}">
+                <StackPanel Orientation="Horizontal" ToolTip="{Binding Description}">
+                  <TextBlock Text="{Binding Icon}" Style="{StaticResource Glyph}" Width="22" />
+                  <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="6,0,0,0" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          </StackPanel>
+
         </StackPanel>
       </ScrollViewer>
     </DockPanel>
