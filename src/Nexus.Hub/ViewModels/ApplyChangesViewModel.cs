@@ -16,8 +16,20 @@ public sealed class ChangeRow : Observable
     public CellEdit Edit { get; }
     public string Document => Edit.Row.Document;
     public string Item => Edit.Row.Item.Trim();
-    /// <summary>The property as the program names it ("Sheet Number", "DWG_NO").</summary>
-    public string Property => Edit.Property.Name;
+    /// <summary>
+    /// The property's name: a standard sheet field's one name (Sheet Number, Sheet Name) when the edited
+    /// property is one, whatever the program calls it; otherwise the program's name.
+    /// </summary>
+    public string Property
+    {
+        get
+        {
+            foreach (var (columnId, value) in Edit.Row.Values)
+                if (ReferenceEquals(value, Edit.Property) && columnId.StartsWith(SheetFieldMap.Group + " ›", StringComparison.Ordinal))
+                    return SheetFieldMap.DisplayName(columnId[(SheetFieldMap.Group.Length + 2)..].Trim());
+            return Edit.Property.Name;
+        }
+    }
     public string OldValue => Edit.OldValue;
     public string NewValue => Edit.NewValue;
     public bool OldIsEmpty => OldValue.Length == 0;

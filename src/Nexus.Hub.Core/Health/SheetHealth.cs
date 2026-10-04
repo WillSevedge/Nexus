@@ -87,8 +87,8 @@ public static class SheetHealth
         foreach (var r in sheets.Where(r => Has(r, "Title") && Get(r, "Title").Trim().Length == 0))
             issues.Add(new HealthIssue
             {
-                RuleId = "title-missing", RuleTitle = "Sheet has no title", Severity = HealthSeverity.Warning, Row = r,
-                ColumnId = Field("Title"), Message = "This sheet has no title.",
+                RuleId = "title-missing", RuleTitle = "Sheet has no name", Severity = HealthSeverity.Warning, Row = r,
+                ColumnId = Field("Title"), Message = "This sheet has no sheet name.",
             });
 
         // 3. Template placeholders never filled in (Revit's Author / Checker / Designer / Approver...).
@@ -97,7 +97,7 @@ public static class SheetHealth
                 issues.Add(new HealthIssue
                 {
                     RuleId = "placeholder", RuleTitle = "Template placeholder values", Severity = HealthSeverity.Warning, Row = r,
-                    ColumnId = Field(field), Message = $"{field} still says \"{Get(r, field).Trim()}\" (the template's placeholder).",
+                    ColumnId = Field(field), Message = $"{SheetFieldMap.DisplayName(field)} still says \"{Get(r, field).Trim()}\" (the template's placeholder).",
                 });
 
         // 4. Project number: the same on every sheet of a file.
@@ -158,8 +158,8 @@ public static class SheetHealth
                 if (!title.Any(char.IsLetter) || IsUpper(title)) continue;
                 issues.Add(new HealthIssue
                 {
-                    RuleId = "title-case", RuleTitle = "Title capitals", Severity = HealthSeverity.Suggestion, Row = r,
-                    ColumnId = Field("Title"), Message = $"\"{title}\" is not in capitals like the other titles.",
+                    RuleId = "title-case", RuleTitle = "Sheet name capitals", Severity = HealthSeverity.Suggestion, Row = r,
+                    ColumnId = Field("Title"), Message = $"\"{title}\" is not in capitals like the other sheet names.",
                     FixValue = Fix(r, "Title", Get(r, "Title").ToUpperInvariant()),
                 });
             }
@@ -174,7 +174,7 @@ public static class SheetHealth
                 issues.Add(new HealthIssue
                 {
                     RuleId = "spaces", RuleTitle = "Extra spaces", Severity = HealthSeverity.Suggestion, Row = r, ColumnId = columnId,
-                    Message = $"{columnId[(columnId.IndexOf('›') + 1)..].Trim()} has extra spaces: \"{text}\".",
+                    Message = $"{SheetFieldMap.DisplayName(columnId[(columnId.IndexOf('›') + 1)..].Trim())} has extra spaces: \"{text}\".",
                     FixValue = blocker(r, columnId) is null ? clean : null,
                 });
             }

@@ -15,6 +15,9 @@ public sealed class ResultSource
 public sealed record ColumnKey(string Group, string Name)
 {
     public string Id => Group + " › " + Name;
+
+    /// <summary>What users see: standard sheet fields by their one display name (Sheet Number, Sheet Name...).</summary>
+    public string Label => Group == SheetFieldMap.Group ? SheetFieldMap.DisplayName(Name) : Name;
 }
 
 public sealed class TableRow

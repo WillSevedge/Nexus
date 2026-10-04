@@ -45,6 +45,18 @@ public sealed class SheetFieldMap
     public List<SheetField> Fields { get; set; } = new();
 
     public static string ColumnId(string field) => new ColumnKey(Group, field).Id;
+
+    /// <summary>
+    /// The one name users see for a standard field, whatever program the sheet is in (Revit's names, which
+    /// most people know). Column ids keep the short field name, so saved Excel links are not affected.
+    /// </summary>
+    public static string DisplayName(string field) => field switch
+    {
+        NumberField => "Sheet Number",
+        "Title" => "Sheet Name",
+        "Issue Date" => "Sheet Issue Date",
+        _ => field,
+    };
     public static string NumberColumnId => ColumnId(NumberField);
 
     /// <summary>The user's map (created from the defaults the first time).</summary>

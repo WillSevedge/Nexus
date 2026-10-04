@@ -748,19 +748,18 @@ public sealed class MainViewModel : Observable
                 if (r.Values.TryGetValue(id, out var v)) offered.Add(v);
         }
 
-        // Standard fields first. When every row names the property the same way (all Revit: "Sheet Number",
-        // "Sheet Name"), use that name; across programs, the general one covers Revit and AutoCAD together.
-        foreach (var (id, general) in new[] { (SheetFieldMap.NumberColumnId, "Sheet number (all programs)"), (SheetFieldMap.ColumnId("Title"), "Sheet title (all programs)") })
+        // Standard fields first, under their one name in every program (Sheet Number, Sheet Name): they change
+        // the Revit parameter and the AutoCAD title block attribute alike.
+        foreach (var field in new[] { SheetFieldMap.NumberField, "Title" })
         {
-            if (!_table.ColumnsById.ContainsKey(id) || !Editable(id)) continue;
-            var names = rows.Where(r => r.Values.ContainsKey(id)).Select(r => r.Values[id].Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            Offer(id, names.Count == 1 ? names[0] : general);
+            string id = SheetFieldMap.ColumnId(field);
+            if (_table.ColumnsById.ContainsKey(id) && Editable(id)) Offer(id, SheetFieldMap.DisplayName(field));
         }
 
-        var counts = _table.Columns.Where(c => _visible.Contains(c.Id)).GroupBy(c => c.Name).ToDictionary(g => g.Key, g => g.Count());
+        var counts = _table.Columns.Where(c => _visible.Contains(c.Id)).GroupBy(c => c.Label).ToDictionary(g => g.Key, g => g.Count());
         foreach (var c in _table.Columns.Where(c => _visible.Contains(c.Id) && c.Group != SheetFieldMap.Group))
             if (Editable(c.Id) && !AlreadyOffered(c.Id))
-                Offer(c.Id, counts[c.Name] > 1 ? $"{c.Name}  ({c.Group})" : c.Name);
+                Offer(c.Id, counts[c.Label] > 1 ? $"{c.Label}  ({c.Group})" : c.Label);
         return fields;
     }
 
@@ -829,7 +828,7 @@ public sealed class MainViewModel : Observable
         if (dataset is not { IsSheetIndex: true }) specs.Add(new GridColumnSpec(ItemColumn, "", "Item", false, true));
         if (_table is null) return specs;
         foreach (var c in _table.Columns.Where(c => _visible.Contains(c.Id)))
-            specs.Add(new GridColumnSpec(_gridColumnByColumnId[c.Id], c.Group, c.Name, true, false));
+            specs.Add(new GridColumnSpec(_gridColumnByColumnId[c.Id], c.Group, c.Label, true, false));
         return specs;
     }
 
@@ -1068,7 +1067,7 @@ public sealed class MainViewModel : Observable
         {
             var group = new DetailGroup(g.Key);
             foreach (var c in g)
-                group.Rows.Add(new DetailRow(view, _gridColumnByColumnId[c.Id], c.Group, c.Name, row.Values[c.Id], EditBlocker));
+                group.Rows.Add(new DetailRow(view, _gridColumnByColumnId[c.Id], c.Group, c.Label, row.Values[c.Id], EditBlocker));
             DetailGroups.Add(group);
         }
     }

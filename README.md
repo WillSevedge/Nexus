@@ -328,11 +328,11 @@ you edit:
 | Duplicate sheet numbers (across all open files and programs) | Error | – |
 | Sheet without a number | Error | – |
 | Template placeholders never filled in (Drawn By = *Author*, Checked By = *Checker*, Designed By = *Designer*, Approved By = *Approver*…) | Warning | – |
-| Sheet without a title | Warning | – |
+| Sheet without a name | Warning | – |
 | Project number differs from the other sheets of the drawing (AutoCAD title blocks) | Warning | the usual number |
 | Revision without a date | Warning | – |
 | Sheet number does not follow the pattern most sheets use (A-104 among A101…A105) | Suggestion | A104 (if not taken) |
-| Title not in capitals when most titles are | Suggestion | UPPERCASE |
+| Sheet name not in capitals when most are | Suggestion | UPPERCASE |
 | Extra spaces | Suggestion | trimmed |
 
 The first column of the table shows each sheet's state (✓, or the worst finding; hover for the list; click to

@@ -53,10 +53,10 @@ public sealed class SnapshotTests : IDisposable
 
         var renumbered = c.Sheets.Single(s => s.Number == "A201");
         Assert.Equal(SheetDiffKind.Changed, renumbered.Kind); // matched by id, not removed + added
-        Assert.Contains(renumbered.Fields, f => f.Field == "Number" && f.Before == "A102" && f.After == "A201");
+        Assert.Contains(renumbered.Fields, f => f.Field == "Sheet Number" && f.Before == "A102" && f.After == "A201");
         Assert.Contains(renumbered.Fields, f => f.Field == "Drawn By" && f.After == "JD");
         // The parameter behind the standard field is not listed a second time.
-        Assert.DoesNotContain(renumbered.Fields, f => f.Field.EndsWith("Sheet Number", StringComparison.Ordinal));
+        Assert.Single(renumbered.Fields, f => f.Field.EndsWith("Sheet Number", StringComparison.Ordinal));
     }
 
     [Fact]

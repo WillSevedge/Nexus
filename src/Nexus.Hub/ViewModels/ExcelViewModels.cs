@@ -54,7 +54,7 @@ public sealed class ExcelLinkViewModel : Observable
         _fields = fields;
         _previous = previous;
         ColumnChoices = new List<ColumnChoice> { new("", "(not linked)") }
-            .Concat(table.Columns.Select(c => new ColumnChoice(c.Id, c.Group == SheetFieldMap.Group ? $"Sheet › {c.Name}" : c.Id)))
+            .Concat(table.Columns.Select(c => new ColumnChoice(c.Id, c.Group == SheetFieldMap.Group ? c.Label : c.Id)))
             .ToList();
         BrowseCommand = new RelayCommand(() => { Browse(); return Task.CompletedTask; });
         if (previous is not null && File.Exists(previous.WorkbookPath)) Open(previous.WorkbookPath);

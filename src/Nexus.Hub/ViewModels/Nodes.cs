@@ -289,7 +289,7 @@ public sealed class ColumnNode : Observable
 
     public ColumnGroupNode Group { get; }
     public ColumnKey Key { get; }
-    public string Name => Key.Name;
+    public string Name => Key.Label;
 
     public bool IsChecked
     {

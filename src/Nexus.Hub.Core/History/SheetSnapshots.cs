@@ -151,7 +151,7 @@ public sealed class SnapshotComparison
     /// <summary>"Sheet › Title" → "Title"; "Sheet · Identity Data › Drawn By" → "Identity Data › Drawn By".</summary>
     private static string Label(string columnId)
     {
-        if (columnId.StartsWith(SheetFieldMap.Group + " ›", StringComparison.Ordinal)) return columnId[(SheetFieldMap.Group.Length + 2)..].Trim();
+        if (columnId.StartsWith(SheetFieldMap.Group + " ›", StringComparison.Ordinal)) return SheetFieldMap.DisplayName(columnId[(SheetFieldMap.Group.Length + 2)..].Trim());
         return columnId.StartsWith("Sheet · ", StringComparison.Ordinal) ? columnId["Sheet · ".Length..] : columnId;
     }
 }
