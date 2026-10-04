@@ -328,11 +328,21 @@ Link your sheet index or template once; Nexus remembers it (per workbook) and co
    in Excel. For each, choose:
    - **Excel → model**: the value is staged in the grid (yellow) and written with *Review & apply*, as usual;
    - **Model → Excel**: the workbook cell is updated;
-   - **Add row to Excel**: a missing sheet is added below the last row (taking its formatting).
+   - **Add row to Excel**: a missing sheet goes into the first empty row below the list. Rows are never inserted,
+     so pre-built rows (formulas already in place) are filled, and nothing below the list moves. A new cell takes
+     the format of the cell above it.
    Buttons apply one choice to every row.
 3. Writing to Excel needs the workbook closed in Excel. A backup copy is saved first in
-   `%LOCALAPPDATA%\Nexus\excel-backups`. Cells with formulas are never overwritten; numbers stay numbers;
-   macros in `.xlsm` files are kept. Reading and comparing work while the workbook is open.
+   `%LOCALAPPDATA%\Nexus\excel-backups`. Cells with formulas are never overwritten (the whole write is refused);
+   numbers and dates stay numbers and dates; codes like `007` stay text. Reading and comparing work while the
+   workbook is open.
+
+   **Only the cells being written change.** The write edits those cells directly in the file (DocumentFormat.OpenXml)
+   on a copy, then compares the copy with the original: every part of the package (macros, form controls, comments,
+   custom XML, tables, styles…), every worksheet feature (data validation and dropdowns, conditional formatting and
+   data bars including the Excel 2010+ extensions, protection, page setup, controls) and every other cell. If
+   anything else changed, the original is left as it was and the hub says what the check found. Excel recalculates
+   formulas when the file is next opened. (Reading uses ClosedXML; it never saves.)
 
 **Excel ▾ → Export this view to Excel…** saves the grid as shown (columns, filter and sort) to a new formatted workbook.
 **⋯** has the CSV and JSON exports.

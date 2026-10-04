@@ -114,57 +114,108 @@ public static class ExcelWorkbook
     }
 
     /// <summary>
-    /// Writes values into the workbook and saves it, after copying it to the backups folder.
-    /// Returns the backup path. Fails with a clear message if the file is open in Excel.
+    /// Writes values into the workbook, after copying it to the backups folder, and returns the backup path.
+    /// Only the given cells change: the edit is made cell by cell on a copy, the copy is compared with the
+    /// original (macros, form controls, comments, validation, conditional formatting, tables, custom XML,
+    /// every other cell), and the original is replaced only if nothing else changed. New rows go into the
+    /// empty rows below the last row of the list; rows are never inserted, so formulas and pre-built rows
+    /// further down stay where they are. Fails with a clear message if the file is open in Excel.
     /// </summary>
     public static string Write(ExcelLink link, IReadOnlyList<ExcelCellUpdate> updates, IReadOnlyList<IReadOnlyDictionary<string, string>> newRows)
     {
-        string backup = Backup(link.WorkbookPath);
-        XLWorkbook wb;
+        var values = updates.Select(u => (u.Row, u.Column, u.Value)).ToList();
+        if (newRows.Count > 0) values.AddRange(PlaceNewRows(link, newRows));
+        if (values.Count == 0) return "";
+        return WriteVerified(link.WorkbookPath, link.Worksheet, values);
+    }
+
+    /// <summary>The cells for new rows: the first empty rows below the list (no formula, no value in the written columns).</summary>
+    private static List<(int Row, int Column, string Value)> PlaceNewRows(ExcelLink link, IReadOnlyList<IReadOnlyDictionary<string, string>> newRows)
+    {
+        var data = Read(link);
+        using var wb = OpenForRead(link.WorkbookPath);
+        var ws = wb.Worksheet(link.Worksheet);
+        var cells = new List<(int, int, string)>();
+        int row = data.LastRow;
+        foreach (var values in newRows)
+        {
+            var columns = values.Where(v => data.HeaderColumns.ContainsKey(v.Key)).Select(v => (Column: data.HeaderColumns[v.Key], v.Value)).ToList();
+            int limit = row + 200;
+            do
+            {
+                if (++row > limit)
+                    throw new InvalidOperationException($"No empty row was found below row {data.LastRow} of '{link.Worksheet}' for the new rows.");
+            }
+            while (columns.Any(c => ws.Cell(row, c.Column).HasFormula || !ws.Cell(row, c.Column).IsEmpty()));
+            foreach (var (column, value) in columns) cells.Add((row, column, value));
+        }
+        return cells;
+    }
+
+    private static string WriteVerified(string path, string worksheet, List<(int Row, int Column, string Value)> values)
+    {
+        string name = Path.GetFileName(path);
+        string closeIt = $"'{name}' is open in Excel (or another program). Save and close it there, then try again.";
         try
         {
-            wb = new XLWorkbook(link.WorkbookPath);
+            using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
         }
         catch (IOException ex)
         {
-            throw new IOException($"'{Path.GetFileName(link.WorkbookPath)}' is open in Excel (or another program). Save and close it there, then try again.", ex);
+            throw new IOException(closeIt, ex);
         }
 
-        using (wb)
+        string backup = Backup(path);
+        string work = Path.Combine(Path.GetDirectoryName(backup)!, $"~writing {Guid.NewGuid():N}{Path.GetExtension(path)}");
+        File.Copy(backup, work);
+        try
         {
-            var ws = wb.Worksheet(link.Worksheet);
-            foreach (var u in updates)
+            var before = WorkbookSnapshot.Take(backup);
+            var stored = ExcelCellWriter.Write(work, worksheet, values);
+            var after = WorkbookSnapshot.Take(work);
+
+            var mayChange = PartsAWriteMayChange(before, worksheet);
+            // A first text value creates the shared string table, which adds a workbook relationship.
+            if (before.SharedStringsPart is null && before.WorkbookPart is { } wbPart)
+                mayChange.Add(wbPart[..(wbPart.LastIndexOf('/') + 1)] + "_rels/" + wbPart[(wbPart.LastIndexOf('/') + 1)..] + ".rels");
+            var issues = WorkbookSnapshot.Compare(before, after,
+                new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase) { [worksheet] = stored },
+                mayChange);
+            if (issues.Count > 0)
             {
-                var cell = ws.Cell(u.Row, u.Column);
-                if (cell.HasFormula)
-                    throw new InvalidOperationException($"Cell {cell.Address} has a formula; it is not overwritten.");
-                SetValue(cell, u.Value);
+                foreach (var issue in issues) HubLog.Warn($"Excel write check failed for {name}: {issue}");
+                throw new ExcelWriteVerificationException(name, issues);
             }
 
-            if (newRows.Count > 0)
-            {
-                var data = Read(link);
-                int at = data.LastRow;
-                foreach (var values in newRows)
-                {
-                    // Insert below the last table row so the new row takes its formatting (and table/print area).
-                    var row = at > link.HeaderRow ? ws.Row(at).InsertRowsBelow(1).First() : ws.Row(at + 1);
-                    at = row.RowNumber();
-                    foreach (var (header, value) in values)
-                        if (data.HeaderColumns.TryGetValue(header, out int col))
-                            SetValue(ws.Cell(at, col), value);
-                }
-            }
             try
             {
-                wb.Save();
+                File.Copy(work, path, overwrite: true);
             }
             catch (IOException ex)
             {
-                throw new IOException($"'{Path.GetFileName(link.WorkbookPath)}' is open in Excel (or another program). Save and close it there, then try again.", ex);
+                throw new IOException(closeIt, ex);
             }
+            return backup;
         }
-        return backup;
+        finally
+        {
+            try { File.Delete(work); } catch { /* best effort */ }
+        }
+    }
+
+    /// <summary>
+    /// Parts a cell-level write to <paramref name="worksheet"/> is allowed to change: that worksheet,
+    /// the shared strings and the workbook part (to ask Excel to recalculate on open). Every other part
+    /// must come out byte-identical.
+    /// </summary>
+    public static HashSet<string> PartsAWriteMayChange(WorkbookSnapshot snapshot, string worksheet)
+    {
+        var parts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (snapshot.Sheets.TryGetValue(worksheet, out var sheet)) parts.Add(sheet.PartName);
+        if (snapshot.SharedStringsPart is { } sst) parts.Add(sst);
+        else parts.Add("/xl/sharedStrings.xml");
+        if (snapshot.WorkbookPart is { } wb) parts.Add(wb);
+        return parts;
     }
 
     /// <summary>A new workbook with one header row and the given rows (Export to Excel).</summary>
@@ -199,35 +250,6 @@ public static class ExcelWorkbook
             src.CopyTo(dst);
         return backup;
     }
-
-    /// <summary>Keeps numbers and dates as numbers/dates when the text is one (so Excel formulas keep working).</summary>
-    private static void SetValue(IXLCell cell, string value)
-    {
-        string v = value ?? "";
-        if (v.Length == 0)
-        {
-            cell.Value = Blank.Value;
-            return;
-        }
-        bool wasNumber = cell.DataType is XLDataType.Number;
-        bool wasDate = cell.DataType is XLDataType.DateTime;
-        if ((wasNumber || wasDate || cell.IsEmpty()) &&
-            double.TryParse(v, NumberStyles.Float, CultureInfo.CurrentCulture, out var number) && !LooksLikeText(v))
-        {
-            cell.Value = number;
-            return;
-        }
-        if (wasDate && DateTime.TryParse(v, CultureInfo.CurrentCulture, DateTimeStyles.None, out var date))
-        {
-            cell.Value = date;
-            return;
-        }
-        cell.Value = v;
-    }
-
-    /// <summary>"001", "A-101" style values must stay text.</summary>
-    private static bool LooksLikeText(string v) =>
-        (v.Length > 1 && v[0] == '0' && char.IsDigit(v[1])) || v.Any(ch => char.IsLetter(ch) && ch is not ('E' or 'e'));
 
     private static XLWorkbook OpenForRead(string path)
     {
@@ -279,3 +301,19 @@ public static class ExcelWorkbook
 
 /// <summary>One cell to change in the workbook.</summary>
 public sealed record ExcelCellUpdate(int Row, int Column, string Value);
+
+/// <summary>
+/// A workbook write would have changed more than the intended cells. The workbook was not changed.
+/// </summary>
+public sealed class ExcelWriteVerificationException : InvalidOperationException
+{
+    public ExcelWriteVerificationException(string workbook, IReadOnlyList<FidelityIssue> issues)
+        : base($"Nexus did not save '{workbook}': the check after writing found changes beyond the cells being updated, " +
+               $"so the workbook was left as it was.\n\n{string.Join("\n", issues.Take(10).Select(i => "• " + i))}" +
+               (issues.Count > 10 ? $"\n• … and {issues.Count - 10} more (see the Nexus log)" : ""))
+    {
+        Issues = issues;
+    }
+
+    public IReadOnlyList<FidelityIssue> Issues { get; }
+}
