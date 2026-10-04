@@ -9,10 +9,14 @@ internal static class ParameterReader
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
+    /// <summary>Group for parameters the element has but the Properties palette does not show.</summary>
+    public const string HiddenGroup = "Not in Properties";
+
     /// <summary>
     /// All parameters of <paramref name="element"/>, grouped like the Properties palette.
-    /// Parameters visible in the palette come first, in palette order; then any
-    /// hidden ones (when <paramref name="includeHidden"/>).
+    /// Parameters visible in the palette come first, in palette order and in the palette's groups
+    /// (Graphics, Text, Identity Data, Other...); then, when <paramref name="includeHidden"/>, the
+    /// ones the palette does not show, in a separate <see cref="HiddenGroup"/> group.
     /// </summary>
     public static List<PropertyGroup> ReadGroups(Document doc, Element element, string groupPrefix,
         string? editBlocker, bool includeHidden)
@@ -21,12 +25,12 @@ internal static class ParameterReader
         var byName = new Dictionary<string, PropertyGroup>(StringComparer.Ordinal);
         var seen = new HashSet<long>();
 
-        void Add(Parameter p)
+        void Add(Parameter p, bool hidden)
         {
             if (p?.Definition is null) return;
             if (!seen.Add(p.Id.Value)) return;
 
-            string groupName = groupPrefix + GroupLabel(p);
+            string groupName = groupPrefix + (hidden ? HiddenGroup : GroupLabel(p));
             if (!byName.TryGetValue(groupName, out var group))
             {
                 group = new PropertyGroup(groupName);
@@ -41,10 +45,11 @@ internal static class ParameterReader
         IList<Parameter>? ordered = null;
         try { ordered = element.GetOrderedParameters(); } catch { /* some elements do not support it */ }
         if (ordered is not null)
-            foreach (var p in ordered) Add(p);
+            foreach (var p in ordered) Add(p, hidden: false);
 
+        // Without a palette order (some elements), every parameter goes in its own group.
         if (includeHidden || ordered is null)
-            foreach (Parameter p in element.Parameters) Add(p);
+            foreach (Parameter p in element.Parameters) Add(p, hidden: ordered is not null);
 
         return groups;
     }

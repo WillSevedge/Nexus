@@ -89,7 +89,9 @@ Runtime files (all under `%LOCALAPPDATA%\Nexus\`):
 
 **Readers**
 - `revit.sheets`: one item per sheet (placeholders optional).
-  - Every sheet parameter (built-in, project and shared), grouped like the Properties palette (`Sheet · Identity Data`, …), in palette order, then hidden parameters.
+  - Every sheet parameter (built-in, project and shared), grouped like the Properties palette (`Sheet · Graphics`, `Sheet · Text`, `Sheet · Identity Data`, `Sheet · Other`…), in palette order, including read-only ones. Parameters the palette does not show are in `Sheet · Not in Properties`.
+  - `Revisions on Sheet` (in Identity Data, where the palette has its Edit... button): the revisions shown on the sheet. Change them with right-click › Revisions on sheet in the hub.
+  - The hub's Sheets view opens on the palette's parameters for Revit sheets (with AutoCAD layouts in the view, also the standard Number/Title/Revision columns and the title block attributes). Everything else is under **Columns**.
   - Title block instance parameters (`Title Block (Instance) · …`) and type parameters (`Title Block (Type) · …`). If a sheet has more than one title block, each is listed separately and a warning is added.
   - `Current Revision`: number on the sheet, date, description, sequence, issued, issued by/to, plus the sheet's revision history.
   - `Element`: element id, unique id, workset, and whether the element can be edited.

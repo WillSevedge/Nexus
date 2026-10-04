@@ -611,15 +611,29 @@ public sealed class MainViewModel : Observable
         }
         if (dataset.IsSheetIndex)
         {
-            // The standard sheet columns, then one Yes/No column per revision (when the project has a sensible number).
-            var fields = table.Columns.Where(c => c.Group == SheetFieldMap.Group).Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
-            var revisions = table.Columns.Where(c => c.Group == RevisionsGroup).Select(c => c.Id).ToList();
-            if (revisions.Count <= 30) fields.UnionWith(revisions);
+            var fields = new HashSet<string>(StringComparer.Ordinal);
+            bool revit = table.Rows.Any(r => r.Source.Host.HostKind == HostKinds.Revit);
+            bool autocad = table.Rows.Any(r => r.Source.Host.HostKind != HostKinds.Revit);
+            // With AutoCAD layouts in the view, the standard columns (Number, Title, Revision...) line the programs up.
+            if (autocad)
+                fields.UnionWith(table.Columns.Where(c => c.Group == SheetFieldMap.Group).Select(c => c.Id));
+            // Revit: the sheet's parameters as the Properties palette shows them (Graphics, Text, Identity Data,
+            // Other..., project and shared parameters included). Revisions on each sheet stay a right-click.
+            if (revit)
+                fields.UnionWith(table.Columns.Where(c => c.Group.StartsWith(RevitSheetGroupPrefix, StringComparison.Ordinal)
+                                                          && c.Group != RevitSheetGroupPrefix + RevitHiddenGroup).Select(c => c.Id));
+            // AutoCAD: the title block attributes.
+            if (autocad)
+                fields.UnionWith(table.Columns.Where(c => c.Group == "Title Block" && !IsComputedOnly(table, c.Id)).Select(c => c.Id));
             if (fields.Count > 0) return fields;
         }
         var props = table.Columns.Where(c => !IsComputedOnly(table, c.Id)).Select(c => c.Id).ToList();
         return (props.Count <= 40 ? props : props.Take(DefaultVisibleLimit)).ToHashSet(StringComparer.Ordinal);
     }
+
+    /// <summary>Group prefix of a Revit sheet's own parameters, and the group of those the palette does not show.</summary>
+    private const string RevitSheetGroupPrefix = "Sheet · ";
+    private const string RevitHiddenGroup = "Not in Properties";
 
     private static bool IsComputedOnly(ResultTable table, string columnId) =>
         table.Rows.All(r => !r.Values.TryGetValue(columnId, out var v) || v.Source == PropertySource.Derived);

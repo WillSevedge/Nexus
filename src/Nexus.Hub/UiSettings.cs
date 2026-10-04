@@ -14,18 +14,34 @@ internal sealed class UiSettings
     public Dictionary<string, List<string>> VisibleColumns { get; set; } = new();
     public string? ExcelWorkbook { get; set; }
 
+    /// <summary>
+    /// Version of the default Sheets columns. When the defaults change, the saved column choice for
+    /// Sheets is dropped once so the new defaults show.
+    /// </summary>
+    public int SheetColumnsVersion { get; set; }
+    private const int CurrentSheetColumnsVersion = 2;
+
     public static UiSettings Load()
     {
         try
         {
             if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(FilePath), Json.Options) ?? new UiSettings();
+            {
+                var settings = JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(FilePath), Json.Options) ?? new UiSettings();
+                if (settings.SheetColumnsVersion < CurrentSheetColumnsVersion)
+                {
+                    // v2: Revit sheets open on the Properties palette parameters, not a column per revision.
+                    settings.VisibleColumns.Remove(ViewModels.MainViewModel.SheetsDatasetId);
+                    settings.SheetColumnsVersion = CurrentSheetColumnsVersion;
+                }
+                return settings;
+            }
         }
         catch (Exception ex)
         {
             HubLog.Warn("Could not read the hub settings; using defaults.", ex);
         }
-        return new UiSettings();
+        return new UiSettings { SheetColumnsVersion = CurrentSheetColumnsVersion };
     }
 
     public void Save()

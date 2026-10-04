@@ -75,7 +75,9 @@ internal sealed class SheetsReader : IHostDataReader<Document>
         element.Properties.Add(ElementInfo.Derived("Placeholder", sheet.IsPlaceholder ? "Yes" : "No"));
         item.Groups.Add(element);
 
-        item.Groups.AddRange(ParameterReader.ReadGroups(doc, sheet, "Sheet · ", blocker, hidden));
+        var sheetGroups = ParameterReader.ReadGroups(doc, sheet, "Sheet · ", blocker, hidden);
+        if (revisions && !sheet.IsPlaceholder) AddRevisionsOnSheetSummary(doc, sheet, sheetGroups);
+        item.Groups.AddRange(sheetGroups);
 
         if (revisions)
         {
@@ -88,6 +90,24 @@ internal sealed class SheetsReader : IHostDataReader<Document>
             ReadTitleBlocks(doc, sheet, item, tbInstance, tbType, hidden, ctx);
 
         return item;
+    }
+
+    /// <summary>
+    /// "Revisions on Sheet" where the Properties palette has its Edit... button (after Appears In Sheet
+    /// List): the revisions shown on the sheet. Change them with right-click › Revisions on sheet in the hub.
+    /// </summary>
+    private static void AddRevisionsOnSheetSummary(Document doc, ViewSheet sheet, List<PropertyGroup> groups)
+    {
+        var shown = sheet.GetAllRevisionIds().Select(id => doc.GetElement(id)).OfType<Revision>()
+            .OrderBy(r => r.SequenceNumber).Select(RevisionsOnSheets.Label).ToList();
+        var value = ElementInfo.Derived(RevisionsOnSheets.GroupName, string.Join(", ", shown));
+        value.ReadOnlyReason = "Change with right-click › Revisions on sheet (like Revit's Edit... button)";
+
+        var group = groups.FirstOrDefault(g => g.Properties.Any(p => p.Id == nameof(BuiltInParameter.SHEET_SCHEDULED)))
+                    ?? groups.FirstOrDefault(g => g.Properties.Any(p => p.Id == nameof(BuiltInParameter.SHEET_NUMBER)));
+        if (group is null) return;
+        int after = group.Properties.FindIndex(p => p.Id == nameof(BuiltInParameter.SHEET_SCHEDULED));
+        group.Properties.Insert(after >= 0 ? after + 1 : group.Properties.Count, value);
     }
 
     private static void ReadTitleBlocks(Document doc, ViewSheet sheet, DataItem item,
