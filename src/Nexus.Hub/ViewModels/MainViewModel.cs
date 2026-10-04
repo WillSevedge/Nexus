@@ -629,6 +629,30 @@ public sealed class MainViewModel : Observable
 
     public static int RowIndex(DataRowView view) => view.Row[RowIndexColumn] is int i ? i : -1;
 
+    public TableRow? TableRowOf(DataRowView view) => RowOf(view);
+
+    /// <summary>
+    /// Columns that can be renamed in bulk for these rows: sheet number and title first (even when hidden),
+    /// then every visible column with at least one editable value. Sheet numbers and layout names are unique.
+    /// </summary>
+    public List<RenameField> RenameFields(IReadOnlyList<TableRow> rows)
+    {
+        var fields = new List<RenameField>();
+        if (_table is null) return fields;
+        bool Editable(string id) => rows.Any(r => r.Values.TryGetValue(id, out var v) && v.Source != PropertySource.Derived && Editing.Blocker(r, id) is null);
+        bool Unique(string id) => id == SheetFieldMap.NumberColumnId
+                                  || rows.Any(r => r.Values.TryGetValue(id, out var v) && v.Id is "SHEET_NUMBER" or "Layout:Name");
+
+        foreach (var (id, label) in new[] { (SheetFieldMap.NumberColumnId, "Sheet number"), (SheetFieldMap.ColumnId("Title"), "Sheet title") })
+            if (_table.ColumnsById.ContainsKey(id) && Editable(id)) fields.Add(new RenameField(id, label, Unique(id)));
+
+        var names = _table.Columns.Where(c => _visible.Contains(c.Id)).GroupBy(c => c.Name).ToDictionary(g => g.Key, g => g.Count());
+        foreach (var c in _table.Columns.Where(c => _visible.Contains(c.Id) && c.Group != SheetFieldMap.Group))
+            if (Editable(c.Id))
+                fields.Add(new RenameField(c.Id, names[c.Name] > 1 ? $"{c.Name}  ({c.Group})" : c.Name, Unique(c.Id)));
+        return fields;
+    }
+
     /// <summary>The value shown in the grid (including edits not applied yet).</summary>
     public string? CurrentValue(TableRow row, string columnId)
     {

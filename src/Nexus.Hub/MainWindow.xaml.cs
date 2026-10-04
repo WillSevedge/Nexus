@@ -151,6 +151,33 @@ public partial class MainWindow : Window
 
     private void OnCloseHealth(object sender, RoutedEventArgs e) => _vm.Health.IsOpen = false;
 
+    // ------------------------------------------------------------------ rename and renumber
+
+    private void OnRename(object sender, RoutedEventArgs e) => OpenRename();
+
+    /// <summary>The selected rows (more than one), else every row shown, in the order shown.</summary>
+    private void OpenRename()
+    {
+        TableGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        var selected = SelectedRows().ToHashSet();
+        var shown = TableGrid.Items.OfType<DataRowView>().ToList();
+        var views = selected.Count > 1 ? shown.Where(selected.Contains).ToList() : shown;
+        var rows = views.Select(_vm.TableRowOf).OfType<Nexus.Hub.Core.TableRow>().ToList();
+        if (rows.Count == 0)
+        {
+            _vm.Status = "Nothing to rename: load some data first.";
+            return;
+        }
+        var fields = _vm.RenameFields(rows);
+        if (fields.Count == 0)
+        {
+            _vm.Status = "None of these values can be edited.";
+            return;
+        }
+        string scope = selected.Count > 1 ? $"{rows.Count} selected rows, in the order shown" : $"All {rows.Count} rows shown, in the order shown";
+        new RenameWindow(new RenameViewModel(_vm, rows, scope, fields)) { Owner = this }.ShowDialog();
+    }
+
     /// <summary>Selects one cell (from the health list) and scrolls it into view.</summary>
     private void FocusCell(int rowIndex, string gridColumn)
     {
@@ -299,6 +326,7 @@ public partial class MainWindow : Window
             case Key.V when ctrl: Paste(); e.Handled = true; break;
             case Key.D when ctrl: FillDown(); e.Handled = true; break;
             case Key.H when ctrl: FindReplace(); e.Handled = true; break;
+            case Key.R when ctrl: OpenRename(); e.Handled = true; break;
             case Key.Z when ctrl: Revert(); e.Handled = true; break;
             case Key.Delete when Keyboard.Modifiers == ModifierKeys.None: Clear(); e.Handled = true; break;
             case Key.F2 when SelectedCellsOrdered().Count > 1: SetValue(); e.Handled = true; break;

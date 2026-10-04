@@ -385,6 +385,12 @@
               <TextBlock Text="Reload" Margin="8,0,0,0" />
             </StackPanel>
           </Button>
+          <Button Style="{StaticResource CommandButton}" Click="OnRename" ToolTip="Rename and renumber the selected rows (or every row shown), with a preview">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="&#xE8AC;" Style="{StaticResource Glyph}" />
+              <TextBlock Text="Rename" Margin="8,0,0,0" />
+            </StackPanel>
+          </Button>
           <ToggleButton Style="{StaticResource CommandToggle}" IsChecked="{Binding Health.IsOpen}"
                         Visibility="{Binding Health.IsAvailable, Converter={StaticResource BoolToVis}}"
                         ToolTip="Sheet health: checks every sheet in the open files (duplicate numbers, template placeholders, naming, spaces...)">
@@ -498,6 +504,7 @@
                   <MenuItem Header="Set value for selected cells…" Click="OnSetValue" InputGestureText="F2" />
                   <MenuItem Header="Fill down" Click="OnFillDown" InputGestureText="Ctrl+D" />
                   <MenuItem Header="Find and replace…" Click="OnFindReplace" InputGestureText="Ctrl+H" />
+                  <MenuItem Header="Rename and renumber…" Click="OnRename" InputGestureText="Ctrl+R" />
                   <MenuItem Header="Clear selected cells" Click="OnClear" InputGestureText="Delete" />
                   <MenuItem Header="Revert selected cells" Click="OnRevert" InputGestureText="Ctrl+Z" />
                 </ContextMenu>

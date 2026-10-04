@@ -49,13 +49,18 @@ internal sealed class RevitWriter : IHostDataWriter<Document>
 
         try
         {
+            // Several sheet numbers in one go (renumbering, swaps): park them on temporary numbers first,
+            // because Revit refuses a number another sheet still has.
+            var parked = ParkSheetNumbers(doc, request, result, log);
+
             for (int i = 0; i < request.Changes.Count; i++)
             {
                 var change = request.Changes[i];
                 var r = result.Results[i];
+                if (parked.Skipped.Contains(i)) continue;
                 try
                 {
-                    var current = Apply(doc, change, r);
+                    var current = Apply(doc, change, r, parked.Before.TryGetValue(i, out var was) ? was : null);
                     if (current is not null && r.Status == ChangeStatus.Applied) applied.Add((r, current));
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
@@ -64,6 +69,21 @@ internal sealed class RevitWriter : IHostDataWriter<Document>
                     r.Message = ex.Message;
                     log.Warn($"Setting '{change.PropertyName}' on {change.OwnerId} failed: {ex.Message}");
                 }
+            }
+
+            // A parked sheet that did not get its new number would keep the temporary one: undo the whole batch.
+            var stuck = parked.Before.Keys.Where(i => result.Results[i].Status is not (ChangeStatus.Applied or ChangeStatus.Unchanged)).ToList();
+            if (stuck.Count > 0)
+            {
+                transaction.RollBack();
+                string why = string.Join("; ", stuck.Select(i => $"{request.Changes[i].ExpectedRawValue}: {result.Results[i].Message}"));
+                foreach (var res in result.Results.Where(x => x.Status is ChangeStatus.Applied or ChangeStatus.Unchanged))
+                {
+                    res.Status = ChangeStatus.Failed;
+                    res.Message = "Rolled back: the sheet renumbering could not finish (" + why + ")";
+                    res.NewValue = null;
+                }
+                return result;
             }
 
             if (applied.Count == 0)
@@ -102,8 +122,59 @@ internal sealed class RevitWriter : IHostDataWriter<Document>
         return result;
     }
 
-    /// <summary>Sets one value inside the open transaction. Returns how to read the value back when it was set.</summary>
-    private static Func<string?>? Apply(Document doc, PropertyChange change, ChangeResult r)
+    private sealed record Parked(Dictionary<int, string> Before, HashSet<int> Skipped);
+
+    /// <summary>
+    /// When a batch sets two or more sheet numbers, gives each of those sheets a unique temporary number,
+    /// so the final numbers can be set in any order (A101↔A102 swaps, shifting a range). Returns each
+    /// parked change's number before the batch, and the changes skipped because they changed in Revit.
+    /// </summary>
+    private static Parked ParkSheetNumbers(Document doc, WriteRequest request, WriteResult result, AgentLog log)
+    {
+        var before = new Dictionary<int, string>();
+        var skipped = new HashSet<int>();
+        var numbers = Enumerable.Range(0, request.Changes.Count)
+            .Where(i => request.Changes[i].Source == PropertySource.BuiltIn && request.Changes[i].PropertyId == nameof(BuiltInParameter.SHEET_NUMBER))
+            .ToList();
+        if (numbers.Count < 2) return new Parked(before, skipped);
+
+        string tag = Guid.NewGuid().ToString("N")[..6];
+        foreach (int i in numbers)
+        {
+            var change = request.Changes[i];
+            var r = result.Results[i];
+            if (doc.GetElement(change.OwnerId) is not ViewSheet sheet) continue; // Apply reports it
+            if (Editability.Blocker(doc, sheet) is { } blocker)
+            {
+                r.Message = blocker;
+                skipped.Add(i);
+                continue;
+            }
+            var p = sheet.get_Parameter(BuiltInParameter.SHEET_NUMBER);
+            string current = ParameterReader.CurrentValue(doc, p).RawValue ?? "";
+            if (change.ExpectedRawValue is not null && !string.Equals(current, change.ExpectedRawValue, StringComparison.Ordinal))
+            {
+                r.Message = $"Changed in Revit since it was read (now '{current}'). Run the reader again.";
+                skipped.Add(i);
+                continue;
+            }
+            try
+            {
+                if (p.Set($"~nexus-{tag}-{i}")) before[i] = current;
+            }
+            catch (Exception ex)
+            {
+                log.Warn($"Could not give sheet {current} a temporary number: {ex.Message}");
+            }
+        }
+        return new Parked(before, skipped);
+    }
+
+    /// <summary>
+    /// Sets one value inside the open transaction. Returns how to read the value back when it was set.
+    /// <paramref name="parkedBefore"/>: the value before the batch, for a sheet number parked by <see cref="ParkSheetNumbers"/>.
+    /// </summary>
+    private static Func<string?>? Apply(Document doc, PropertyChange change, ChangeResult r, string? parkedBefore = null)
     {
         var element = string.IsNullOrEmpty(change.OwnerId) ? null : doc.GetElement(change.OwnerId);
         if (element is null)
@@ -138,7 +209,8 @@ internal sealed class RevitWriter : IHostDataWriter<Document>
         }
 
         var before = ParameterReader.CurrentValue(doc, p);
-        if (change.ExpectedRawValue is not null && !string.Equals(before.RawValue ?? "", change.ExpectedRawValue, StringComparison.Ordinal))
+        if (parkedBefore is not null) before.RawValue = parkedBefore; // already checked when it was parked
+        else if (change.ExpectedRawValue is not null && !string.Equals(before.RawValue ?? "", change.ExpectedRawValue, StringComparison.Ordinal))
         {
             r.Message = $"Changed in Revit since it was read (now '{before.Value}'). Run the reader again.";
             return null;
