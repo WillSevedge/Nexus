@@ -1058,7 +1058,25 @@ public sealed class MainViewModel : Observable
         review.ShowDialog();
 
         var changed = review.ViewModel.ChangedRuns;
-        if (changed.Count > 0) await RereadAsync(changed);
+        if (changed.Count == 0) return;
+        // Reading again rebuilds the table: keep the changes that were left unticked pending.
+        var keep = review.ViewModel.NotApplied
+            .Select(c => (Doc: c.Edit.Row.Source.Result.DocumentId, c.Edit.Row.ItemId, c.Edit.ColumnId, c.Edit.NewValue)).ToList();
+        await RereadAsync(changed);
+        RestageEdits(keep);
+    }
+
+    /// <summary>Stages values again after the table was rebuilt (rows found by file and item id).</summary>
+    private void RestageEdits(IReadOnlyList<(string Doc, string ItemId, string ColumnId, string Value)> edits)
+    {
+        if (edits.Count == 0 || _table is null) return;
+        int kept = 0;
+        foreach (var (doc, itemId, columnId, value) in edits)
+        {
+            var row = _table.Rows.FirstOrDefault(r => r.ItemId == itemId && r.Source.Result.DocumentId == doc);
+            if (row is not null && TrySetValue(row, columnId, value) is null) kept++;
+        }
+        Status = $"Applied. {kept} unticked change{(kept == 1 ? "" : "s")} still pending.";
     }
 
     /// <summary>Sends the edits, one request per program file, and fills in each row's outcome.</summary>

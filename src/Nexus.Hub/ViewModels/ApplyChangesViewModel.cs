@@ -3,28 +3,62 @@ using Nexus.Hub.Core;
 
 namespace Nexus.Hub.ViewModels;
 
-/// <summary>One pending edit in the review dialog, and what happened when it was applied.</summary>
+/// <summary>One pending edit in the review, whether it is included, and what happened when it was applied.</summary>
 public sealed class ChangeRow : Observable
 {
     private string _status = "";
     private string? _message;
     private string? _result;
+    private bool _include = true;
 
     public ChangeRow(CellEdit edit) => Edit = edit;
 
     public CellEdit Edit { get; }
     public string Document => Edit.Row.Document;
     public string Item => Edit.Row.Item.Trim();
-    public string Property => Edit.ColumnId;
+    /// <summary>The property as the program names it ("Sheet Number", "DWG_NO").</summary>
+    public string Property => Edit.Property.Name;
     public string OldValue => Edit.OldValue;
     public string NewValue => Edit.NewValue;
+    public bool OldIsEmpty => OldValue.Length == 0;
+    public bool NewIsEmpty => NewValue.Length == 0;
+
+    /// <summary>Raised when the checkbox changes (groups update their tri-state box and the counts).</summary>
+    public event Action? IncludeChanged;
+
+    public bool Include
+    {
+        get => _include;
+        set
+        {
+            if (IsDone) return;
+            if (Set(ref _include, value)) IncludeChanged?.Invoke();
+        }
+    }
 
     /// <summary>"" before applying, then Applied / Unchanged / Skipped / Failed.</summary>
     public string Status
     {
         get => _status;
-        private set => Set(ref _status, value);
+        private set
+        {
+            if (!Set(ref _status, value)) return;
+            Raise(nameof(IsDone));
+            Raise(nameof(StatusText));
+        }
     }
+
+    public bool IsDone => _status.Length > 0;
+
+    public string StatusText => _status switch
+    {
+        "Applied" => "Applied",
+        "Unchanged" => "Already set",
+        "Skipped" => "Skipped",
+        "Failed" => "Failed",
+        "NotSent" => "Not applied (unticked)",
+        _ => "",
+    };
 
     public string? Message
     {
@@ -47,42 +81,138 @@ public sealed class ChangeRow : Observable
     }
 }
 
+/// <summary>A tri-state checkbox over a set of changes.</summary>
+public abstract class ChangeGroup : Observable
+{
+    public abstract IEnumerable<ChangeRow> All { get; }
+
+    /// <summary>All ticked: true; none: false; some: null (shown as a dash).</summary>
+    public bool? IsChecked
+    {
+        get
+        {
+            int on = All.Count(r => r.Include);
+            return on == 0 ? false : on == Count ? true : null;
+        }
+        set
+        {
+            bool include = value != false;
+            foreach (var r in All) r.Include = include;
+        }
+    }
+
+    public int Count => All.Count();
+    public int IncludedCount => All.Count(r => r.Include);
+
+    internal void Refresh()
+    {
+        Raise(nameof(IsChecked));
+        Raise(nameof(IncludedCount));
+    }
+}
+
+/// <summary>One sheet (or other item) and its changes.</summary>
+public sealed class ChangeItemGroup : ChangeGroup
+{
+    public ChangeItemGroup(string title, List<ChangeRow> changes)
+    {
+        Title = title;
+        Changes = changes;
+    }
+
+    public string Title { get; }
+    public List<ChangeRow> Changes { get; }
+    public override IEnumerable<ChangeRow> All => Changes;
+}
+
+/// <summary>One file (model or drawing) and its sheets.</summary>
+public sealed class ChangeFileGroup : ChangeGroup
+{
+    public ChangeFileGroup(string name, string program, List<ChangeItemGroup> items)
+    {
+        Name = name;
+        Program = program;
+        Items = items;
+    }
+
+    public string Name { get; }
+    public string Program { get; }
+    public List<ChangeItemGroup> Items { get; }
+    public override IEnumerable<ChangeRow> All => Items.SelectMany(i => i.Changes);
+    public string CountText => $"{Count} change{(Count == 1 ? "" : "s")}";
+}
+
+/// <summary>
+/// Review &amp; apply: every pending edit grouped by file and sheet, old value → new value, with a checkbox per
+/// change (and per sheet and file). Applies the ticked changes and shows each outcome in place.
+/// </summary>
 public sealed class ApplyChangesViewModel : Observable
 {
     private readonly Func<IReadOnlyList<ChangeRow>, Task<List<ResultRun>>> _apply;
     private bool _applying;
     private bool _applied;
-    private string _summary;
+    private string _resultSummary = "";
 
     public ApplyChangesViewModel(IEnumerable<CellEdit> edits, Func<IReadOnlyList<ChangeRow>, Task<List<ResultRun>>> apply)
     {
         _apply = apply;
-        foreach (var e in edits) Changes.Add(new ChangeRow(e));
-        int docs = Changes.Select(c => (c.Edit.ProcessId, c.Edit.DocumentId)).Distinct().Count();
-        _summary = $"{Changes.Count} change(s) in {docs} document(s). Each document gets one undo step " +
-                   "(\"Nexus: edit …\"), so Undo in Revit reverts the whole batch. " +
-                   "Values that changed in the model since they were read are skipped.";
-        ApplyCommand = new RelayCommand(ApplyAsync, () => !_applying && !_applied);
+        // A sheet field and the parameter it shows are one property: list it once.
+        foreach (var e in edits.GroupBy(e => (e.ProcessId, e.DocumentId, e.ToChange().OwnerId, e.Property.Id ?? e.Property.Name)).Select(g => g.Last()))
+        {
+            var row = new ChangeRow(e);
+            row.IncludeChanged += OnIncludeChanged;
+            Changes.Add(row);
+        }
+        foreach (var file in Changes.GroupBy(c => (c.Edit.ProcessId, c.Edit.DocumentId)))
+        {
+            var items = file.GroupBy(c => c.Edit.Row.ItemId)
+                .Select(g => new ChangeItemGroup(g.First().Item, g.ToList()))
+                .OrderBy(i => i.Title, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var first = file.First().Edit.Row;
+            Files.Add(new ChangeFileGroup(first.Document, first.Source.Host.Name, items));
+        }
+
+        ApplyCommand = new RelayCommand(ApplyAsync, () => !_applying && !_applied && IncludedCount > 0);
+        SelectAllCommand = new RelayCommand(() => { SetAll(true); return Task.CompletedTask; }, () => !_applied);
+        SelectNoneCommand = new RelayCommand(() => { SetAll(false); return Task.CompletedTask; }, () => !_applied);
     }
 
     public ObservableCollection<ChangeRow> Changes { get; } = new();
+    public ObservableCollection<ChangeFileGroup> Files { get; } = new();
     public RelayCommand ApplyCommand { get; }
+    public RelayCommand SelectAllCommand { get; }
+    public RelayCommand SelectNoneCommand { get; }
 
     /// <summary>Results whose documents were changed and should be read again.</summary>
     public List<ResultRun> ChangedRuns { get; private set; } = new();
 
-    public string Summary
-    {
-        get => _summary;
-        private set => Set(ref _summary, value);
-    }
+    /// <summary>Changes left unticked: they stay pending in the table.</summary>
+    public IReadOnlyList<ChangeRow> NotApplied => Changes.Where(c => !c.Include).ToList();
+
+    public int IncludedCount => Changes.Count(c => c.Include);
+    public int FileCount => Changes.Where(c => c.Include).Select(c => (c.Edit.ProcessId, c.Edit.DocumentId)).Distinct().Count();
+
+    /// <summary>"Apply 42 changes to 3 files", then the outcome.</summary>
+    public string Summary => _applied ? _resultSummary
+        : IncludedCount == 0 ? "Nothing selected"
+        : $"Apply {IncludedCount} change{(IncludedCount == 1 ? "" : "s")} to {FileCount} file{(FileCount == 1 ? "" : "s")}";
+
+    public string Subtitle => _applied
+        ? "Results are shown next to each change."
+        : $"{Changes.Count} pending change{(Changes.Count == 1 ? "" : "s")}. Untick any you want to keep for later; they stay in the table.";
+
+    public string ApplyText => _applying ? "Applying…" : IncludedCount == 0 ? "Apply" : $"Apply {IncludedCount} change{(IncludedCount == 1 ? "" : "s")}";
 
     public bool Applied
     {
         get => _applied;
         private set
         {
-            if (Set(ref _applied, value)) Raise(nameof(CloseLabel));
+            if (!Set(ref _applied, value)) return;
+            Raise(nameof(CloseLabel));
+            Raise(nameof(Summary));
+            Raise(nameof(Subtitle));
         }
     }
 
@@ -91,29 +221,61 @@ public sealed class ApplyChangesViewModel : Observable
 
     public string CloseLabel => _applied ? "Close" : "Cancel";
 
-    /// <summary>Raised after applying when every change went through, so the window can close itself.</summary>
+    /// <summary>Raised after applying when every ticked change went through, so the window can close itself.</summary>
     public event Action? Succeeded;
+
+    private void SetAll(bool include)
+    {
+        foreach (var c in Changes) c.Include = include;
+    }
+
+    private void OnIncludeChanged()
+    {
+        foreach (var f in Files)
+        {
+            f.Refresh();
+            foreach (var i in f.Items) i.Refresh();
+        }
+        Raise(nameof(IncludedCount));
+        Raise(nameof(FileCount));
+        Raise(nameof(Summary));
+        Raise(nameof(ApplyText));
+        System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+    }
 
     private async Task ApplyAsync()
     {
         _applying = true;
-        Summary = "Applying…";
+        Raise(nameof(ApplyText));
+        var included = Changes.Where(c => c.Include).ToList();
         try
         {
-            ChangedRuns = await _apply(Changes);
+            ChangedRuns = await _apply(included);
         }
         finally
         {
             _applying = false;
+            foreach (var c in Changes.Where(c => !c.Include)) c.SetOutcome("NotSent", null, null);
+            var counts = included.GroupBy(c => c.Status).Select(g => $"{g.Count()} {Word(g.Key)}");
+            _resultSummary = "Done: " + string.Join(", ", counts);
             Applied = true;
+            Raise(nameof(ApplyText));
+            foreach (var f in Files)
+            {
+                f.Refresh();
+                foreach (var i in f.Items) i.Refresh();
+            }
         }
 
-        var counts = Changes.GroupBy(c => c.Status).Select(g => $"{g.Count()} {g.Key.ToLowerInvariant()}");
-        Summary = "Done: " + string.Join(", ", counts) + "." +
-                  (Changes.Any(c => c.Status is "Failed" or "Skipped") ? " See the Message column for why." : "") +
-                  (ChangedRuns.Count > 0 ? " The table will refresh from the model when you close this window." : "");
-
-        // Keep the window open only when something needs explaining.
-        if (Changes.All(c => c.Status is "Applied" or "Unchanged")) Succeeded?.Invoke();
+        if (included.All(c => c.Status is "Applied" or "Unchanged")) Succeeded?.Invoke();
     }
+
+    private static string Word(string status) => status switch
+    {
+        "Applied" => "applied",
+        "Unchanged" => "already set",
+        "Skipped" => "skipped",
+        "Failed" => "failed",
+        _ => status.ToLowerInvariant(),
+    };
 }
