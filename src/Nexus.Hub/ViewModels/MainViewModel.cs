@@ -432,7 +432,7 @@ public sealed class MainViewModel : Observable
         {
             Id = SheetsDatasetId,
             Title = "Sheets",
-            Category = "Across programs",
+            Category = "Shared",
             IsSheetIndex = true,
             Description = "Every sheet: Revit sheets and AutoCAD/Civil 3D/Plant 3D layouts with their title block. " +
                           "Number, Title, Revision, Drawn By... are matched in each program (edit the matching in sheet-fields.json).",

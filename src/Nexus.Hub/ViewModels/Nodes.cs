@@ -201,7 +201,7 @@ public sealed class DatasetNode
     public required string Id { get; init; }
     public required string Title { get; init; }
     public string Description { get; init; } = "";
-    /// <summary>"Across programs", "Revit", "AutoCAD"... (grouping in the picker).</summary>
+    /// <summary>"Shared" (every program), "Revit", "AutoCAD"... (grouping in the sidebar).</summary>
     public string Category { get; init; } = "";
     /// <summary>Adds the standard Sheet › … columns.</summary>
     public bool IsSheetIndex { get; init; }
