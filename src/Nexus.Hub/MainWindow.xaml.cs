@@ -48,6 +48,7 @@ public partial class MainWindow : Window
 
         InputBindings.Add(new KeyBinding(new RelayCommand(() => { SearchBox.Focus(); SearchBox.SelectAll(); return Task.CompletedTask; }), Key.F, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(_vm.RefreshCommand, Key.F5, ModifierKeys.None));
+        InputBindings.Add(new KeyBinding(new RelayCommand(() => { OpenPalette(); return Task.CompletedTask; }), Key.K, ModifierKeys.Control));
 
         // The N follows Windows light/dark mode, like the rest of the window.
         UpdateBrandLogo();
@@ -156,6 +157,67 @@ public partial class MainWindow : Window
     private void OnRename(object sender, RoutedEventArgs e) => OpenRename();
 
     private void OnHistory(object sender, RoutedEventArgs e) => OpenHistory();
+
+    // ------------------------------------------------------------------ command palette (Ctrl+K)
+
+    private void OpenPalette()
+    {
+        TableGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        new PaletteWindow(new PaletteViewModel(PaletteItems()), this).Show();
+    }
+
+    /// <summary>Everything the palette can do right now: actions, views, and every sheet (or item) loaded.</summary>
+    private List<PaletteItem> PaletteItems()
+    {
+        var items = new List<PaletteItem>();
+        void Action(string title, string glyph, Action run, string subtitle = "", string keywords = "", bool when = true)
+        {
+            if (when) items.Add(new PaletteItem { Title = title, Subtitle = subtitle, Glyph = glyph, Category = "Action", Run = run, Keywords = keywords });
+        }
+        void Command(string title, string glyph, ICommand command, string subtitle = "", string keywords = "") =>
+            Action(title, glyph, () => { if (command.CanExecute(null)) command.Execute(null); }, subtitle, keywords, command.CanExecute(null));
+
+        Command("Review & apply changes", "\uE73E", _vm.ApplyChangesCommand, _vm.PendingText, "save write commit apply");
+        Command("Discard changes", "\uE7A7", _vm.DiscardChangesCommand, "Undo every edit not applied yet", "undo revert cancel");
+        Action("Rename & renumber…", "\uE8AC", OpenRename, "Selected rows, or every row shown", "renumber sequence replace find case prefix suffix");
+        Action("Sheet health", "\uE95E", () => _vm.Health.IsOpen = true, _vm.Health.Summary, "check qa qc issues errors duplicates", _vm.Health.IsAvailable);
+        Action("History and snapshots", "\uE81C", OpenHistory, "What changed since an issue; change log", "snapshot compare changes log audit");
+        Command("Show in model", "\uE8A7", _vm.ShowInModelCommand, "Open or zoom to the selected rows in their program", "zoom select open");
+        Command("Reload", "\uE72C", _vm.RefreshCommand, "Read the data again (F5)", "refresh read");
+        Action("Choose columns…", "\uE71D", () => OnColumns(this, new RoutedEventArgs()), "", "fields parameters show hide");
+        Command("Compare with linked workbook", "\uE9F9", _vm.CompareExcelCommand, "", "excel compare");
+        Command("Link a workbook…", "\uE9F9", _vm.LinkExcelCommand, "", "excel link");
+        Command("Export this view to Excel…", "\uE9F9", _vm.ExportExcelCommand, "", "excel export xlsx");
+        Action("Search the table", "\uE721", () => { SearchBox.Focus(); SearchBox.SelectAll(); }, "Ctrl+F", "filter find");
+
+        foreach (var d in _vm.Datasets)
+            items.Add(new PaletteItem
+            {
+                Title = d.Title, Subtitle = d.Category, Glyph = d.Icon, Category = "View",
+                Run = () => _vm.SelectedDataset = d, Keywords = "view " + d.Description,
+            });
+
+        foreach (var row in _vm.LoadedRows)
+        {
+            if (row.Item.Trim().Length == 0) continue;
+            var target = row;
+            items.Add(new PaletteItem
+            {
+                Title = row.Item.Trim(),
+                Subtitle = $"{row.Document}  ·  {row.Host}",
+                Glyph = "\uE7C3",
+                Category = "Sheet",
+                Keywords = row.Key,
+                Run = () => _vm.FocusCell(target, null),
+                RunAlternate = () =>
+                {
+                    _vm.FocusCell(target, null);
+                    if (_vm.ShowInModelCommand.CanExecute(null)) _vm.ShowInModelCommand.Execute(null);
+                },
+            });
+        }
+        return items;
+    }
 
     private void OpenHistory()
     {

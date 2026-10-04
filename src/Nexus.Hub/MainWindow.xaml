@@ -316,7 +316,7 @@
             <TextBox x:Name="SearchBox" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged, Delay=250}" Padding="34,6,8,6" />
             <TextBlock Text="&#xE721;" Style="{StaticResource Glyph}" FontSize="13" Margin="12,0,0,0" HorizontalAlignment="Left"
                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" IsHitTestVisible="False" />
-            <TextBlock Text="Search  (Ctrl+F)" Margin="35,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"
+            <TextBlock Text="Search  (Ctrl+F)   ·   Go to  (Ctrl+K)" Margin="35,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"
                        Foreground="{DynamicResource TextFillColorTertiaryBrush}">
               <TextBlock.Style>
                 <Style TargetType="TextBlock">
