@@ -175,7 +175,7 @@ public sealed class HealthViewModel : Observable
             else problems.Add($"{issue.Where}: {reason}");
         }
         _main.Status = staged == 0 && problems.Count == 0 ? "Nothing to fix."
-            : $"{staged} fix{(staged == 1 ? "" : "es")} staged. Review & apply to write {(staged == 1 ? "it" : "them")} to the files."
+            : $"{staged} fix{(staged == 1 ? "" : "es")} added to your pending changes. Review & apply to write {(staged == 1 ? "it" : "them")} to the files."
               + (problems.Count > 0 ? $" Not fixed: {string.Join("; ", problems.Take(3))}{(problems.Count > 3 ? "…" : "")}" : "");
         Recheck();
     }

@@ -339,6 +339,48 @@ The first column of the table shows each sheet's state (✓, or the worst findin
 open Health). Click a finding to jump to that cell. **Fix** and **Fix all** stage values like your own edits:
 nothing changes in the files until **Review & apply**. The checks are in `Nexus.Hub.Core/Health/SheetHealth.cs`.
 
+### Rename and renumber
+
+**Rename** (command bar, right-click, Ctrl+R) works on the selected rows, or every row shown, in the order shown.
+Pick the column (sheet number and title first, then any visible editable column) and how to change it:
+
+- **Renumber** from a pattern: `#` is the counter, padded to the number of `#`s (`A1##` → A101, A102…), with a
+  start and a step. No `#` adds the number at the end.
+- **Replace**, with `*` (any text) and `?` (one character), match case, whole value.
+- **Capitals**: UPPER, lower, Title Case.
+- **Add** or **Remove** text at the start or end.
+
+Every result shows before anything changes, with a status: will change, unchanged, clash (sheet numbers and layout
+names must stay unique within a file; swaps are fine), locked. **Add N changes** puts them in your pending changes.
+In Revit, several sheet numbers set at once go through temporary numbers first, so swaps and shifted ranges work;
+if one sheet cannot take its number the whole batch is rolled back.
+
+### Review & apply
+
+Pending changes are grouped by file and sheet: property, old value (struck through) → new value. Every change,
+sheet and file has a checkbox. **Apply N changes** sends the ticked ones; each shows its outcome in place. Unticked
+changes stay pending. The window closes by itself when everything applied.
+
+### History
+
+**History** keeps snapshots of the sheet set in `%LOCALAPPDATA%\Nexus\snapshots`: take one by hand (e.g.
+"50% CD issue"); one is also saved automatically before every apply (the last 40 are kept). Pick a snapshot to see
+what changed since: new, removed and changed sheets with each value's before → after (a renumbered sheet shows as
+changed). Export the comparison to Excel. The **Change log** tab lists every change Nexus applied (who, when, file,
+sheet, property, before, after), from `%LOCALAPPDATA%\Nexus\change-log.jsonl`.
+
+### Go to anything (Ctrl+K)
+
+Type a sheet number or title (from every open file), an action or a view; Enter runs it. On a sheet, Enter selects
+it in the table and Shift+Enter also shows it in its program.
+
+### Progress and messages
+
+Reading and applying show a progress bar with **Cancel** under the table. Cancelling a read keeps the table as it
+was; cancelling an apply stops before the next file (the file being written finishes, one undo step each).
+Problems and results appear in an info bar above the table instead of pop-ups; questions (discard changes, write
+to Excel) use the hub's own dialogs.
+
 ### Excel link
 
 Link your sheet index or template once; Nexus remembers it (per workbook) and compares it with the model.

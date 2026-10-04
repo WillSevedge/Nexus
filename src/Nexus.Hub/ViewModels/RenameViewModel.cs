@@ -92,7 +92,7 @@ public sealed class RenameViewModel : Observable
     }
 
     public int IncludedCount => Preview.Count(r => r.Include && r.CanApply);
-    public string StageText => IncludedCount == 0 ? "Nothing to change" : $"Stage {IncludedCount} change{(IncludedCount == 1 ? "" : "s")}";
+    public string StageText => IncludedCount == 0 ? "Nothing to change" : $"Add {IncludedCount} change{(IncludedCount == 1 ? "" : "s")}";
 
     private void Changed([System.Runtime.CompilerServices.CallerMemberName] string? name = null)
     {
@@ -161,8 +161,8 @@ public sealed class RenameViewModel : Observable
             if (reason is null) staged++;
             else problems.Add($"{r.Old}: {reason}");
         }
-        _main.Status = $"{staged} {_field.Label.ToLowerInvariant()} change{(staged == 1 ? "" : "s")} staged. Review & apply to write them to the files."
-                       + (problems.Count > 0 ? $" Not staged: {string.Join("; ", problems.Take(3))}{(problems.Count > 3 ? "…" : "")}" : "");
+        _main.Status = $"{staged} {_field.Label.ToLowerInvariant()} change{(staged == 1 ? "" : "s")} added to your pending changes. Review & apply to write them to the files."
+                       + (problems.Count > 0 ? $" Not added: {string.Join("; ", problems.Take(3))}{(problems.Count > 3 ? "…" : "")}" : "");
         Staged?.Invoke();
     }
 

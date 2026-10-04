@@ -9,7 +9,7 @@
   <DockPanel Margin="20">
     <TextBlock DockPanel.Dock="Top" Text="{Binding Summary}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,6" />
     <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8"
-               Text="Excel → model stages the value in the grid (yellow) so you can review and apply it as usual. Model → Excel writes the workbook (a backup is saved first; close it in Excel)." />
+               Text="Excel → model puts the value in the table (yellow) so you can review and apply it as usual. Model → Excel writes the workbook (a backup is saved first; close it in Excel)." />
     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
       <TextBlock Text="For every row:" VerticalAlignment="Center" Margin="0,0,8,0" />
       <Button Margin="8,0,0,0" Content="Excel → model" Command="{Binding UseExcelForAll}" />

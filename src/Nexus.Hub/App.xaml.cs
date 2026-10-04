@@ -171,7 +171,9 @@ public partial class App : Application
             e.Handled = true;
             return;
         }
-        MessageBox.Show(e.Exception.Message, "Nexus", MessageBoxButton.OK, MessageBoxImage.Error);
+        // Shown in the hub's info bar (no pop-up); the full error is in the log.
+        if (_vm is not null) _vm.Notify(NoticeKind.Error, "Something went wrong", e.Exception.Message + "  (Details are in the log: ⋯ › Messages and log.)");
+        else Dialogs.Message("Something went wrong", e.Exception.Message, NoticeKind.Error);
         e.Handled = true;
     }
 }

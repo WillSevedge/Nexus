@@ -118,6 +118,27 @@
       </Style.Triggers>
     </Style>
 
+    <Style x:Key="NoticeGlyph" TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="Text" Value="&#xE946;" />
+      <Setter Property="Foreground" Value="{DynamicResource SystemFillColorAttentionBrush}" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding NoticeKind}" Value="Success">
+          <Setter Property="Text" Value="&#xE930;" />
+          <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding NoticeKind}" Value="Warning">
+          <Setter Property="Text" Value="&#xE7BA;" />
+          <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding NoticeKind}" Value="Error">
+          <Setter Property="Text" Value="&#xEA39;" />
+          <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+
     <Style x:Key="Glyph" TargetType="TextBlock">
       <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
       <Setter Property="FontSize" Value="15" />
@@ -305,6 +326,7 @@
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
         <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
@@ -359,13 +381,19 @@
             <TextBlock Text="&#xE712;" Style="{StaticResource Glyph}" />
             <Button.ContextMenu>
               <ContextMenu>
-                <MenuItem Header="Export CSV (one row per item)…" Command="{Binding ExportCsvCommand}" />
-                <MenuItem Header="Export CSV (one row per property)…" Command="{Binding ExportLongCsvCommand}" />
-                <MenuItem Header="Export JSON…" Command="{Binding ExportJsonCommand}" />
+                <MenuItem Header="Go to anything…" Click="OnPaletteMenu" InputGestureText="Ctrl+K" />
+                <MenuItem Header="History and snapshots…" Click="OnHistory" />
                 <Separator />
-                <MenuItem Header="Sheet field matching (title block tags)…" Command="{Binding OpenSheetFieldsCommand}" />
                 <MenuItem Header="Messages and log…" Click="OnMessages" />
-                <MenuItem Header="Open log folder" Command="{Binding OpenLogFolderCommand}" />
+                <MenuItem Header="Advanced">
+                  <MenuItem Header="How sheet columns are matched in each program…" Command="{Binding OpenSheetFieldsCommand}" />
+                  <Separator />
+                  <MenuItem Header="Export CSV (one row per item)…" Command="{Binding ExportCsvCommand}" />
+                  <MenuItem Header="Export CSV (one row per property)…" Command="{Binding ExportLongCsvCommand}" />
+                  <MenuItem Header="Export JSON…" Command="{Binding ExportJsonCommand}" />
+                  <Separator />
+                  <MenuItem Header="Open log folder" Command="{Binding OpenLogFolderCommand}" />
+                </MenuItem>
               </ContextMenu>
             </Button.ContextMenu>
           </Button>
@@ -481,7 +509,41 @@
       </DockPanel>
 
       <!-- Grid + details -->
-      <Grid Grid.Row="2">
+      <!-- Info bar: problems and results that need no decision (instead of pop-ups) -->
+      <Border Grid.Row="2" CornerRadius="8" Padding="14,10" Margin="0,0,0,10" BorderThickness="1"
+              BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+              Visibility="{Binding HasNotice, Converter={StaticResource BoolToVis}}">
+        <Border.Style>
+          <Style TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SystemFillColorAttentionBackgroundBrush}" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding NoticeKind}" Value="Success">
+                <Setter Property="Background" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}" />
+              </DataTrigger>
+              <DataTrigger Binding="{Binding NoticeKind}" Value="Warning">
+                <Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}" />
+              </DataTrigger>
+              <DataTrigger Binding="{Binding NoticeKind}" Value="Error">
+                <Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBackgroundBrush}" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </Border.Style>
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Command="{Binding DismissNoticeCommand}" ToolTip="Dismiss" Padding="6" VerticalAlignment="Top"
+                  Background="Transparent" BorderThickness="0">
+            <TextBlock Text="&#xE711;" Style="{StaticResource Glyph}" FontSize="12" />
+          </Button>
+          <TextBlock DockPanel.Dock="Left" Style="{StaticResource NoticeGlyph}" Margin="0,1,12,0" VerticalAlignment="Top" />
+          <StackPanel>
+            <TextBlock Text="{Binding NoticeTitle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding NoticeText}" TextWrapping="Wrap" Margin="0,2,0,0" MaxHeight="160"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+
+      <Grid Grid.Row="3">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" />
           <ColumnDefinition Width="Auto" />
@@ -549,7 +611,7 @@
                     <TextBlock Text="{Binding FixAllText}" Margin="8,0,0,0" />
                   </StackPanel>
                 </Button>
-                <TextBlock Text="Fixes are staged like your own edits: nothing changes in the files until Review &amp; apply."
+                <TextBlock Text="Fixes are added to your pending changes, like your own edits. Nothing changes in the files until Review &amp; apply."
                            TextWrapping="Wrap" FontSize="12" Margin="0,6,0,0" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
               </StackPanel>
             </StackPanel>
@@ -671,7 +733,7 @@
       </Grid>
 
       <!-- Status + changes -->
-      <DockPanel Grid.Row="3" Margin="0,12,0,0">
+      <DockPanel Grid.Row="4" Margin="0,12,0,0">
         <Border DockPanel.Dock="Right" CornerRadius="8" Padding="14,8" Margin="12,0,0,0"
                 Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
@@ -683,6 +745,13 @@
             <Button Content="Review &amp; apply" Command="{Binding ApplyChangesCommand}" Style="{DynamicResource AccentButtonStyle}" />
           </StackPanel>
         </Border>
+        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Margin="0,0,14,0"
+                    Visibility="{Binding IsWorking, Converter={StaticResource BoolToVis}}">
+          <ProgressBar Width="160" Height="4" VerticalAlignment="Center" Minimum="0" Maximum="100"
+                       Value="{Binding WorkProgress, Mode=OneWay}" IsIndeterminate="{Binding WorkIndeterminate, Mode=OneWay}" />
+          <TextBlock Text="{Binding WorkText}" VerticalAlignment="Center" Margin="10,0,10,0" />
+          <Button Content="Cancel" Command="{Binding CancelWorkCommand}" Padding="10,2" />
+        </StackPanel>
         <TextBlock Text="{Binding Status}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
       </DockPanel>

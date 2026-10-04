@@ -330,11 +330,11 @@ public sealed class CompareViewModel : Observable
 
         if (updates.Count + newRows.Count > 0)
         {
-            var ok = MessageBox.Show(
-                $"Write {updates.Count} cell(s){(newRows.Count > 0 ? $" and add {newRows.Count} row(s)" : "")} to {Path.GetFileName(_link.WorkbookPath)}?\n\n" +
-                "A backup copy is saved first. The workbook must be closed in Excel.",
-                "Update Excel", MessageBoxButton.OKCancel, MessageBoxImage.Question);
-            if (ok != MessageBoxResult.OK) return false;
+            if (!Dialogs.Confirm($"Update {Path.GetFileName(_link.WorkbookPath)}?",
+                    $"Write {updates.Count} cell(s){(newRows.Count > 0 ? $" and add {newRows.Count} row(s)" : "")}. Only those cells change; " +
+                    "a backup copy is saved first. The workbook must be closed in Excel.",
+                    "Write to Excel", kind: NoticeKind.Info))
+                return false;
             try
             {
                 string backup = ExcelWorkbook.Write(_link, updates, newRows);
@@ -344,20 +344,20 @@ public sealed class CompareViewModel : Observable
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "Update Excel", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Dialogs.Message("Excel was not updated", ex.Message, NoticeKind.Warning);
                 return false;
             }
         }
 
         var parts = new List<string>();
-        if (staged > 0) parts.Add($"{staged} value(s) from Excel staged in the grid (Review & apply to write them to the model)");
+        if (staged > 0) parts.Add($"{staged} value(s) from Excel put in the table (Review & apply to write them to the model)");
         if (written > 0) parts.Add($"{written} cell(s) updated in Excel");
         if (added > 0) parts.Add($"{added} row(s) added to Excel");
         if (problems.Count > 0)
         {
             parts.Add($"{problems.Count} skipped");
-            MessageBox.Show(string.Join(Environment.NewLine, problems.Take(30)) + (problems.Count > 30 ? "\n…" : ""),
-                "Some values were skipped", MessageBoxButton.OK, MessageBoxImage.Information);
+            Dialogs.Message($"{problems.Count} value(s) were skipped",
+                string.Join(Environment.NewLine, problems.Take(30)) + (problems.Count > 30 ? "\n…" : ""), NoticeKind.Info);
         }
         Outcome = string.Join("; ", parts) + ".";
         return true;

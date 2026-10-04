@@ -158,6 +158,8 @@ public partial class MainWindow : Window
 
     private void OnHistory(object sender, RoutedEventArgs e) => OpenHistory();
 
+    private void OnPaletteMenu(object sender, RoutedEventArgs e) => OpenPalette();
+
     // ------------------------------------------------------------------ command palette (Ctrl+K)
 
     private void OpenPalette()

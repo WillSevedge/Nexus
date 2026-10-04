@@ -178,6 +178,34 @@ public sealed class MainViewModel : Observable
         set => Set(ref _status, value);
     }
 
+    // ------------------------------------------------------------------ info bar
+
+    private string _noticeTitle = "";
+    private string _noticeText = "";
+    private NoticeKind _noticeKind;
+
+    public string NoticeTitle { get => _noticeTitle; private set => Set(ref _noticeTitle, value); }
+    public string NoticeText { get => _noticeText; private set => Set(ref _noticeText, value); }
+    public NoticeKind NoticeKind { get => _noticeKind; private set => Set(ref _noticeKind, value); }
+    public bool HasNotice => _noticeTitle.Length > 0;
+
+    /// <summary>Shows a message in the info bar above the table (instead of a pop-up).</summary>
+    public void Notify(NoticeKind kind, string title, string text = "")
+    {
+        NoticeKind = kind;
+        NoticeText = text;
+        NoticeTitle = title;
+        Raise(nameof(HasNotice));
+    }
+
+    public RelayCommand DismissNoticeCommand => _dismissNotice ??= new RelayCommand(() =>
+    {
+        NoticeTitle = "";
+        Raise(nameof(HasNotice));
+        return Task.CompletedTask;
+    });
+    private RelayCommand? _dismissNotice;
+
     /// <summary>"3 files · 42 rows · 2 warnings".</summary>
     public string Summary
     {
@@ -484,6 +512,7 @@ public sealed class MainViewModel : Observable
         _busy = true;
         Raise(nameof(IsEmpty));
         Status = $"Reading {dataset.Title.ToLowerInvariant()} from {docs.Count} file(s)…";
+        var work = BeginWork($"Reading {dataset.Title.ToLowerInvariant()}", docs.Count);
         try
         {
             var perAgent = docs.GroupBy(d => d.Agent).Select(async group =>
@@ -497,7 +526,8 @@ public sealed class MainViewModel : Observable
                         DocumentId = doc.Info.Id,
                         ReaderId = reader.Descriptor.Id,
                         Options = reader.OptionValues(),
-                    }));
+                    }, work.Token));
+                    StepWork(work);
                 }
                 return runs;
             });
@@ -505,19 +535,83 @@ public sealed class MainViewModel : Observable
             if (generation != _loadGeneration) return; // a newer load started meanwhile
             Runs = all;
         }
+        catch (OperationCanceledException) when (work.IsCancellationRequested)
+        {
+            if (generation == _loadGeneration)
+                Status = "Reading cancelled. The table shows what was loaded before. (The program may finish its read in the background.)";
+            return;
+        }
         finally
         {
             if (generation == _loadGeneration) _busy = false;
+            EndWork(work);
+            Raise(nameof(IsEmpty));
         }
         ShowResults(dataset);
     }
 
-    private static async Task<ResultRun> ReadOneAsync(AgentNode agent, string documentTitle, ReadRequest request)
+    // ------------------------------------------------------------------ progress and cancel
+
+    private CancellationTokenSource? _work;
+    private int _workDone, _workTotal;
+    private string _workText = "";
+
+    /// <summary>A read or an apply is running (progress bar and Cancel are shown).</summary>
+    public bool IsWorking => _work is not null;
+    public double WorkProgress => _workTotal == 0 ? 0 : 100.0 * _workDone / _workTotal;
+    /// <summary>One file: no meaningful percentage, show an animated bar.</summary>
+    public bool WorkIndeterminate => _workTotal <= 1;
+    public string WorkText => _workTotal > 1 ? $"{_workText}  ({_workDone} of {_workTotal} files)" : _workText + "…";
+
+    public RelayCommand CancelWorkCommand => _cancelWork ??= new RelayCommand(() =>
+    {
+        _work?.Cancel();
+        Status = "Cancelling…";
+        return Task.CompletedTask;
+    }, () => _work is { IsCancellationRequested: false });
+    private RelayCommand? _cancelWork;
+
+    /// <summary>Starts a cancellable operation over <paramref name="total"/> files (cancels one still running).</summary>
+    private CancellationTokenSource BeginWork(string text, int total)
+    {
+        _work?.Cancel();
+        _work = new CancellationTokenSource();
+        _workText = text;
+        _workTotal = total;
+        _workDone = 0;
+        RaiseWork();
+        return _work;
+    }
+
+    private void StepWork(CancellationTokenSource work)
+    {
+        if (!ReferenceEquals(work, _work)) return;
+        _workDone++;
+        RaiseWork();
+    }
+
+    private void EndWork(CancellationTokenSource work)
+    {
+        if (ReferenceEquals(work, _work)) _work = null;
+        work.Dispose();
+        RaiseWork();
+    }
+
+    private void RaiseWork()
+    {
+        Raise(nameof(IsWorking));
+        Raise(nameof(WorkProgress));
+        Raise(nameof(WorkIndeterminate));
+        Raise(nameof(WorkText));
+        System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+    }
+
+    private static async Task<ResultRun> ReadOneAsync(AgentNode agent, string documentTitle, ReadRequest request, CancellationToken ct = default)
     {
         var host = agent.Connection.Host;
         try
         {
-            var result = await agent.Connection.ReadAsync(request);
+            var result = await agent.Connection.ReadAsync(request, ct);
             HubLog.Info($"{host.DisplayName}: {request.ReaderId} on {documentTitle}: {result.Items.Count} items in {result.ElapsedMs} ms");
             return new ResultRun { Host = host, DocumentTitle = documentTitle, ReaderId = request.ReaderId, Agent = agent, Request = request, Result = result };
         }
@@ -526,7 +620,7 @@ public sealed class MainViewModel : Observable
             HubLog.Warn($"{host.DisplayName}: {request.ReaderId} on {documentTitle}: {ex.Error}");
             return new ResultRun { Host = host, DocumentTitle = documentTitle, ReaderId = request.ReaderId, Agent = agent, Request = request, Error = ex.Error };
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             HubLog.Error($"{host.DisplayName}: {request.ReaderId} on {documentTitle} failed", ex);
             return new ResultRun
@@ -1032,10 +1126,10 @@ public sealed class MainViewModel : Observable
     {
         CommitGridEdits?.Invoke();
         if (_pendingEdits == 0) return true;
-        var answer = MessageBox.Show(
-            $"You have {_pendingEdits} change(s) that have not been applied. Discard them?",
-            "Nexus", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-        if (answer != MessageBoxResult.Yes) return false;
+        if (!Dialogs.Confirm("Discard your changes?",
+                $"{PendingText}. Switching now discards {(_pendingEdits == 1 ? "it" : "them")}. To keep {(_pendingEdits == 1 ? "it" : "them")}, use Review & apply first.",
+                "Discard", "Keep editing"))
+            return false;
         DiscardEdits();
         return true;
     }
@@ -1044,8 +1138,8 @@ public sealed class MainViewModel : Observable
     {
         CommitGridEdits?.Invoke();
         if (_pendingEdits == 0) return true;
-        return MessageBox.Show($"You have {_pendingEdits} change(s) that have not been applied. Exit Nexus anyway?",
-            "Nexus", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
+        return Dialogs.Confirm("Exit Nexus?",
+            $"{PendingText}. Exiting discards {(_pendingEdits == 1 ? "it" : "them")}.", "Exit", "Keep editing");
     }
 
     private async Task ReviewAndApplyAsync()
@@ -1091,12 +1185,20 @@ public sealed class MainViewModel : Observable
             try { SnapshotStore.Save(before); }
             catch (Exception ex) { HubLog.Warn("Could not save the before-apply snapshot.", ex); }
         }
+        var plans = Editing.Plan(rows.Select(r => r.Edit));
+        var work = BeginWork("Applying changes", plans.Count);
         try
         {
             var byEdit = rows.ToDictionary(r => r.Edit);
-            foreach (var (pid, request, edits) in Editing.Plan(rows.Select(r => r.Edit)))
+            foreach (var (pid, request, edits) in plans)
             {
                 var planned = edits.Select(e => byEdit[e]).ToList();
+                // Cancel stops before the next file; a file being written always finishes (one undo step each).
+                if (work.IsCancellationRequested)
+                {
+                    foreach (var r in planned) r.SetOutcome("Skipped", "Cancelled before this file was updated.", null);
+                    continue;
+                }
                 foreach (var r in rows.Where(r => r.Status == "" && r.Edit.ProcessId == pid && r.Edit.DocumentId == request.DocumentId && !planned.Contains(r)))
                     r.SetOutcome("Skipped", "The same property is changed in another column or row; that change is used.", null);
 
@@ -1128,10 +1230,12 @@ public sealed class MainViewModel : Observable
                     foreach (var r in planned) r.SetOutcome("Failed", ex.Error.Message, null);
                     HubLog.Warn($"Write to {edits[0].Row.Document} failed: {ex.Error}");
                 }
+                StepWork(work);
             }
         }
         finally
         {
+            EndWork(work);
             _busy = false;
             ChangeLog.Append(rows.Where(r => r.Status == "Applied").Select(r => new ChangeLogEntry
             {
@@ -1212,8 +1316,8 @@ public sealed class MainViewModel : Observable
         var link = _excelLink;
         if (!_table.ColumnsById.ContainsKey(link.KeyColumnId))
         {
-            MessageBox.Show($"The loaded data has no '{link.KeyColumnId}' column to match rows on. Load the Sheets data, or link the workbook again.",
-                "Compare with Excel", MessageBoxButton.OK, MessageBoxImage.Information);
+            Notify(NoticeKind.Info, "Nothing to compare the workbook with yet",
+                $"The loaded data has no '{link.KeyColumnId}' column to match rows on. Open the Sheets view, or link the workbook again.");
             return;
         }
 
@@ -1228,7 +1332,7 @@ public sealed class MainViewModel : Observable
         catch (Exception ex)
         {
             HubLog.Warn("Reading the linked workbook failed.", ex);
-            MessageBox.Show(ex.Message, "Compare with Excel", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Notify(NoticeKind.Warning, $"Could not read {Path.GetFileName(link.WorkbookPath)}", ex.Message);
             return;
         }
 
@@ -1262,7 +1366,7 @@ public sealed class MainViewModel : Observable
         catch (Exception ex)
         {
             HubLog.Error("Excel export failed", ex);
-            MessageBox.Show(ex.Message, "Export to Excel", MessageBoxButton.OK, MessageBoxImage.Error);
+            Notify(NoticeKind.Error, "Export to Excel failed", ex.Message);
         }
         return Task.CompletedTask;
     }
@@ -1291,7 +1395,7 @@ public sealed class MainViewModel : Observable
         catch (Exception ex)
         {
             HubLog.Error("Export failed", ex);
-            MessageBox.Show(ex.Message, "Export failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            Notify(NoticeKind.Error, "Export failed", ex.Message);
         }
         return Task.CompletedTask;
     }

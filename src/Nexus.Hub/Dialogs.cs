@@ -4,9 +4,85 @@ using System.Windows.Media;
 
 namespace Nexus.Hub;
 
-/// <summary>Small code-built dialogs: ask for a value, find and replace, and the messages window.</summary>
+public enum NoticeKind { Info, Success, Warning, Error }
+
+/// <summary>Small code-built dialogs: ask for a value, find and replace, confirmations, and the messages window.</summary>
 internal static class Dialogs
 {
+    /// <summary>The window to put a dialog over: the active one, else the hub.</summary>
+    public static Window? ActiveWindow =>
+        Application.Current?.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive && w.IsVisible)
+        ?? (Application.Current?.MainWindow is { IsVisible: true } main ? main : null);
+
+    /// <summary>A question with two answers, in the hub's style. True when the first (accent) button was chosen.</summary>
+    public static bool Confirm(string title, string message, string confirmText, string cancelText = "Cancel",
+        NoticeKind kind = NoticeKind.Warning, Window? owner = null)
+    {
+        bool ok = false;
+        var window = Card(owner, title, message, kind, out var buttons);
+        var yes = new Button { Content = confirmText, IsDefault = true, MinWidth = 96, Padding = new Thickness(14, 5, 14, 5) };
+        yes.SetResourceReference(FrameworkElement.StyleProperty, "AccentButtonStyle");
+        yes.Click += (_, _) => { ok = true; window.DialogResult = true; };
+        var no = new Button { Content = cancelText, IsCancel = true, MinWidth = 96, Padding = new Thickness(14, 5, 14, 5), Margin = new Thickness(8, 0, 0, 0) };
+        buttons.Children.Add(yes);
+        buttons.Children.Add(no);
+        window.ShowDialog();
+        return ok;
+    }
+
+    /// <summary>A message that needs acknowledging (used where an info bar would not be seen, e.g. over another dialog).</summary>
+    public static void Message(string title, string message, NoticeKind kind = NoticeKind.Info, Window? owner = null)
+    {
+        var window = Card(owner, title, message, kind, out var buttons);
+        var ok = new Button { Content = "OK", IsDefault = true, IsCancel = true, MinWidth = 96, Padding = new Thickness(14, 5, 14, 5) };
+        ok.SetResourceReference(FrameworkElement.StyleProperty, "AccentButtonStyle");
+        ok.Click += (_, _) => window.DialogResult = true;
+        buttons.Children.Add(ok);
+        window.ShowDialog();
+    }
+
+    private static Window Card(Window? owner, string title, string message, NoticeKind kind, out StackPanel buttons)
+    {
+        owner ??= ActiveWindow;
+        var window = new Window
+        {
+            Title = "Nexus",
+            SizeToContent = SizeToContent.WidthAndHeight,
+            ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = owner is null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner,
+            ShowInTaskbar = owner is null,
+        };
+        if (owner is not null) window.Owner = owner;
+
+        var (glyph, brush) = kind switch
+        {
+            NoticeKind.Success => ("\uE930", "SystemFillColorSuccessBrush"),
+            NoticeKind.Warning => ("\uE7BA", "SystemFillColorCautionBrush"),
+            NoticeKind.Error => ("\uEA39", "SystemFillColorCriticalBrush"),
+            _ => ("\uE946", "SystemFillColorAttentionBrush"),
+        };
+        var icon = new TextBlock { Text = glyph, FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 22, Margin = new Thickness(0, 2, 14, 0), VerticalAlignment = VerticalAlignment.Top };
+        icon.SetResourceReference(TextBlock.ForegroundProperty, brush);
+
+        var text = new StackPanel { MaxWidth = 460 };
+        text.Children.Add(new TextBlock { Text = title, FontSize = 18, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+        var body = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
+        body.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        text.Children.Add(new ScrollViewer { Content = body, MaxHeight = 360, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+
+        var top = new DockPanel();
+        DockPanel.SetDock(icon, Dock.Left);
+        top.Children.Add(icon);
+        top.Children.Add(text);
+
+        buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 20, 0, 0) };
+        var panel = new StackPanel { Margin = new Thickness(24, 20, 24, 20), MinWidth = 360 };
+        panel.Children.Add(top);
+        panel.Children.Add(buttons);
+        window.Content = panel;
+        return window;
+    }
+
     public static string? AskValue(Window owner, string title, string prompt, string initial = "")
     {
         var box = new TextBox { Text = initial, MinWidth = 380, Padding = new Thickness(4, 3, 4, 3) };

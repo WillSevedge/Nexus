@@ -82,7 +82,9 @@ public sealed class AgentClient : IAsyncDisposable
         try
         {
             await _writeLock.WaitAsync(ct).ConfigureAwait(false);
-            try { await Frames.WriteAsync(_pipe, request, ct).ConfigureAwait(false); }
+            // Never cancel half-way through a frame: that would leave the pipe out of step. Cancelling only
+            // stops waiting for the reply (a late reply is dropped, it is matched by request id).
+            try { await Frames.WriteAsync(_pipe, request, CancellationToken.None).ConfigureAwait(false); }
             finally { _writeLock.Release(); }
 
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);

@@ -30,7 +30,7 @@
         <Button Content="{Binding StageText}" Command="{Binding StageCommand}" Style="{DynamicResource AccentButtonStyle}" IsDefault="True" Padding="16,6" />
         <Button Content="Cancel" IsCancel="True" Margin="8,0,0,0" Padding="16,6" />
       </StackPanel>
-      <TextBlock Text="Changes are staged like your own edits. Nothing changes in the files until Review &amp; apply."
+      <TextBlock Text="The changes are added to your pending changes in the table. Nothing changes in the files until Review &amp; apply."
                  VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
     </DockPanel>
 
