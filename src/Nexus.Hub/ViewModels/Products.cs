@@ -43,6 +43,6 @@ internal static class Products
         if (host.HostKind == HostKinds.Revit) return "Revit";
         if (readerId.StartsWith("civil3d.", StringComparison.OrdinalIgnoreCase)) return "Civil 3D";
         if (readerId.StartsWith("plant.", StringComparison.OrdinalIgnoreCase)) return "Plant 3D";
-        return "AutoCAD Family";
+        return "AutoCAD";
     }
 }

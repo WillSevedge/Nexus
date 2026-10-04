@@ -299,7 +299,20 @@
               <GroupStyle>
                 <GroupStyle.HeaderTemplate>
                   <DataTemplate>
-                    <TextBlock Text="{Binding Name}" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="16,8,0,2" />
+                    <TextBlock Text="{Binding Name}" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="16,8,0,2">
+                      <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding Name}" Value="AutoCAD">
+                              <Setter Property="ToolTip" Value="Works in AutoCAD, Civil 3D and Plant 3D" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Name}" Value="Shared">
+                              <Setter Property="ToolTip" Value="Every sheet from every open file: Revit, AutoCAD, Civil 3D and Plant 3D together" />
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </TextBlock.Style>
+                    </TextBlock>
                   </DataTemplate>
                 </GroupStyle.HeaderTemplate>
               </GroupStyle>
