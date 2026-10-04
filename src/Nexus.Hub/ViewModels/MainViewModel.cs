@@ -52,6 +52,7 @@ public sealed class MainViewModel : Observable
 
     public MainViewModel()
     {
+        Health = new HealthViewModel(this);
         RefreshCommand = new RelayCommand(async () => { await RefreshAsync(); await LoadAsync(); });
         ApplyChangesCommand = new RelayCommand(ReviewAndApplyAsync, () => _pendingEdits > 0 && !_busy);
         DiscardChangesCommand = new RelayCommand(() => { DiscardEdits(); return Task.CompletedTask; }, () => _pendingEdits > 0 && !_busy);
@@ -202,7 +203,10 @@ public sealed class MainViewModel : Observable
     public bool ShowDetails
     {
         get => _showDetails;
-        set => Set(ref _showDetails, value);
+        set
+        {
+            if (Set(ref _showDetails, value) && value) Health.IsOpen = false;
+        }
     }
 
     /// <summary>Nothing to show yet: the grid is replaced by a short explanation.</summary>
@@ -596,10 +600,56 @@ public sealed class MainViewModel : Observable
 
         _table = table;
         _grid = dt;
+        _rowIndex = new Dictionary<TableRow, int>(ReferenceEqualityComparer.Instance);
+        for (int i = 0; i < table.Rows.Count; i++) _rowIndex[table.Rows[i]] = i;
         PendingEdits = 0;
         _visible = InitialVisibleColumns(dataset, table);
+        Health.Reset(dataset.IsSheetIndex);
         TableReady?.Invoke(dt, ColumnSpecs(dataset));
         ApplySearch();
+        DataChanged?.Invoke();
+    }
+
+    // ------------------------------------------------------------------ for the health checks
+
+    private Dictionary<TableRow, int> _rowIndex = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>Sheet health checks over the loaded sheets.</summary>
+    public HealthViewModel Health { get; }
+
+    /// <summary>The table was loaded, or a value in it changed (edits count before they are applied).</summary>
+    public event Action? DataChanged;
+
+    /// <summary>Asks the window to select a cell (row index in the table, grid column) and scroll to it.</summary>
+    public event Action<int, string>? FocusCellRequested;
+
+    public IReadOnlyList<TableRow> LoadedRows => _table?.Rows ?? (IReadOnlyList<TableRow>)Array.Empty<TableRow>();
+
+    public int RowIndexOf(TableRow row) => _rowIndex.TryGetValue(row, out int i) ? i : -1;
+
+    public static int RowIndex(DataRowView view) => view.Row[RowIndexColumn] is int i ? i : -1;
+
+    /// <summary>The value shown in the grid (including edits not applied yet).</summary>
+    public string? CurrentValue(TableRow row, string columnId)
+    {
+        if (_grid is null || !_gridColumnByColumnId.TryGetValue(columnId, out var column)) return null;
+        int i = RowIndexOf(row);
+        if (i < 0 || i >= _grid.Rows.Count) return null;
+        var dataRow = _grid.Rows[i];
+        var version = dataRow.HasVersion(DataRowVersion.Proposed) ? DataRowVersion.Proposed : DataRowVersion.Current;
+        return dataRow[column, version] as string;
+    }
+
+    /// <summary>Selects the cell for a property; if its column is hidden, the visible column showing the same property.</summary>
+    public void FocusCell(TableRow row, string? columnId)
+    {
+        int i = RowIndexOf(row);
+        if (i < 0 || _table is null) return;
+        string? target = columnId is not null && _visible.Contains(columnId) ? columnId : null;
+        if (target is null && columnId is not null && row.Values.TryGetValue(columnId, out var property))
+            target = _table.Columns.Select(c => c.Id)
+                .FirstOrDefault(id => _visible.Contains(id) && row.Values.TryGetValue(id, out var other) && ReferenceEquals(other, property));
+        FocusCellRequested?.Invoke(i, target is not null && _gridColumnByColumnId.TryGetValue(target, out var g) ? g : ItemColumn);
     }
 
     private HashSet<string> InitialVisibleColumns(DatasetNode dataset, ResultTable table)
@@ -835,7 +885,11 @@ public sealed class MainViewModel : Observable
     }
 
     /// <summary>A row edit was committed (or cancelled): recount, since the cell event fired while it was still proposed.</summary>
-    private void OnGridRowChanged(object sender, DataRowChangeEventArgs e) => PendingEdits = CollectEdits().Count;
+    private void OnGridRowChanged(object sender, DataRowChangeEventArgs e)
+    {
+        PendingEdits = CollectEdits().Count;
+        DataChanged?.Invoke();
+    }
 
     private void OnGridValueChanged(object sender, DataColumnChangeEventArgs e)
     {
@@ -860,6 +914,7 @@ public sealed class MainViewModel : Observable
             }
         }
         PendingEdits = CollectEdits().Count;
+        DataChanged?.Invoke();
     }
 
     // ------------------------------------------------------------------ details pane

@@ -83,6 +83,41 @@
       </Setter>
     </Style>
 
+    <!-- Count on the Health button: red with errors, amber with warnings, blue with suggestions only. -->
+    <Style x:Key="HealthBadge" TargetType="Border">
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="MinWidth" Value="18" />
+      <Setter Property="Height" Value="18" />
+      <Setter Property="Padding" Value="5,0" />
+      <Setter Property="Background" Value="{DynamicResource SystemFillColorAttentionBrush}" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding Health.HasWarnings}" Value="True">
+          <Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBrush}" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding Health.HasErrors}" Value="True">
+          <Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+
+    <!-- Icon for a health check's severity (DataContext has a Severity). -->
+    <Style x:Key="SeverityGlyph" TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="Text" Value="&#xE946;" />
+      <Setter Property="Foreground" Value="{DynamicResource SystemFillColorAttentionBrush}" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding Severity}" Value="Warning">
+          <Setter Property="Text" Value="&#xE7BA;" />
+          <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding Severity}" Value="Error">
+          <Setter Property="Text" Value="&#xEA39;" />
+          <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+
     <Style x:Key="Glyph" TargetType="TextBlock">
       <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
       <Setter Property="FontSize" Value="15" />
@@ -350,6 +385,21 @@
               <TextBlock Text="Reload" Margin="8,0,0,0" />
             </StackPanel>
           </Button>
+          <ToggleButton Style="{StaticResource CommandToggle}" IsChecked="{Binding Health.IsOpen}"
+                        Visibility="{Binding Health.IsAvailable, Converter={StaticResource BoolToVis}}"
+                        ToolTip="Sheet health: checks every sheet in the open files (duplicate numbers, template placeholders, naming, spaces...)">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="&#xE95E;" Style="{StaticResource Glyph}" />
+              <TextBlock Text="Health" Margin="8,0,0,0" />
+              <Border Style="{StaticResource HealthBadge}" Margin="8,0,0,0" Visibility="{Binding Health.HasIssues, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="{Binding Health.BadgeText}" FontSize="11" FontWeight="SemiBold" Foreground="White"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <TextBlock Text="&#xE73E;" Style="{StaticResource Glyph}" FontSize="12" Margin="8,0,0,0"
+                         Foreground="{DynamicResource SystemFillColorSuccessBrush}"
+                         Visibility="{Binding Health.IsHealthy, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+          </ToggleButton>
           <Rectangle Width="1" Height="20" Margin="6,0" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" />
           <Button Style="{StaticResource CommandButton}" Click="OnColumns" ToolTip="Choose the columns">
             <StackPanel Orientation="Horizontal">
@@ -464,6 +514,87 @@
                          Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
             </StackPanel>
           </Grid>
+        </Border>
+
+        <!-- Sheet health -->
+        <Border Grid.Column="1" Style="{StaticResource Card}" Width="380" Margin="12,0,0,0" Padding="16,14"
+                Visibility="{Binding Health.IsOpen, Converter={StaticResource BoolToVis}}">
+          <DockPanel DataContext="{Binding Health}">
+            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+              <DockPanel>
+                <Button DockPanel.Dock="Right" Click="OnCloseHealth" ToolTip="Close" Padding="6" Background="Transparent" BorderThickness="0">
+                  <TextBlock Text="&#xE711;" Style="{StaticResource Glyph}" FontSize="12" />
+                </Button>
+                <TextBlock Text="Sheet health" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+              </DockPanel>
+              <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Margin="0,2,0,10"
+                         Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+              <StackPanel Visibility="{Binding HasFixes, Converter={StaticResource BoolToVis}}">
+                <Button Command="{Binding FixAllCommand}" Style="{DynamicResource AccentButtonStyle}" HorizontalAlignment="Left">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xE90F;" Style="{StaticResource Glyph}" FontSize="13" />
+                    <TextBlock Text="{Binding FixAllText}" Margin="8,0,0,0" />
+                  </StackPanel>
+                </Button>
+                <TextBlock Text="Fixes are staged like your own edits: nothing changes in the files until Review &amp; apply."
+                           TextWrapping="Wrap" FontSize="12" Margin="0,6,0,0" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+              </StackPanel>
+            </StackPanel>
+
+            <Grid>
+              <!-- All good -->
+              <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,40"
+                          Visibility="{Binding IsHealthy, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="&#xE930;" Style="{StaticResource Glyph}" FontSize="44" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
+                <TextBlock Text="Looking good" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,10,0,2" />
+                <TextBlock Text="No duplicate numbers, placeholders or naming problems." TextWrapping="Wrap" TextAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+              </StackPanel>
+
+              <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding Groups}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:HealthGroup}">
+                      <Expander IsExpanded="{Binding IsExpanded}" Margin="0,0,0,6">
+                        <Expander.Header>
+                          <DockPanel LastChildFill="True">
+                            <Button DockPanel.Dock="Right" Content="{Binding FixAllText}" Command="{Binding FixAllCommand}" Padding="8,2" FontSize="12"
+                                    Visibility="{Binding CanFixAll, Converter={StaticResource BoolToVis}}" Margin="8,0,0,0" />
+                            <TextBlock Style="{StaticResource SeverityGlyph}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                              <Run Text="{Binding Title, Mode=OneWay}" FontWeight="SemiBold" />
+                              <Run Text="{Binding Count, Mode=OneWay, StringFormat='  {0}'}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            </TextBlock>
+                          </DockPanel>
+                        </Expander.Header>
+                        <ItemsControl ItemsSource="{Binding Items}" Margin="0,2,0,2">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:HealthItem}">
+                              <Border CornerRadius="6" Padding="10,8" Margin="0,2" Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                                <StackPanel>
+                                  <Button Command="{Binding ShowCommand}" Background="Transparent" BorderThickness="0" Padding="0"
+                                          HorizontalContentAlignment="Stretch" Cursor="Hand" ToolTip="Show this sheet in the table">
+                                    <StackPanel>
+                                      <TextBlock Text="{Binding Where}" FontWeight="SemiBold" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                      <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,2,0,0"
+                                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                  </Button>
+                                  <Button Content="{Binding FixText}" Command="{Binding FixCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"
+                                          Padding="10,3" FontSize="12" Visibility="{Binding CanFix, Converter={StaticResource BoolToVis}}" />
+                                </StackPanel>
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </Expander>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </Grid>
+          </DockPanel>
         </Border>
 
         <!-- Details -->

@@ -26,6 +26,9 @@ public partial class MainWindow : Window
         _vm.ColumnsChanged += BuildColumns;
         _vm.CommitGridEdits += () => TableGrid.CommitEdit(DataGridEditingUnit.Row, true);
         _vm.SelectedRowsProvider = SelectedRows;
+        _vm.FocusCellRequested += FocusCell;
+        // The health mark column is not data: leave it out of copied rows.
+        TableGrid.CopyingRowClipboardContent += (_, e) => e.ClipboardRowContent.RemoveAll(c => c.Column is DataGridTemplateColumn);
 
         // Commit the whole row after each cell edit, so the edit counts as pending straight away.
         TableGrid.CellEditEnding += (_, e) =>
@@ -81,6 +84,8 @@ public partial class MainWindow : Window
     {
         TableGrid.Columns.Clear();
         var baseCellStyle = TableGrid.TryFindResource(typeof(DataGridCell)) as Style;
+        bool health = _vm.Health.IsAvailable;
+        if (health) TableGrid.Columns.Add(HealthColumn(baseCellStyle));
         foreach (var spec in specs)
         {
             var column = new DataGridTextColumn
@@ -101,7 +106,72 @@ public partial class MainWindow : Window
             }
             TableGrid.Columns.Add(column);
         }
-        TableGrid.FrozenColumnCount = specs.Count(s => s.Frozen);
+        TableGrid.FrozenColumnCount = specs.Count(s => s.Frozen) + (health ? 1 : 0);
+    }
+
+    // ------------------------------------------------------------------ sheet health
+
+    /// <summary>Narrow first column: a check mark, or the worst health finding for the sheet (hover for the list).</summary>
+    private DataGridTemplateColumn HealthColumn(Style? baseCellStyle)
+    {
+        var text = new FrameworkElementFactory(typeof(TextBlock));
+        text.SetValue(TextBlock.FontFamilyProperty, FindResource("IconFont"));
+        text.SetValue(TextBlock.FontSizeProperty, 14.0);
+        text.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        text.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+        text.SetBinding(TextBlock.TextProperty, HealthBinding(HealthAspect.Glyph));
+        text.SetBinding(TextBlock.ForegroundProperty, HealthBinding(HealthAspect.Brush));
+        text.SetBinding(ToolTipProperty, HealthBinding(HealthAspect.ToolTip));
+
+        var header = new TextBlock { Text = "\uE95E", FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 13, ToolTip = "Sheet health" };
+        header.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorTertiaryBrush");
+
+        var cellStyle = new Style(typeof(DataGridCell), baseCellStyle);
+        cellStyle.Setters.Add(new EventSetter(MouseLeftButtonUpEvent, new MouseButtonEventHandler((_, _) => _vm.Health.IsOpen = true)));
+        return new DataGridTemplateColumn
+        {
+            Header = header,
+            CellTemplate = new DataTemplate { VisualTree = text },
+            Width = 34,
+            CanUserSort = false,
+            CanUserResize = false,
+            CanUserReorder = false,
+            IsReadOnly = true,
+            CellStyle = cellStyle,
+        };
+    }
+
+    private MultiBinding HealthBinding(HealthAspect aspect)
+    {
+        var binding = new MultiBinding { Converter = new HealthMarkConverter(_vm.Health, aspect) };
+        binding.Bindings.Add(new Binding());                                       // the DataRowView
+        binding.Bindings.Add(new Binding("Health.Version") { Source = _vm });      // re-evaluate after every check
+        return binding;
+    }
+
+    private void OnCloseHealth(object sender, RoutedEventArgs e) => _vm.Health.IsOpen = false;
+
+    /// <summary>Selects one cell (from the health list) and scrolls it into view.</summary>
+    private void FocusCell(int rowIndex, string gridColumn)
+    {
+        var view = TableGrid.Items.OfType<DataRowView>().FirstOrDefault(v => MainViewModel.RowIndex(v) == rowIndex);
+        if (view is null)
+        {
+            _vm.Status = "That sheet is hidden by the search. Clear the search to see it.";
+            return;
+        }
+        var column = TableGrid.Columns.FirstOrDefault(c => c.SortMemberPath == gridColumn)
+                     ?? TableGrid.Columns.FirstOrDefault(c => c.SortMemberPath is { Length: > 0 });
+        TableGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        TableGrid.SelectedCells.Clear();
+        TableGrid.ScrollIntoView(view, column);
+        if (column is not null)
+        {
+            var cell = new DataGridCellInfo(view, column);
+            TableGrid.SelectedCells.Add(cell);
+            TableGrid.CurrentCell = cell;
+        }
+        TableGrid.Focus();
     }
 
     private static object Header(GridColumnSpec spec)
@@ -512,6 +582,57 @@ public partial class MainWindow : Window
 }
 
 internal enum CellAspect { Background, Foreground, ToolTip }
+
+internal enum HealthAspect { Glyph, Brush, ToolTip }
+
+/// <summary>The sheet's health mark: ✓, or the worst finding's icon and colour, with the findings as a tooltip.</summary>
+internal sealed class HealthMarkConverter : IMultiValueConverter
+{
+    private readonly HealthViewModel _health;
+    private readonly HealthAspect _aspect;
+
+    public HealthMarkConverter(HealthViewModel health, HealthAspect aspect)
+    {
+        _health = health;
+        _aspect = aspect;
+    }
+
+    public object? Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (values.Length < 1 || values[0] is not DataRowView view) return DependencyProperty.UnsetValue;
+        int row = MainViewModel.RowIndex(view);
+        if (!_health.IsSheet(row)) return _aspect == HealthAspect.Glyph ? "" : DependencyProperty.UnsetValue;
+        var worst = _health.Worst(row);
+        switch (_aspect)
+        {
+            case HealthAspect.Glyph:
+                return worst switch
+                {
+                    Nexus.Hub.Core.Health.HealthSeverity.Error => "\uEA39",
+                    Nexus.Hub.Core.Health.HealthSeverity.Warning => "\uE7BA",
+                    Nexus.Hub.Core.Health.HealthSeverity.Suggestion => "\uE946",
+                    _ => "\uE73E",
+                };
+            case HealthAspect.Brush:
+                return Theme(worst switch
+                {
+                    Nexus.Hub.Core.Health.HealthSeverity.Error => ("SystemFillColorCriticalBrush", Color.FromRgb(0xC4, 0x2B, 0x1C)),
+                    Nexus.Hub.Core.Health.HealthSeverity.Warning => ("SystemFillColorCautionBrush", Color.FromRgb(0x9D, 0x5D, 0x00)),
+                    Nexus.Hub.Core.Health.HealthSeverity.Suggestion => ("SystemFillColorAttentionBrush", Color.FromRgb(0x00, 0x5F, 0xB8)),
+                    _ => ("SystemFillColorSuccessBrush", Color.FromRgb(0x0F, 0x7B, 0x0F)),
+                });
+            default:
+                var issues = _health.IssuesFor(row);
+                return issues.Count == 0 ? "No issues found" : string.Join(Environment.NewLine, issues.Select(i => "• " + i.Message));
+        }
+    }
+
+    private static Brush Theme((string Key, Color Fallback) brush) =>
+        Application.Current?.TryFindResource(brush.Key) as Brush ?? new SolidColorBrush(brush.Fallback);
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
 
 internal sealed class CellStateConverter : IMultiValueConverter
 {

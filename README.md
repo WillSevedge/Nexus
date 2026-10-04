@@ -318,6 +318,27 @@ starts when you sign in to Windows.
   *Applied*, *Unchanged*, *Skipped* or *Failed*, with the reason. The grid then reloads from the model.
   **Discard** puts everything back. A sheet field and the parameter/attribute behind it change together.
 
+### Sheet health
+
+In the **Sheets** view, **Health** checks every sheet of every open Revit model and drawing, and re-checks as
+you edit:
+
+| Check | Severity | One-click fix |
+|---|---|---|
+| Duplicate sheet numbers (across all open files and programs) | Error | – |
+| Sheet without a number | Error | – |
+| Template placeholders never filled in (Drawn By = *Author*, Checked By = *Checker*, Designed By = *Designer*, Approved By = *Approver*…) | Warning | – |
+| Sheet without a title | Warning | – |
+| Project number differs from the other sheets of the drawing (AutoCAD title blocks) | Warning | the usual number |
+| Revision without a date | Warning | – |
+| Sheet number does not follow the pattern most sheets use (A-104 among A101…A105) | Suggestion | A104 (if not taken) |
+| Title not in capitals when most titles are | Suggestion | UPPERCASE |
+| Extra spaces | Suggestion | trimmed |
+
+The first column of the table shows each sheet's state (✓, or the worst finding; hover for the list; click to
+open Health). Click a finding to jump to that cell. **Fix** and **Fix all** stage values like your own edits:
+nothing changes in the files until **Review & apply**. The checks are in `Nexus.Hub.Core/Health/SheetHealth.cs`.
+
 ### Excel link
 
 Link your sheet index or template once; Nexus remembers it (per workbook) and compares it with the model.
