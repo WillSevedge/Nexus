@@ -14,8 +14,10 @@ using AcUiApp = Autodesk.AutoCAD.ApplicationServices.Application;
 namespace Nexus.Agent.Acad;
 
 /// <summary>
-/// "Nexus" ribbon tab in AutoCAD / Civil 3D with one button that shows the hub
-/// connection state (like the Revit one). Re-added when the workspace changes.
+/// "Nexus" ribbon tab in AutoCAD / Civil 3D / Plant 3D with one button that shows the hub
+/// connection state (like the Revit one). AutoCAD-based programs rebuild the ribbon from the
+/// workspace during startup, on workspace switches and CUI reloads, which drops added tabs; so the
+/// tab is checked on Idle (at most every 2 s) and added again whenever it is missing.
 /// Status changes arrive on background threads and are applied on AutoCAD's Idle event.
 /// </summary>
 internal sealed class AcadRibbon : IDisposable
@@ -30,6 +32,8 @@ internal sealed class AcadRibbon : IDisposable
     private RibbonButton? _button;
     private AgentState _state = AgentState.Stopped;
     private volatile AgentStatus? _pending;
+    private readonly Stopwatch _sinceCheck = Stopwatch.StartNew();
+    private bool _loggedAdded;
 
     public AcadRibbon(AgentLog log, Func<AgentStatus?> status, Func<HostInfo?> host)
     {
@@ -39,20 +43,12 @@ internal sealed class AcadRibbon : IDisposable
         BuildIcons();
 
         if (ComponentManager.Ribbon is not null) Create();
-        else ComponentManager.ItemInitialized += OnItemInitialized;
         AcApp.SystemVariableChanged += OnSystemVariableChanged;
         AcApp.Idle += OnIdle;
     }
 
     /// <summary>Called from any thread.</summary>
     public void OnStatusChanged(AgentStatus status) => _pending = status;
-
-    private void OnItemInitialized(object? sender, RibbonItemEventArgs e)
-    {
-        if (ComponentManager.Ribbon is null) return;
-        ComponentManager.ItemInitialized -= OnItemInitialized;
-        Create();
-    }
 
     private void OnSystemVariableChanged(object? sender, Autodesk.AutoCAD.ApplicationServices.SystemVariableChangedEventArgs e)
     {
@@ -104,6 +100,11 @@ internal sealed class AcadRibbon : IDisposable
             tab.Panels.Add(new RibbonPanel { Source = source });
             ribbon.Tabs.Add(tab);
             ApplyStatus(_status());
+            if (!_loggedAdded)
+            {
+                _loggedAdded = true;
+                _log.Info("Nexus ribbon tab added.");
+            }
         }
         catch (Exception ex)
         {
@@ -113,6 +114,21 @@ internal sealed class AcadRibbon : IDisposable
 
     private void OnIdle(object? sender, EventArgs e)
     {
+        // The ribbon appears late and is rebuilt now and then: put the tab back when it is missing.
+        if (_sinceCheck.ElapsedMilliseconds > 2000)
+        {
+            _sinceCheck.Restart();
+            try
+            {
+                var ribbon = ComponentManager.Ribbon;
+                if (ribbon is not null && ribbon.FindTab(TabId) is null) Create();
+            }
+            catch (Exception ex)
+            {
+                _log.Warn("Checking the Nexus ribbon tab failed.", ex);
+            }
+        }
+
         var status = _pending;
         if (status is null) return;
         _pending = null;
@@ -210,7 +226,6 @@ internal sealed class AcadRibbon : IDisposable
     {
         try
         {
-            ComponentManager.ItemInitialized -= OnItemInitialized;
             AcApp.SystemVariableChanged -= OnSystemVariableChanged;
             AcApp.Idle -= OnIdle;
         }

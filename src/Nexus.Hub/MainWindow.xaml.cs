@@ -27,6 +27,11 @@ public partial class MainWindow : Window
         _vm.CommitGridEdits += () => TableGrid.CommitEdit(DataGridEditingUnit.Row, true);
         _vm.SelectedRowsProvider = SelectedRows;
         _vm.FocusCellRequested += FocusCell;
+        // The health marks show while the Sheet Health pane is open (the Health button's count says when there is something).
+        _vm.Health.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(HealthViewModel.IsOpen)) BuildColumns(_vm.CurrentColumnSpecs());
+        };
         // The health mark column is not data: leave it out of copied rows.
         TableGrid.CopyingRowClipboardContent += (_, e) => e.ClipboardRowContent.RemoveAll(c => c.Column is DataGridTemplateColumn);
 
@@ -64,7 +69,7 @@ public partial class MainWindow : Window
     {
         TableGrid.Columns.Clear();
         var baseCellStyle = TableGrid.TryFindResource(typeof(DataGridCell)) as Style;
-        bool health = _vm.Health.IsAvailable;
+        bool health = _vm.Health.IsAvailable && _vm.Health.IsOpen;
         if (health) TableGrid.Columns.Add(HealthColumn(baseCellStyle));
         foreach (var spec in specs)
         {

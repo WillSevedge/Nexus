@@ -777,7 +777,7 @@ public sealed class MainViewModel : Observable
 
     private HashSet<string> InitialVisibleColumns(DatasetNode dataset, ResultTable table)
     {
-        if (_settings.VisibleColumns.TryGetValue(dataset.Id, out var saved))
+        if (_settings.VisibleColumns.TryGetValue(ColumnsKey(dataset, table), out var saved))
         {
             var kept = saved.Where(table.ColumnsById.ContainsKey).ToHashSet(StringComparer.Ordinal);
             if (kept.Count > 0) return kept;
@@ -787,6 +787,13 @@ public sealed class MainViewModel : Observable
             var fields = new HashSet<string>(StringComparer.Ordinal);
             bool revit = table.Rows.Any(r => r.Source.Host.HostKind == HostKinds.Revit);
             bool autocad = table.Rows.Any(r => r.Source.Host.HostKind != HostKinds.Revit);
+            // Revit and AutoCAD together: only the standard columns (Sheet Number, Sheet Name, Revision...),
+            // which every program fills. Each program's own parameters would be blank on the others' rows.
+            if (revit && autocad)
+            {
+                fields.UnionWith(table.Columns.Where(c => c.Group == SheetFieldMap.Group).Select(c => c.Id));
+                if (fields.Count > 0) return fields;
+            }
             // With AutoCAD layouts in the view, the standard columns (Number, Title, Revision...) line the programs up.
             if (autocad)
                 fields.UnionWith(table.Columns.Where(c => c.Group == SheetFieldMap.Group).Select(c => c.Id));
@@ -804,12 +811,26 @@ public sealed class MainViewModel : Observable
         return (props.Count <= 40 ? props : props.Take(DefaultVisibleLimit)).ToHashSet(StringComparer.Ordinal);
     }
 
+    /// <summary>
+    /// Where the column choice is saved: per view, and per mix of programs when the view has more than one
+    /// (Revit alone, AutoCAD alone and both together each keep their own columns).
+    /// </summary>
+    private static string ColumnsKey(DatasetNode dataset, ResultTable? table)
+    {
+        var kinds = table?.Rows.Select(r => r.Source.Host.HostKind).Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(k => k, StringComparer.OrdinalIgnoreCase).ToList() ?? new List<string>();
+        return kinds.Count > 1 ? dataset.Id + "|" + string.Join("+", kinds) : dataset.Id;
+    }
+
     /// <summary>Group prefix of a Revit sheet's own parameters, and the group of those the palette does not show.</summary>
     private const string RevitSheetGroupPrefix = "Sheet · ";
     private const string RevitHiddenGroup = "Not in Properties";
 
     private static bool IsComputedOnly(ResultTable table, string columnId) =>
         table.Rows.All(r => !r.Values.TryGetValue(columnId, out var v) || v.Source == PropertySource.Derived);
+
+    /// <summary>The grid columns as they are now (for rebuilding the grid's columns).</summary>
+    public IReadOnlyList<GridColumnSpec> CurrentColumnSpecs() => ColumnSpecs(_dataset);
 
     private List<GridColumnSpec> ColumnSpecs(DatasetNode? dataset)
     {
@@ -841,7 +862,7 @@ public sealed class MainViewModel : Observable
         _visible = columnIds.ToHashSet(StringComparer.Ordinal);
         if (_dataset is not null)
         {
-            _settings.VisibleColumns[_dataset.Id] = _visible.ToList();
+            _settings.VisibleColumns[ColumnsKey(_dataset, _table)] = _visible.ToList();
             _settings.Save();
         }
         ColumnsChanged?.Invoke(ColumnSpecs(_dataset));
