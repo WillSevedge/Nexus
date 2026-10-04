@@ -39,8 +39,9 @@
 
   <Import Project="..\..\build\AutoCad.targets" />
 
-  <!-- Deploy the core agent + bundle manifest (Windows only). -->
-  <Target Name="NexusDeployAcadBundle" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
+  <!-- Deploy the core agent + bundle manifest (Windows only). Skipped while AutoCAD has it loaded. -->
+  <Target Name="NexusDeployAcadBundle" AfterTargets="Build" DependsOnTargets="NexusCheckAcadRunning"
+          Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false' and '$(_NexusAcadInUse)' != 'true'">
     <ItemGroup>
       <_NexusAcadFiles Include="$(TargetDir)**\*.*" />
     </ItemGroup>
@@ -52,7 +53,7 @@
           SkipUnchangedFiles="true" ContinueOnError="WarnAndContinue" />
     <Copy SourceFiles="$(MSBuildThisFileDirectory)..\..\deploy\autocad\PackageContents.xml" DestinationFolder="$(AcadBundleDir)"
           SkipUnchangedFiles="true" ContinueOnError="WarnAndContinue" />
-    <Message Importance="high" Text="Nexus: deployed AutoCAD $(HostYear) bundle to $(AcadBundleDir) (if copy warnings appeared above, close AutoCAD/Civil 3D and rebuild)" />
+    <Message Importance="high" Text="Nexus: deployed AutoCAD $(HostYear) bundle to $(AcadBundleDir)" />
   </Target>
 
   <!-- The project was called AecHub before. Remove that bundle so it does not load alongside this one. -->
@@ -64,7 +65,8 @@
     <Message Importance="high" Text="Nexus: removed the old AecHub bundle $(LegacyAcadBundleDir)" />
   </Target>
 
-  <Target Name="NexusCleanAcadBundle" AfterTargets="Clean" Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
+  <Target Name="NexusCleanAcadBundle" AfterTargets="Clean" DependsOnTargets="NexusCheckAcadRunning"
+          Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false' and '$(_NexusAcadInUse)' != 'true'">
     <RemoveDir Directories="$(AcadBundleContentDir)" ContinueOnError="true" />
   </Target>
 </Project>

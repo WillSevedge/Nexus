@@ -48,7 +48,8 @@
              Text="Nexus: Civil 3D $(HostYear) API not found under '$(AutoCadInstallDir)C3D'. Compiling against the reference package instead." />
   </Target>
 
-  <Target Name="NexusDeployCivilModule" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
+  <Target Name="NexusDeployCivilModule" AfterTargets="Build" DependsOnTargets="NexusCheckAcadRunning"
+          Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false' and '$(_NexusAcadInUse)' != 'true'">
     <Copy SourceFiles="$(TargetPath);$(TargetDir)$(TargetName).pdb" DestinationFolder="$(AcadBundleContentDir)"
           SkipUnchangedFiles="true" Retries="0" ContinueOnError="WarnAndContinue" />
     <Message Importance="high" Text="Nexus: deployed Civil 3D module to $(AcadBundleContentDir)" />

@@ -35,16 +35,28 @@
              Text="Nexus: Revit $(HostYear) not found at '$(RevitInstallDir)'. Compiling against the reference package instead. Set RevitInstallDir if Revit is installed elsewhere." />
   </Target>
 
-  <Target Name="NexusDeployRevit" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
-    <ItemGroup>
+  <Import Project="HostLock.targets" />
+
+  <!-- A running Revit has the add-in loaded: Windows will not let it be replaced. -->
+  <Target Name="NexusCheckRevitRunning" BeforeTargets="Clean;Build" Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
+    <NexusFilesInUse Files="$(RevitAddinFolder)$(TargetFileName);$(RevitAddinFolder)Nexus.Contracts.dll;$(RevitAddinFolder)Nexus.Agent.Shared.dll">
+      <Output TaskParameter="InUse" PropertyName="_NexusRevitInUse" />
+    </NexusFilesInUse>
+    <Warning Condition="'$(_NexusRevitInUse)' == 'true'"
+             Text="Nexus: Revit $(HostYear) is open, so the Nexus add-in was NOT updated (Windows locks add-in files while Revit runs). Close Revit, then build again (Build › Rebuild Solution)." />
+  </Target>
+
+  <Target Name="NexusDeployRevit" AfterTargets="Build" DependsOnTargets="NexusCheckRevitRunning"
+          Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
+    <ItemGroup Condition="'$(_NexusRevitInUse)' != 'true'">
       <_NexusRevitFiles Include="$(TargetDir)**\*.*" />
     </ItemGroup>
-    <Copy SourceFiles="@(_NexusRevitFiles)"
+    <Copy Condition="'$(_NexusRevitInUse)' != 'true'" SourceFiles="@(_NexusRevitFiles)"
           DestinationFiles="@(_NexusRevitFiles->'$(RevitAddinFolder)%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" Retries="0" ContinueOnError="WarnAndContinue" />
-    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\deploy\revit\Nexus.addin" DestinationFolder="$(RevitAddinsDir)"
+    <Copy Condition="'$(_NexusRevitInUse)' != 'true'" SourceFiles="$(MSBuildThisFileDirectory)..\deploy\revit\Nexus.addin" DestinationFolder="$(RevitAddinsDir)"
           SkipUnchangedFiles="true" ContinueOnError="WarnAndContinue" />
-    <Message Importance="high" Text="Nexus: deployed Revit $(HostYear) add-in to $(RevitAddinFolder) (if copy warnings appeared above, close Revit and rebuild)" />
+    <Message Condition="'$(_NexusRevitInUse)' != 'true'" Importance="high" Text="Nexus: deployed Revit $(HostYear) add-in to $(RevitAddinFolder)" />
   </Target>
 
   <!-- The project was called AecHub before. Remove that deployment: it has the same AddInId. -->
@@ -54,8 +66,10 @@
     <Message Importance="high" Text="Nexus: removed the old AecHub add-in from $(RevitAddinsDir)" />
   </Target>
 
-  <Target Name="NexusCleanRevit" AfterTargets="Clean" Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
-    <RemoveDir Directories="$(RevitAddinFolder)" ContinueOnError="true" />
-    <Delete Files="$(RevitAddinsDir)Nexus.addin" ContinueOnError="true" />
+  <!-- Rebuild cleans first: leave the deployed add-in alone while Revit has it loaded. -->
+  <Target Name="NexusCleanRevit" AfterTargets="Clean" DependsOnTargets="NexusCheckRevitRunning"
+          Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
+    <RemoveDir Condition="'$(_NexusRevitInUse)' != 'true'" Directories="$(RevitAddinFolder)" ContinueOnError="true" />
+    <Delete Condition="'$(_NexusRevitInUse)' != 'true'" Files="$(RevitAddinsDir)Nexus.addin" ContinueOnError="true" />
   </Target>
 </Project>

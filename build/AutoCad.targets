@@ -32,6 +32,17 @@
     <PackageReference Include="AutoCAD.NET" Version="$(AutoCadApiPackageVersion)" PrivateAssets="all" ExcludeAssets="runtime" />
   </ItemGroup>
 
+  <Import Project="HostLock.targets" />
+
+  <!-- A running AutoCAD / Civil 3D / Plant 3D has the agent loaded: Windows will not let it be replaced. -->
+  <Target Name="NexusCheckAcadRunning" BeforeTargets="Clean;Build" Condition="'$(OS)' == 'Windows_NT' and '$(DeployToHost)' != 'false'">
+    <NexusFilesInUse Files="$(AcadBundleContentDir)$(TargetFileName);$(AcadBundleContentDir)Nexus.Agent.Acad.dll">
+      <Output TaskParameter="InUse" PropertyName="_NexusAcadInUse" />
+    </NexusFilesInUse>
+    <Warning Condition="'$(_NexusAcadInUse)' == 'true'"
+             Text="Nexus: AutoCAD, Civil 3D or Plant 3D is open, so $(TargetName) was NOT updated in the Nexus bundle (Windows locks add-in files while they run). Close them, then build again (Build › Rebuild Solution)." />
+  </Target>
+
   <Target Name="NexusAutoCadApiNotice" BeforeTargets="Build">
     <Message Importance="high" Condition="'$(UseInstalledAutoCadApi)' == 'true'" Text="Nexus: AutoCAD $(HostYear) API from $(AutoCadInstallDir)" />
     <Warning Condition="'$(UseInstalledAutoCadApi)' != 'true' and '$(OS)' == 'Windows_NT'"
