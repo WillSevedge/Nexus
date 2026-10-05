@@ -95,7 +95,10 @@ public sealed partial class MainViewModel
         return Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
     }
 
-    private void PickDiskFiles()
+    private void PickDiskFiles() => PickDiskFiles(replace: false);
+
+    /// <summary>Picks files; with <paramref name="replace"/>, they take the place of every file on disk now listed.</summary>
+    public void PickDiskFiles(bool replace)
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
@@ -106,10 +109,14 @@ public sealed partial class MainViewModel
         };
         if (dialog.ShowDialog() != true) return;
         _settings.LastDiskFolder = Path.GetDirectoryName(dialog.FileNames[0]);
-        _ = AddDiskFilesAsync(dialog.FileNames);
+        if (replace) ClearDiskFiles();
+        _ = AddDiskFilesAsync(dialog.FileNames, forceReload: replace);
     }
 
-    private void PickDiskFolder()
+    private void PickDiskFolder() => PickDiskFolder(replace: false);
+
+    /// <summary>Picks a folder; with <paramref name="replace"/>, its files take the place of every file on disk now listed.</summary>
+    public void PickDiskFolder(bool replace)
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog
         {
@@ -136,11 +143,12 @@ public sealed partial class MainViewModel
                 $"{folder} and its subfolders have {found.Count} Revit models and drawings. Each one is read the first time it is ticked, which can take a while for large models.",
                 "Add them"))
             return;
-        _ = AddDiskFilesAsync(found);
+        if (replace) ClearDiskFiles();
+        _ = AddDiskFilesAsync(found, forceReload: replace);
     }
 
     /// <summary>Adds files (ticked) and reads them into the current view.</summary>
-    public async Task AddDiskFilesAsync(IEnumerable<string> paths)
+    public async Task AddDiskFilesAsync(IEnumerable<string> paths, bool forceReload = false)
     {
         int added = 0;
         foreach (var path in paths)
@@ -151,8 +159,13 @@ public sealed partial class MainViewModel
             added++;
         }
         RaiseDiskFiles();
+        RaiseNeedsRevit();
         SaveDiskFiles();
-        if (added == 0) return;
+        if (added == 0)
+        {
+            if (forceReload) await LoadAsync();
+            return;
+        }
         Status = $"Added {added} file{(added == 1 ? "" : "s")} on disk. They are read in the background and shown read-only.";
         await LoadAsync();
     }
@@ -208,11 +221,73 @@ public sealed partial class MainViewModel
     {
         if (DiskFiles.Count == 0) return;
         bool reload = DiskFiles.Any(f => f.IsChecked);
-        foreach (var node in DiskFiles) node.CheckedChanged -= OnDiskChecked;
-        DiskFiles.Clear();
+        ClearDiskFiles();
+        Status = "Removed every file on disk from the list. Add files or a folder to start again.";
         RaiseDiskFiles();
+        RaiseNeedsRevit();
         SaveDiskFiles();
         if (reload) _ = LoadAsync();
+    }
+
+    /// <summary>Empties the list (no reload; the caller loads).</summary>
+    private void ClearDiskFiles()
+    {
+        foreach (var node in DiskFiles) node.CheckedChanged -= OnDiskChecked;
+        DiskFiles.Clear();
+        _forceDiskRead.Clear();
+        _revitStarting = false;
+    }
+
+    public int FailedDiskFiles => DiskFiles.Count(f => f.HasError);
+
+    /// <summary>Removes the files that could not be read (the files themselves are not touched).</summary>
+    public void RemoveFailedDiskFiles()
+    {
+        var failed = DiskFiles.Where(f => f.HasError).ToList();
+        if (failed.Count == 0)
+        {
+            Status = "No files on disk failed to read.";
+            return;
+        }
+        bool reload = failed.Any(f => f.IsChecked);
+        foreach (var node in failed)
+        {
+            node.CheckedChanged -= OnDiskChecked;
+            DiskFiles.Remove(node);
+        }
+        RaiseDiskFiles();
+        RaiseNeedsRevit();
+        SaveDiskFiles();
+        Status = $"Removed {failed.Count} file{(failed.Count == 1 ? "" : "s")} that could not be read.";
+        if (reload) _ = LoadAsync();
+    }
+
+    /// <summary>Reads the files that failed again (from the file, not the kept results).</summary>
+    public async Task RetryFailedDiskFilesAsync()
+    {
+        var failed = DiskFiles.Where(f => f.HasError).ToList();
+        if (failed.Count == 0)
+        {
+            Status = "No files on disk failed to read.";
+            return;
+        }
+        foreach (var node in failed)
+        {
+            _forceDiskRead.Add(node.File.Path);
+            node.Error = null;
+            node.Restore(true);
+        }
+        SaveDiskFiles();
+        await LoadAsync();
+    }
+
+    /// <summary>Forgets every kept result: each file on disk is read again from the file.</summary>
+    public async Task ReadAllDiskFilesAgainAsync()
+    {
+        ReadCache.Clear();
+        foreach (var node in DiskFiles) node.Error = null;
+        Status = "Reading every file on disk again.";
+        await LoadAsync();
     }
 
     /// <summary>Reads the file again even if it did not change.</summary>

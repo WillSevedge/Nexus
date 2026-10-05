@@ -133,6 +133,16 @@ public partial class MainWindow : Window
         if (DiskNode(sender) is { } node) _vm.RemoveDiskFile(node);
     }
 
+    private void OnDiskRetryFailed(object sender, RoutedEventArgs e) => _ = _vm.RetryFailedDiskFilesAsync();
+
+    private void OnDiskRemoveFailed(object sender, RoutedEventArgs e) => _vm.RemoveFailedDiskFiles();
+
+    private void OnDiskReplaceFiles(object sender, RoutedEventArgs e) => _vm.PickDiskFiles(replace: true);
+
+    private void OnDiskReplaceFolder(object sender, RoutedEventArgs e) => _vm.PickDiskFolder(replace: true);
+
+    private void OnDiskReadAllAgain(object sender, RoutedEventArgs e) => _ = _vm.ReadAllDiskFilesAgainAsync();
+
     private void OnDiskRemoveAll(object sender, RoutedEventArgs e)
     {
         if (Dialogs.Confirm("Remove all files on disk?", "They are only removed from this list; the files are not touched.", "Remove all"))

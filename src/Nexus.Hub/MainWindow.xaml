@@ -300,6 +300,22 @@
                       ToolTip="Add every Revit model and drawing in a folder and its subfolders">
                 <TextBlock Text="&#xE8F4;" Style="{StaticResource Glyph}" FontSize="13" />
               </Button>
+              <Button Style="{StaticResource CommandButton}" Padding="6,4" Margin="0" Click="OnDropDown"
+                      ToolTip="Retry, remove or reset the files on disk"
+                      Visibility="{Binding HasDiskFiles, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="&#xE712;" Style="{StaticResource Glyph}" FontSize="13" />
+                <Button.ContextMenu>
+                  <ContextMenu>
+                    <MenuItem Header="Retry files that failed" Click="OnDiskRetryFailed" />
+                    <MenuItem Header="Remove files that failed" Click="OnDiskRemoveFailed" />
+                    <Separator />
+                    <MenuItem Header="Read every file again" Click="OnDiskReadAllAgain" />
+                    <MenuItem Header="Replace with other files…" Click="OnDiskReplaceFiles" />
+                    <MenuItem Header="Replace with a folder…" Click="OnDiskReplaceFolder" />
+                    <MenuItem Header="Remove all files on disk…" Click="OnDiskRemoveAll" />
+                  </ContextMenu>
+                </Button.ContextMenu>
+              </Button>
             </StackPanel>
             <StackPanel VerticalAlignment="Center">
               <TextBlock Text="On Disk" FontWeight="SemiBold" />

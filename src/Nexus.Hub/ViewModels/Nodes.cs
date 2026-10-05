@@ -214,6 +214,9 @@ public sealed class DiskFileNode : Observable
 
     public string Subtitle => _isBusy ? "Reading…" : _status.Length > 0 ? _status : File.Format;
 
+    /// <summary>Set the tick without reading (the caller reloads once for several files).</summary>
+    public void Restore(bool isChecked) => Set(ref _isChecked, isChecked, nameof(IsChecked));
+
     /// <summary>Call after <see cref="Nexus.Hub.Core.Files.DiskFile.Inspect"/> (version known).</summary>
     public void Inspected()
     {
