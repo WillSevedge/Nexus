@@ -10,11 +10,13 @@ using Autodesk.AutoCAD.PlottingServices;
 using Autodesk.AutoCAD.Runtime;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 
+[assembly: CommandClass(typeof(Nexus.Agent.Acad.HeadlessCommands))]
+
 namespace Nexus.Agent.Acad;
 
 /// <summary>
 /// Files on disk (drawings not open in AutoCAD): the hub starts AutoCAD's Core Console
-/// (accoreconsole.exe, no window) on its own copy of the drawing with NEXUS_JOB set, loads this add-in
+/// (accoreconsole.exe, no window) on its own copy of the drawing with NEXUS_JOB set, loads this assembly
 /// and runs NEXUSJOB, which reads the sheets or makes PDFs and writes the result for the hub.
 /// Nothing is saved: the console works on the copy, which the hub deletes afterwards.
 /// </summary>

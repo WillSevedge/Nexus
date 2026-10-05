@@ -26,6 +26,9 @@
   <ItemGroup Condition="'$(UseInstalledAutoCadApi)' == 'true'">
     <Reference Include="accoremgd"><HintPath>$(AutoCadInstallDir)accoremgd.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="acdbmgd"><HintPath>$(AutoCadInstallDir)acdbmgd.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <!-- User interface libraries: not in AutoCAD's Core Console (AcadCoreOnly projects must not use them). -->
+  <ItemGroup Condition="'$(UseInstalledAutoCadApi)' == 'true' and '$(AcadCoreOnly)' != 'true'">
     <Reference Include="acmgd"><HintPath>$(AutoCadInstallDir)acmgd.dll</HintPath><Private>false</Private></Reference>
     <!-- Ribbon (Autodesk.Windows). -->
     <Reference Include="AdWindows"><HintPath>$(AutoCadInstallDir)AdWindows.dll</HintPath><Private>false</Private></Reference>

@@ -200,6 +200,9 @@ public sealed class DiskFileNode : Observable
 
     public bool HasError => !string.IsNullOrEmpty(_error);
 
+    /// <summary>A Revit model that could not be read because no suitable Revit is running.</summary>
+    public bool NeedsRevit { get; set; }
+
     public bool IsBusy
     {
         get => _isBusy;

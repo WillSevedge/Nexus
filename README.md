@@ -17,8 +17,9 @@ Later phases: Excel import/export, two-way sync and the MCP server.
 | `src/Nexus.Agent.Acad` | per year (see *Program years*) | AutoCAD-family core agent (`IExtensionApplication`), autoloader bundle, generic "Properties palette" reader, layouts reader, module loader. Loads in every AutoCAD-based product. |
 | `src/Nexus.Agent.Acad.Civil3D` | per year (see *Program years*) | Civil 3D module. The only project that references the Civil 3D API. Loaded by the core only when Civil 3D is detected. |
 | `src/Nexus.Agent.Acad.Plant3D` | per year (see *Program years*) | Plant 3D module. Reaches the Plant 3D API (project, DataLinksManager) by late binding, so it builds without Plant 3D. Loaded by the core only when Plant 3D is detected. |
+| `src/Nexus.Agent.Acad.Console` | per year (see *Program years*) | Runs in AutoCAD's Core Console (`accoreconsole.exe`) for files on disk: reads sheets and makes PDFs (`NEXUSJOB`). References only `accoremgd`/`acdbmgd` (the Core Console cannot load anything that uses AutoCAD's UI libraries). |
 | `src/Nexus.Hub.Core` | net10.0 | UI-free hub logic: discovery, pipe client, result flattening, CSV/JSON export. |
-| `src/Nexus.Hub` | net10.0-windows (WPF) | The hub application (`Nexus.exe`). |
+| `src/Nexus.Hub` | net10.0-windows10.0.19041 (WPF) | The hub application (`Nexus.exe`). |
 | `src/Nexus.Cli` | net10.0 | `nexus` command-line client, for testing agents without the GUI. |
 | `tests/Nexus.Tests` | net10.0 | xUnit tests (no Autodesk product needed): pipe round trip with a fake host, threading, errors, busy-host handling, flattening, CSV. |
 
@@ -422,6 +423,8 @@ searched, compared with Excel and exported like any other rows, and are **always
   never opened, locked or changed (and nothing is synced back by Desktop Connector). The copy is deleted afterwards.
   - **Revit models** are opened in the background by a running Revit (same release or newer; no project needs to be
     open), detached from central when workshared, read, and closed without saving. Nothing appears in Revit.
+    When no Revit is running, **Start Revit** under On Disk starts one; the models are read as soon as it is ready.
+    Models from an older release are upgraded in memory only (slower the first time; the result is kept).
   - **Drawings** are read by AutoCAD's Core Console (`accoreconsole.exe`, AutoCAD without a window), installed with
     AutoCAD, Civil 3D and Plant 3D 2024+. AutoCAD does not need to be running. Sheets only (layouts + title block).
 - **Fast again**: results are kept in `%LOCALAPPDATA%\Nexus\offline\cache`; a file is only read again when it

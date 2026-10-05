@@ -30,7 +30,7 @@ public static class CoreConsole
         {
             string dir = Path.Combine(programs, "Autodesk", $"AutoCAD {year}");
             string exe = Path.Combine(dir, "accoreconsole.exe");
-            string dll = Path.Combine(bundle, year.ToString(System.Globalization.CultureInfo.InvariantCulture), "Nexus.Agent.Acad.dll");
+            string dll = Path.Combine(bundle, year.ToString(System.Globalization.CultureInfo.InvariantCulture), "Nexus.Agent.Acad.Console.dll");
             if (File.Exists(exe) && File.Exists(dll))
                 list.Add(new CoreConsoleInstall(year, exe, dll, Directory.Exists(Path.Combine(dir, "C3D"))));
         }

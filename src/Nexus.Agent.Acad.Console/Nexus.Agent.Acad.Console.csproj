@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Runs inside AutoCAD's Core Console (accoreconsole.exe, AutoCAD without a window), started by the hub to
+    read drawings that are not open and make PDFs of their layouts (NEXUSJOB command).
+    The Core Console only has AutoCAD's core libraries (accoremgd, acdbmgd): this assembly must never use
+    acmgd, AdWindows, WPF or Windows Forms, or the Core Console refuses to load it. So it does not reference
+    the main agent; it compiles the sheet reader's source files itself.
+  -->
+  <PropertyGroup>
+    <TargetFramework>$(HostTargetFramework)</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>Nexus.Agent.Acad</RootNamespace>
+    <AssemblyName>Nexus.Agent.Acad.Console</AssemblyName>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
+    <!-- Only accoremgd and acdbmgd (see build\AutoCad.targets). -->
+    <AcadCoreOnly>true</AcadCoreOnly>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Nexus.Agent.Acad\Readers\SheetsReader.cs" Link="Shared\SheetsReader.cs" />
+    <Compile Include="..\Nexus.Agent.Acad\Readers\AcadItems.cs" Link="Shared\AcadItems.cs" />
+    <Compile Include="..\Nexus.Agent.Acad\AcadDocumentProvider.cs" Link="Shared\AcadDocumentProvider.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Deployed next to the main agent, which ships these. -->
+    <ProjectReference Include="..\Nexus.Agent.Shared\Nexus.Agent.Shared.csproj" Private="false" />
+    <ProjectReference Include="..\Nexus.Contracts\Nexus.Contracts.csproj" Private="false" />
+  </ItemGroup>
+
+  <Import Project="..\..\build\AutoCad.targets" />
+
+  <Target Name="NexusDeployConsole" AfterTargets="Build" DependsOnTargets="NexusCheckAcadRunning"
+          Condition="'$(NexusAcadDeploy)' == 'true' and '$(_NexusAcadInUse)' != 'true'">
+    <Copy SourceFiles="$(TargetPath);$(TargetDir)$(TargetName).pdb" DestinationFolder="$(AcadBundleContentDir)"
+          SkipUnchangedFiles="true" Retries="0" ContinueOnError="WarnAndContinue" />
+    <Message Importance="high" Text="Nexus: deployed the Core Console part to $(AcadBundleContentDir)" />
+  </Target>
+</Project>

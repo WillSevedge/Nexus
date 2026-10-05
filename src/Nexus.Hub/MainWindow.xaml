@@ -306,6 +306,13 @@
               <TextBlock Text="Read-only · not opened in a program" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
             </StackPanel>
           </DockPanel>
+          <Border Margin="14,2,8,6" Padding="10,8" CornerRadius="6" Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
+                  Visibility="{Binding NeedsRevit, Converter={StaticResource BoolToVis}}">
+            <StackPanel>
+              <TextBlock Text="{Binding NeedsRevitText}" TextWrapping="Wrap" FontSize="12" />
+              <Button Content="Start Revit" Command="{Binding StartRevitCommand}" HorizontalAlignment="Left" Margin="0,8,0,0" />
+            </StackPanel>
+          </Border>
           <ItemsControl ItemsSource="{Binding DiskFiles}" Margin="20,0,8,6">
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="{x:Type vm:DiskFileNode}">

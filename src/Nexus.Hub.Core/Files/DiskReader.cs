@@ -33,6 +33,23 @@ public sealed class DiskReader
         finally { gate.Release(); }
     }
 
+    /// <summary>
+    /// Retries while Revit is busy: a Revit that has just started (Start Revit) takes a while before it takes
+    /// requests, and so does one showing a dialog.
+    /// </summary>
+    private static async Task<T> WhenNotBusyAsync<T>(Func<Task<T>> request, CancellationToken ct)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try { return await request().ConfigureAwait(false); }
+            catch (AgentRequestException ex) when (ex.Code == ErrorCodes.HostBusy && attempt < 6)
+            {
+                HubLog.Info($"Revit is busy; trying again ({attempt}).");
+                await Task.Delay(TimeSpan.FromSeconds(10), ct).ConfigureAwait(false);
+            }
+        }
+    }
+
     /// <summary>The running programs (refreshed by the hub).</summary>
     public Func<IReadOnlyList<AgentConnection>> Programs { get; set; } = () => Array.Empty<AgentConnection>();
 
@@ -76,8 +93,8 @@ public sealed class DiskReader
             result = await OnRevitAsync(revit, async () =>
             {
                 using var copy = await WorkCopy.CreateAsync(file.Path, ct).ConfigureAwait(false);
-                return await revit.ReadFileAsync(new ReadFileRequest { Path = copy.Path, ReaderId = request.ReaderId, Options = request.Options }, ct)
-                    .ConfigureAwait(false);
+                var read = new ReadFileRequest { Path = copy.Path, ReaderId = request.ReaderId, Options = request.Options };
+                return await WhenNotBusyAsync(() => revit.ReadFileAsync(read, ct), ct).ConfigureAwait(false);
             }, ct).ConfigureAwait(false);
         }
         else
@@ -116,7 +133,7 @@ public sealed class DiskReader
                 using var copy = await WorkCopy.CreateAsync(file.Path, ct).ConfigureAwait(false);
                 request.Path = copy.Path;
                 request.DocumentId = null;
-                return await revit.ExportPdfAsync(request, ct).ConfigureAwait(false);
+                return await WhenNotBusyAsync(() => revit.ExportPdfAsync(request, ct), ct).ConfigureAwait(false);
             }, ct).ConfigureAwait(false);
         }
         var install = CoreConsole.Find().FirstOrDefault() ?? throw Fail(ErrorCodes.NotImplemented, CoreConsole.NotInstalled);

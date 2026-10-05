@@ -408,7 +408,7 @@ public sealed partial class MainViewModel : Observable
             var before = CheckedDocumentKeys();
             await RefreshAsync();
             // New program with its active file ticked, or a program closed: reload (unless edits are pending).
-            if (_pendingEdits == 0 && !before.SetEquals(CheckedDocumentKeys())) await LoadAsync(confirm: false);
+            if (_pendingEdits == 0 && (!before.SetEquals(CheckedDocumentKeys()) || RevitArrivedForWaitingModels())) await LoadAsync(confirm: false);
         }
         finally
         {

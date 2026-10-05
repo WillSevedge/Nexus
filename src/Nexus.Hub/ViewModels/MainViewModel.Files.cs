@@ -20,7 +20,58 @@ public sealed partial class MainViewModel
     public ObservableCollection<DiskFileNode> DiskFiles { get; } = new();
     public bool HasDiskFiles => DiskFiles.Count > 0;
 
-    private RelayCommand? _addDiskFiles, _addDiskFolder;
+    private RelayCommand? _addDiskFiles, _addDiskFolder, _startRevit;
+    private bool _revitStarting;
+
+    // ------------------------------------------------------------------ Revit for models on disk
+
+    /// <summary>Ticked Revit models wait for a Revit to read them.</summary>
+    public bool NeedsRevit => DiskFiles.Any(f => f.IsChecked && f.NeedsRevit);
+
+    public string NeedsRevitText
+    {
+        get
+        {
+            int n = DiskFiles.Count(f => f.IsChecked && f.NeedsRevit);
+            var install = RevitInstalls.For(DiskFiles.Where(f => f.NeedsRevit).Max(f => f.File.RevitYear));
+            if (_revitStarting) return $"Starting Revit {install?.Year}… the models are read as soon as it is ready.";
+            return install is null
+                ? $"{n} Revit model{(n == 1 ? "" : "s")} need Revit to be read, and no Revit 2024 or later was found on this PC."
+                : $"{n} Revit model{(n == 1 ? "" : "s")} need Revit to be read. Start Revit {install.Value.Year} (no project needs to be open); Nexus reads them in the background.";
+        }
+    }
+
+    public bool CanStartRevit => !_revitStarting && RevitInstalls.Find().Count > 0;
+
+    public RelayCommand StartRevitCommand => _startRevit ??= new RelayCommand(() =>
+    {
+        var install = RevitInstalls.For(DiskFiles.Where(f => f.NeedsRevit).Max(f => f.File.RevitYear));
+        if (install is null) return Task.CompletedTask;
+        try
+        {
+            RevitInstalls.Start(install.Value.Exe);
+            _revitStarting = true;
+            Status = $"Starting Revit {install.Value.Year}. The Revit models on disk are read when it is ready (this can take a minute).";
+        }
+        catch (Exception ex)
+        {
+            Notify(NoticeKind.Error, $"Could not start Revit {install.Value.Year}", ex.Message);
+        }
+        RaiseNeedsRevit();
+        return Task.CompletedTask;
+    }, () => CanStartRevit);
+
+    private void RaiseNeedsRevit()
+    {
+        Raise(nameof(NeedsRevit));
+        Raise(nameof(NeedsRevitText));
+        Raise(nameof(CanStartRevit));
+    }
+
+    /// <summary>A Revit that reads files has started: read the models that were waiting for it.</summary>
+    private bool RevitArrivedForWaitingModels() =>
+        DiskFiles.Any(f => f.IsChecked && f.NeedsRevit) && _disk.RevitFor(DiskFiles.First(f => f.IsChecked && f.NeedsRevit).File, AgentFeatures.ReadFile) is not null;
+
     public RelayCommand AddDiskFilesCommand => _addDiskFiles ??= new RelayCommand(() => { PickDiskFiles(); return Task.CompletedTask; });
     public RelayCommand AddDiskFolderCommand => _addDiskFolder ??= new RelayCommand(() => { PickDiskFolder(); return Task.CompletedTask; });
 
@@ -134,6 +185,7 @@ public sealed partial class MainViewModel
 
     private void OnDiskChecked(DiskFileNode node)
     {
+        RaiseNeedsRevit();
         SaveDiskFiles();
         _reloadDelay?.Cancel();
         var cts = _reloadDelay = new CancellationTokenSource();
@@ -247,7 +299,10 @@ public sealed partial class MainViewModel
             StepWork(work);
             return run;
         });
-        return (await Task.WhenAll(tasks)).ToList();
+        var runs = (await Task.WhenAll(tasks)).ToList();
+        if (!NeedsRevit) _revitStarting = false;
+        RaiseNeedsRevit();
+        return runs;
     }
 
     private async Task<ResultRun> ReadDiskOneAsync(DiskFileNode node, ReadRequest request, CancellationToken ct)
@@ -262,6 +317,7 @@ public sealed partial class MainViewModel
                 ? await _disk.ReadAsync(file, request, ct, ignoreCache: true)
                 : await _disk.ReadAsync(file, request, ct);
             node.Error = null;
+            node.NeedsRevit = false;
             node.Inspected();
             node.Status = (cached ? "Unchanged since read " : "Read ") + result.ReadUtc.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture);
             HubLog.Info($"File on disk {file.Name}: {request.ReaderId}: {result.Items.Count} items{(cached ? " (unchanged, from the last read)" : "")}");
@@ -269,7 +325,8 @@ public sealed partial class MainViewModel
         }
         catch (AgentRequestException ex)
         {
-            node.Error = ex.Error.Message;
+            node.NeedsRevit = file.IsRevit && ex.Code == ErrorCodes.NotImplemented && _disk.RevitFor(file, AgentFeatures.ReadFile) is null;
+            node.Error = node.NeedsRevit ? "Waiting for Revit (see above)." : ex.Error.Message;
             HubLog.Warn($"File on disk {file.Name}: {ex.Error}");
             return new ResultRun { Host = DiskHost(file), DocumentTitle = file.Name, ReaderId = request.ReaderId, Request = request, Error = ex.Error, Disk = file };
         }

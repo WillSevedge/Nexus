@@ -52,7 +52,7 @@ jobs:
       - name: Build Revit, AutoCAD, Civil 3D and Plant 3D add-ins
         shell: pwsh
         run: |
-          foreach ($p in 'Nexus.Agent.Revit','Nexus.Agent.Acad','Nexus.Agent.Acad.Civil3D','Nexus.Agent.Acad.Plant3D') {
+          foreach ($p in 'Nexus.Agent.Revit','Nexus.Agent.Acad','Nexus.Agent.Acad.Civil3D','Nexus.Agent.Acad.Plant3D','Nexus.Agent.Acad.Console') {
             dotnet build "src/$p/$p.csproj" --configuration Release -p:HostYear=${{ matrix.year }} -p:DeployToHost=false
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }

@@ -25,7 +25,7 @@ set FAILED=
 for %%Y in (%YEARS%) do (
   echo.
   echo ==== %%Y ====
-  for %%P in (Nexus.Agent.Revit Nexus.Agent.Acad Nexus.Agent.Acad.Civil3D Nexus.Agent.Acad.Plant3D) do (
+  for %%P in (Nexus.Agent.Revit Nexus.Agent.Acad Nexus.Agent.Acad.Civil3D Nexus.Agent.Acad.Plant3D Nexus.Agent.Acad.Console) do (
     dotnet build "%ROOT%\src\%%P\%%P.csproj" -c Release -p:HostYear=%%Y "-p:NexusStageDir=%STAGE%" -nologo -v:minimal
     if errorlevel 1 set FAILED=!FAILED! %%P-%%Y
   )
