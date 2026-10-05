@@ -15,7 +15,21 @@
     <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
     <!-- Only accoremgd and acdbmgd (see build\AutoCad.targets). -->
     <AcadCoreOnly>true</AcadCoreOnly>
+    <!--
+      AutoCAD's core libraries were compiled against the Windows Desktop versions of WindowsBase,
+      System.Drawing and Microsoft.VisualBasic: reference them for compiling (avoids MSB3277). Nothing here
+      uses them, so the built assembly still references only accoremgd and acdbmgd.
+    -->
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Same implicit usings as the main agent: no WPF/Forms namespaces (Application, Path clashes). -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+    <Using Include="System.IO" />
+  </ItemGroup>
 
   <ItemGroup>
     <Compile Include="..\Nexus.Agent.Acad\Readers\SheetsReader.cs" Link="Shared\SheetsReader.cs" />
