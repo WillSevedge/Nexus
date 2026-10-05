@@ -23,6 +23,7 @@ internal sealed class RevitDocumentProvider : IDocumentProvider<Document>
         var list = new List<DocumentInfo>();
         foreach (Document doc in app.Application.Documents)
         {
+            if (RevitFiles.IsWorkCopy(doc)) continue; // a file on disk Nexus is reading in the background
             var info = Describe(doc);
             info.IsActive = active is not null && Id(active) == info.Id;
             list.Add(info);

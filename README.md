@@ -411,6 +411,39 @@ was; cancelling an apply stops before the next file (the file being written fini
 Problems and results appear in an info bar above the table instead of pop-ups; questions (discard changes, write
 to Excel) use the hub's own dialogs.
 
+### Files on disk (read-only)
+
+Read Revit models and drawings **without opening them** — from Autodesk Docs / Forma through Desktop Connector
+(`%USERPROFILE%\DC\ACCDocs\...`), a network share, or any folder. Under **Files › On Disk** use *Add files* or
+*Add folder* (or drop files/folders on the window). Ticked files load into the grid with the open files, can be
+searched, compared with Excel and exported like any other rows, and are **always read-only** (edits are blocked).
+
+- **How**: Nexus copies the file to `%LOCALAPPDATA%\Nexus\offline\work` and reads the copy, so the original is
+  never opened, locked or changed (and nothing is synced back by Desktop Connector). The copy is deleted afterwards.
+  - **Revit models** are opened in the background by a running Revit (same release or newer; no project needs to be
+    open), detached from central when workshared, read, and closed without saving. Nothing appears in Revit.
+  - **Drawings** are read by AutoCAD's Core Console (`accoreconsole.exe`, AutoCAD without a window), installed with
+    AutoCAD, Civil 3D and Plant 3D 2024+. AutoCAD does not need to be running. Sheets only (layouts + title block).
+- **Fast again**: results are kept in `%LOCALAPPDATA%\Nexus\offline\cache`; a file is only read again when it
+  changes (right-click › *Read again* to force it).
+- If AutoCAD asks whether to load the Nexus add-in (SECURELOAD), add the `Nexus.bundle\Contents\<year>` folder to
+  *Options › Files › Trusted Locations*.
+
+### Print & PDF
+
+**Print & PDF** on the command bar (Sheets view) works on the selected sheets, or every sheet shown, from open files
+and files on disk alike:
+
+- **Create PDFs**: made by the programs themselves — Revit's PDF export (each sheet at its title block size) and
+  AutoCAD's *DWG To PDF* with each layout's own page setup (plot area, scale, plot style; same paper size, or the
+  closest). Open Revit models include unsaved changes; drawings are made from their saved file. Name files with
+  `{Number}`, `{Name}`, `{File}`, and optionally combine everything into one PDF.
+- **Preview**: each sheet is shown in the window (Windows' own PDF renderer; no PDF program needed). Click it to
+  open the PDF.
+- **Print…**: any printer; each sheet is turned to fit and scaled to the paper picked in the print dialog
+  (half-size sets, check prints), or printed on its own paper size for plotters. Printing sends the sheet as a
+  300 dpi image; for full vector plots send the PDFs from your plotter software.
+
 ### Excel link
 
 Link your sheet index or template once; Nexus remembers it (per workbook) and compares it with the model.

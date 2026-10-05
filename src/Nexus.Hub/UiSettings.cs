@@ -5,6 +5,12 @@ using Nexus.Hub.Core;
 
 namespace Nexus.Hub;
 
+internal sealed class DiskFileSetting
+{
+    public string Path { get; set; } = "";
+    public bool Checked { get; set; } = true;
+}
+
 /// <summary>Per-user hub preferences: last dataset, visible columns per dataset, active Excel link.</summary>
 internal sealed class UiSettings
 {
@@ -13,6 +19,12 @@ internal sealed class UiSettings
     public string? LastDataset { get; set; }
     public Dictionary<string, List<string>> VisibleColumns { get; set; } = new();
     public string? ExcelWorkbook { get; set; }
+    /// <summary>Files on disk added to Files (read without opening them), with their tick.</summary>
+    public List<DiskFileSetting> DiskFiles { get; set; } = new();
+    /// <summary>Print &amp; PDF: last output folder and file name pattern.</summary>
+    public string? PdfFolder { get; set; }
+    public string? PdfNamePattern { get; set; }
+    public string? LastDiskFolder { get; set; }
 
     /// <summary>
     /// Version of the default Sheets columns. When the defaults change, the saved column choice for

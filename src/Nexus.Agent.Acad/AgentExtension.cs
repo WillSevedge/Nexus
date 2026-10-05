@@ -10,6 +10,7 @@ using AcApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 
 [assembly: ExtensionApplication(typeof(Nexus.Agent.Acad.AgentExtension))]
 [assembly: CommandClass(typeof(Nexus.Agent.Acad.AgentCommands))]
+[assembly: CommandClass(typeof(Nexus.Agent.Acad.HeadlessCommands))]
 
 namespace Nexus.Agent.Acad;
 
@@ -38,6 +39,16 @@ public sealed class AgentExtension : IExtensionApplication
         Instance = this;
         // 2024 (.NET Framework): load our own copies of the libraries we ship if the program has others.
         Compat.ResolveDependenciesFrom(System.IO.Path.GetDirectoryName(typeof(Compat).Assembly.Location) ?? AppContext.BaseDirectory);
+        // Started by the hub in AutoCAD's Core Console to read a file on disk: no agent, no ribbon; the
+        // NEXUSJOB command does the work.
+        if (HeadlessCommands.IsHeadless) return;
+        StartAgent();
+    }
+
+    /// <summary>Kept out of <see cref="Initialize"/> so the Core Console never loads the ribbon's libraries.</summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private void StartAgent()
+    {
         try
         {
             string dir = Path.GetDirectoryName(typeof(AgentExtension).Assembly.Location) ?? AppContext.BaseDirectory;
