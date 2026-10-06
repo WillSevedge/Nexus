@@ -52,6 +52,8 @@ internal sealed class RevitFiles : IFileOpener<Document>, IPdfExporter<Document>
         }
 
         log.Info($"Opening {path} in the background (Revit {info.Format} file, workshared: {info.IsWorkshared}).");
+        var dialogs = new List<string>();
+        void OnDialog(object? sender, DialogBoxShowingEventArgs e) => Answer(e, dialogs, log);
         uiapp.DialogBoxShowing += OnDialog;
         try
         {
@@ -63,7 +65,8 @@ internal sealed class RevitFiles : IFileOpener<Document>, IPdfExporter<Document>
         catch (AgentException) { throw; }
         catch (Exception ex)
         {
-            throw new AgentException(ErrorCodes.InternalError, $"Revit could not open {System.IO.Path.GetFileName(path)}: {ex.Message}");
+            string shown = dialogs.Count == 0 ? "" : $" Revit asked: {string.Join("; ", dialogs)}";
+            throw new AgentException(ErrorCodes.InternalError, $"Revit could not open {System.IO.Path.GetFileName(path)}: {ex.Message}{shown}");
         }
         finally
         {
@@ -71,28 +74,40 @@ internal sealed class RevitFiles : IFileOpener<Document>, IPdfExporter<Document>
         }
     }
 
-    /// <summary>Answers the questions Revit asks while opening (missing links and the like): carry on opening.</summary>
-    private static void OnDialog(object? sender, DialogBoxShowingEventArgs e)
+    /// <summary>
+    /// Questions Revit asks while opening. Only answers Nexus knows are safe are given (keep opening without
+    /// missing links); anything else is left on screen for the person at Revit, because the wrong answer can
+    /// cancel the open. Every question is written to the log.
+    /// </summary>
+    private static void Answer(DialogBoxShowingEventArgs e, List<string> seen, AgentLog log)
     {
+        string id = e.DialogId ?? "";
+        string message = e switch
+        {
+            TaskDialogShowingEventArgs td => td.Message ?? "",
+            MessageBoxShowingEventArgs mb => mb.Message ?? "",
+            _ => "",
+        };
+        message = message.Replace("\r", " ").Replace("\n", " ").Trim();
+        seen.Add(id.Length > 0 ? $"{id} ({Shorten(message)})" : Shorten(message));
         try
         {
-            if (e is TaskDialogShowingEventArgs td)
+            // "Ignore and continue opening the project" on the unresolved references (missing links) dialog.
+            if (id == "TaskDialog_Unresolved_References")
             {
-                // "Ignore and continue opening the project" on the unresolved references dialog.
-                if (td.DialogId == "TaskDialog_Unresolved_References") td.OverrideResult(1002);
-                else td.OverrideResult((int)Autodesk.Revit.UI.TaskDialogResult.Close);
-            }
-            else if (e is MessageBoxShowingEventArgs mb)
-            {
-                mb.OverrideResult(1); // OK
-            }
-            else
-            {
-                e.OverrideResult(1);
+                e.OverrideResult(1002);
+                log.Info($"While opening: {id}: answered 'Ignore and continue opening'.");
+                return;
             }
         }
-        catch { /* the dialog stays for the user */ }
+        catch (Exception ex)
+        {
+            log.Warn($"Could not answer {id}.", ex);
+        }
+        log.Info($"While opening, Revit asked (left for the user): {(id.Length > 0 ? id : e.GetType().Name)}: {message}");
     }
+
+    private static string Shorten(string text) => text.Length > 120 ? text.Substring(0, 120) + "…" : text;
 
     public void Close(Document document, AgentLog log)
     {

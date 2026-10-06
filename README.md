@@ -421,7 +421,8 @@ searched, compared with Excel and exported like any other rows, and are **always
 
 - **How**: Nexus copies the file to `%LOCALAPPDATA%\Nexus\offline\work` and reads the copy, so the original is
   never opened, locked or changed (and nothing is synced back by Desktop Connector). The copy is deleted afterwards.
-  - **Revit models** are opened in the background by a running Revit (same release or newer; no project needs to be
+  - **Revit models** are only read when you allow it (*⋯ › Let Revit open Revit models to read them*; off by
+    default), because Revit is the only program that can read them. When allowed, they are opened in the background by a running Revit (same release or newer; no project needs to be
     open), detached from central when workshared, read, and closed without saving. Nothing appears in Revit.
     When no Revit is running, **Start Revit** under On Disk starts one; the models are read as soon as it is ready.
     Models from an older release are upgraded in memory only (slower the first time; the result is kept).

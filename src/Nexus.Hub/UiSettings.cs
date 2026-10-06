@@ -25,6 +25,8 @@ internal sealed class UiSettings
     public string? PdfFolder { get; set; }
     public string? PdfNamePattern { get; set; }
     public string? LastDiskFolder { get; set; }
+    /// <summary>Files on disk: let a running Revit open a copy of a Revit model to read it. Off unless turned on.</summary>
+    public bool AllowRevitToOpenModels { get; set; }
 
     /// <summary>
     /// Version of the default Sheets columns. When the defaults change, the saved column choice for

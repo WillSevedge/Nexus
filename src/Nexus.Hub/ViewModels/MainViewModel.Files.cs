@@ -25,6 +25,28 @@ public sealed partial class MainViewModel
 
     // ------------------------------------------------------------------ Revit for models on disk
 
+    /// <summary>
+    /// Whether a running Revit may open a copy of a Revit model on disk (in the background) to read it.
+    /// Off by default: Revit models are the only files that need their program to open them.
+    /// </summary>
+    public bool AllowRevitToOpenModels
+    {
+        get => _settings.AllowRevitToOpenModels;
+        set
+        {
+            if (_settings.AllowRevitToOpenModels == value) return;
+            _settings.AllowRevitToOpenModels = value;
+            _settings.Save();
+            Raise();
+            if (!value) foreach (var f in DiskFiles) f.NeedsRevit = false;
+            RaiseNeedsRevit();
+            Status = value
+                ? "Revit may now open copies of Revit models on disk to read them (in the background, never saved)."
+                : "Revit will not open Revit models any more. Models read before still show what was read.";
+            _ = LoadAsync();
+        }
+    }
+
     /// <summary>Ticked Revit models wait for a Revit to read them.</summary>
     public bool NeedsRevit => DiskFiles.Any(f => f.IsChecked && f.NeedsRevit);
 
@@ -79,6 +101,7 @@ public sealed partial class MainViewModel
     private void RestoreDiskFiles()
     {
         _disk.Programs = () => _programs;
+        _disk.MayOpenRevit = () => _settings.AllowRevitToOpenModels;
         WorkCopy.CleanUp();
         foreach (var saved in _settings.DiskFiles.Where(f => f.Path.Length > 0))
             AddDiskNode(saved.Path, saved.Checked);
@@ -374,13 +397,13 @@ public sealed partial class MainViewModel
             StepWork(work);
             return run;
         });
-        var runs = (await Task.WhenAll(tasks)).ToList();
+        var runs = (await Task.WhenAll(tasks)).OfType<ResultRun>().ToList();
         if (!NeedsRevit) _revitStarting = false;
         RaiseNeedsRevit();
         return runs;
     }
 
-    private async Task<ResultRun> ReadDiskOneAsync(DiskFileNode node, ReadRequest request, CancellationToken ct)
+    private async Task<ResultRun?> ReadDiskOneAsync(DiskFileNode node, ReadRequest request, CancellationToken ct)
     {
         var file = node.File;
         node.IsBusy = true;
@@ -397,6 +420,14 @@ public sealed partial class MainViewModel
             node.Status = (cached ? "Unchanged since read " : "Read ") + result.ReadUtc.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture);
             HubLog.Info($"File on disk {file.Name}: {request.ReaderId}: {result.Items.Count} items{(cached ? " (unchanged, from the last read)" : "")}");
             return new ResultRun { Host = DiskHost(file), DocumentTitle = file.Name, ReaderId = request.ReaderId, Request = request, Result = result, Disk = file };
+        }
+        catch (AgentRequestException ex) when (ex.Code == DiskReader.RevitNotAllowed)
+        {
+            // Not an error: the user chose not to let Revit open models. Shown under the file, not as a failure.
+            node.NeedsRevit = false;
+            node.Error = null;
+            node.Status = "Not read (Revit does not open models; see the ⋯ menu)";
+            return null;
         }
         catch (AgentRequestException ex)
         {

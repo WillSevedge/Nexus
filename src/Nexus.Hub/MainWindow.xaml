@@ -310,6 +310,9 @@
                     <MenuItem Header="Remove files that failed" Click="OnDiskRemoveFailed" />
                     <Separator />
                     <MenuItem Header="Read every file again" Click="OnDiskReadAllAgain" />
+                    <MenuItem Header="Let Revit open Revit models to read them" IsCheckable="True"
+                              IsChecked="{Binding AllowRevitToOpenModels, Mode=TwoWay}"
+                              ToolTip="Off: Revit models on disk are not read (Revit is the only program that can read them, by opening a copy in the background). Drawings are read either way, without AutoCAD." />
                     <MenuItem Header="Replace with other files…" Click="OnDiskReplaceFiles" />
                     <MenuItem Header="Replace with a folder…" Click="OnDiskReplaceFolder" />
                     <MenuItem Header="Remove all files on disk…" Click="OnDiskRemoveAll" />
