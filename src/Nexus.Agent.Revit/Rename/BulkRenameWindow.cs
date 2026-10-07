@@ -358,7 +358,7 @@ internal sealed class BulkRenameWindow
         var box = _lastText;
         if (box is null)
         {
-            _summary.Text = "Click in a text box of a panel first (Add › Prefix, Name › Fixed...), then insert the token.";
+            _summary.Text = "Click in a text box of a panel first (Add › Prefix, Name › Fixed...), then insert the Revit value.";
             return;
         }
         int at = Math.Min(box.CaretIndex, box.Text.Length);

@@ -200,7 +200,7 @@
           <StackPanel>
             <CheckBox Style="{StaticResource CardTitle}" Content="2 · Name" IsChecked="{Binding Name.Enabled}" />
             <ComboBox x:Name="NameModeCombo" SelectedValue="{Binding Name.Mode}" />
-            <TextBox Text="{Binding Name.Fixed, UpdateSourceTrigger=PropertyChanged}" ToolTip="Fixed: the new name. Use tokens such as {Level} or {Sheet Number}." />
+            <TextBox Text="{Binding Name.Fixed, UpdateSourceTrigger=PropertyChanged}" ToolTip="Fixed: the new name. Revit values such as {Level} or {Sheet Number} work (Insert Revit value)." />
           </StackPanel>
         </Border>
 
@@ -274,13 +274,13 @@
               <Grid.ColumnDefinitions><ColumnDefinition Width="50" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="40" /></Grid.ColumnDefinitions>
               <Grid.RowDefinitions><RowDefinition /><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
               <TextBlock Text="Prefix" Style="{StaticResource Label}" />
-              <TextBox Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Add.Prefix, UpdateSourceTrigger=PropertyChanged}" ToolTip="Text before the name; tokens such as {Level} work" />
+              <TextBox Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Add.Prefix, UpdateSourceTrigger=PropertyChanged}" ToolTip="Text before the name; Revit values such as {Level} work (Insert Revit value)" />
               <TextBlock Grid.Row="1" Text="Insert" Style="{StaticResource Label}" />
               <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Add.Insert, UpdateSourceTrigger=PropertyChanged}" />
               <TextBlock Grid.Row="1" Grid.Column="2" Text="at" Style="{StaticResource Label}" Margin="6,0,6,0" />
               <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding Add.AtPosition, UpdateSourceTrigger=PropertyChanged}" ToolTip="1 = before the first character; -1 = at the end" />
               <TextBlock Grid.Row="2" Text="Suffix" Style="{StaticResource Label}" />
-              <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Add.Suffix, UpdateSourceTrigger=PropertyChanged}" ToolTip="Text after the name; tokens such as {Sheet Number} work" />
+              <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Add.Suffix, UpdateSourceTrigger=PropertyChanged}" ToolTip="Text after the name; Revit values such as {Sheet Number} work (Insert Revit value)" />
             </Grid>
             <CheckBox Content="Space between words (FloorPlan → Floor Plan)" IsChecked="{Binding Add.WordSpace}" />
           </StackPanel>
@@ -338,7 +338,7 @@
         <Button x:Name="CloseButton" Content="Close" IsCancel="True" MinWidth="80" />
       </StackPanel>
       <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
-        <Button x:Name="TokenButton" Content="Insert token ▾" ToolTip="Insert a token such as {Level} or any parameter into the text box you were typing in" Margin="0,0,12,0" />
+        <Button x:Name="TokenButton" Content="Insert Revit value ▾" ToolTip="Put a Revit value such as {Level}, {Sheet Number} or any parameter into the text box you were typing in. Each item gets its own value." Margin="0,0,12,0" />
         <TextBlock Text="Preset" Style="{StaticResource Label}" />
         <ComboBox x:Name="PresetCombo" Width="170" IsEditable="True" ToolTip="Type a name to save, or pick one to load" />
         <Button x:Name="LoadPresetButton" Content="Load" Margin="4,0,0,0" />

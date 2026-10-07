@@ -200,8 +200,9 @@ error instead of waiting forever.
   typed) · 5 Remove (first/last, from–to, characters, words, crop before/after, digits, symbols, accents, spaces)
   · 6 Add (prefix, insert at, suffix, space between words) · 7 Numbering (start, step, digits, separator, letters,
   restart per value such as `{Level}`) · 8 Filter (wildcards or RegEx, not matching).
-- **Tokens**: `{Level}`, `{Sheet Number}`, `{View Type}`, `{Family}`, `{Type}`, `{Scale}`... or any parameter
-  name (*Insert token*), in Name, Replace › With, Add and Numbering › Restart.
+- **Revit values** (*Insert Revit value*): `{Level}`, `{Sheet Number}`, `{View Type}`, `{Family}`, `{Type}`,
+  `{Scale}`... or any parameter name, in Name, Replace › With, Add and Numbering › Restart. Each item gets its own
+  value: Add › Prefix `{Level} - ` turns "Floor Plan" into "Level 1 - Floor Plan".
 - **Preview**: every new name and what will happen. Names Revit would refuse are flagged before anything changes:
   characters Revit does not allow, empty names, names already used (per view type, level, family...), and
   elements owned by other users. Numbering follows the list order: click a column to sort.

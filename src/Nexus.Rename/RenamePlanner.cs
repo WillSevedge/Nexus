@@ -91,7 +91,7 @@ public static class RenamePlanner
                 draft.Add((item, item.Current, RenameStatus.Invalid, "The regular expression is not valid: " + ex.Message));
                 continue;
             }
-            string? note = missing.Count > 0 ? $"No value for {string.Join(", ", missing.Select(m => "{" + m + "}"))}." : null;
+            string? note = missing.Count > 0 ? $"This item has no value for {string.Join(", ", missing.Select(m => "{" + m + "}"))} (left blank)." : null;
 
             if (name == item.Current) draft.Add((item, name, RenameStatus.Unchanged, note));
             else if (item.Locked is not null) draft.Add((item, name, RenameStatus.Locked, item.Locked));
