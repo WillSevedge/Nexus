@@ -60,7 +60,7 @@ public sealed class DiskReader
     public Func<bool> MayOpenRevit { get; set; } = () => false;
 
     private const string NotAllowedText =
-        "Not read: Revit models can only be read by Revit opening them, and that is turned off (On Disk menu).";
+        "Not read: Revit models can only be read by Revit opening them, and that is turned off (⋯ › Files on disk).";
 
     /// <summary>The running programs (refreshed by the hub).</summary>
     public Func<IReadOnlyList<AgentConnection>> Programs { get; set; } = () => Array.Empty<AgentConnection>();
@@ -140,7 +140,7 @@ public sealed class DiskReader
         if (file.Changed()) await Task.Run(file.Inspect, ct).ConfigureAwait(false);
         if (file.IsRevit)
         {
-            if (!MayOpenRevit()) throw Fail(RevitNotAllowed, "PDFs of Revit models on disk need Revit to open the model, and that is turned off (On Disk menu).");
+            if (!MayOpenRevit()) throw Fail(RevitNotAllowed, "PDFs of Revit models on disk need Revit to open the model, and that is turned off (⋯ › Files on disk).");
             var revit = RevitFor(file, AgentFeatures.ExportPdf) ?? throw Fail(ErrorCodes.NotImplemented, NoRevit(file));
             return await OnRevitAsync(revit, async () =>
             {

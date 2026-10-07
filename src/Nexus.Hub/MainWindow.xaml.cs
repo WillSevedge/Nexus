@@ -244,6 +244,7 @@ public partial class MainWindow : Window
         Command("Review & apply changes", "\uE73E", _vm.ApplyChangesCommand, _vm.PendingText, "save write commit apply");
         Action("Print & PDF", "\uE749", OpenPrint, "PDFs, preview and printing of the sheets shown", "plot print pdf publish preview batch", _vm.IsSheetsView);
         Action("Add files on disk…", "\uE8E5", () => _vm.AddDiskFilesCommand.Execute(null), "Read Revit models and drawings without opening them", "desktop connector forma docs closed offline read only");
+        Action("Add a folder on disk…", "\uE8F4", () => _vm.AddDiskFolderCommand.Execute(null), "Every drawing (and Revit model) in a folder, read-only", "desktop connector forma docs closed offline folder");
         Command("Discard changes", "\uE7A7", _vm.DiscardChangesCommand, "Undo every edit not applied yet", "undo revert cancel");
         Action("Rename & Renumber…", "\uE8AC", OpenRename, "Sheet numbers and names of the selected sheets, or every sheet shown", "renumber sequence replace find case prefix suffix sheet number name");
         Action("Sheet health", "\uE95E", () => _vm.Health.IsOpen = true, _vm.Health.Summary, "check qa qc issues errors duplicates", _vm.Health.IsAvailable);

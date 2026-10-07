@@ -426,13 +426,13 @@ public sealed partial class MainViewModel
             // Not an error: the user chose not to let Revit open models. Shown under the file, not as a failure.
             node.NeedsRevit = false;
             node.Error = null;
-            node.Status = "Not read (Revit does not open models; see the ⋯ menu)";
+            node.Status = "Not read (Revit models need Revit; ⋯ › Files on disk)";
             return null;
         }
         catch (AgentRequestException ex)
         {
             node.NeedsRevit = file.IsRevit && ex.Code == ErrorCodes.NotImplemented && _disk.RevitFor(file, AgentFeatures.ReadFile) is null;
-            node.Error = node.NeedsRevit ? "Waiting for Revit (see above)." : ex.Error.Message;
+            node.Error = node.NeedsRevit ? "Waiting for Revit (Start Revit above)." : ex.Error.Message;
             HubLog.Warn($"File on disk {file.Name}: {ex.Error}");
             return new ResultRun { Host = DiskHost(file), DocumentTitle = file.Name, ReaderId = request.ReaderId, Request = request, Error = ex.Error, Disk = file };
         }
