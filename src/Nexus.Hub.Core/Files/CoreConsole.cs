@@ -49,8 +49,10 @@ public static class CoreConsole
         job.ResultPath = Path.Combine(workFolder, "nexus-result.json");
         await File.WriteAllTextAsync(jobPath, JsonSerializer.Serialize(job, Json.Options), ct).ConfigureAwait(false);
         string script = Path.Combine(workFolder, "nexus-job.scr");
-        // NETLOAD asks for the file on the command line (FILEDIA is off in the console); then run the job.
-        await File.WriteAllTextAsync(script, $"_.NETLOAD\n\"{install.AgentDll}\"\nNEXUSJOB\n", ct).ConfigureAwait(false);
+        // The autoloader normally has the add-in loaded already (it is in the Nexus bundle): run the job. If not,
+        // NETLOAD it (the file is asked for on the command line; FILEDIA is off in the console) and run again;
+        // a job that already ran does nothing the second time.
+        await File.WriteAllTextAsync(script, $"NEXUSJOB\n_.NETLOAD\n\"{install.AgentDll}\"\nNEXUSJOB\n", ct).ConfigureAwait(false);
 
         var psi = new ProcessStartInfo(install.Exe)
         {
@@ -121,8 +123,11 @@ public static class CoreConsole
             string tail;
             lock (output) tail = Tail(output.ToString());
             HubLog.Warn($"Core Console output for {Path.GetFileName(drawing)}:\n{tail}");
-            throw Failure($"AutoCAD {install.Year} could not run the Nexus add-in on this drawing. " +
-                          $"The last lines it wrote: {tail.Replace(Environment.NewLine, " ").Trim()}");
+            string hint = tail.IndexOf("Unable to load", StringComparison.OrdinalIgnoreCase) >= 0
+                ? $" AutoCAD would not load {Path.GetFileName(install.AgentDll)}: rebuild the solution with AutoCAD closed, then if it still fails add " +
+                  $"{Path.GetDirectoryName(install.AgentDll)} to AutoCAD's Options › Files › Trusted Locations."
+                : "";
+            throw Failure($"AutoCAD {install.Year} could not make the PDFs.{hint} The last lines it wrote: {tail.Replace(Environment.NewLine, " ").Trim()}");
         }
         var result = JsonSerializer.Deserialize<HeadlessJobResult>(await File.ReadAllTextAsync(job.ResultPath, ct).ConfigureAwait(false), Json.Options)
                      ?? throw Failure("The add-in wrote an empty result.");

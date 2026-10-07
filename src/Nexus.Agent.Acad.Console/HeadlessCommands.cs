@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
-using Nexus.Agent;
 using Nexus.Contracts;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -26,7 +25,10 @@ public sealed class HeadlessCommands
     {
         string? jobPath = Environment.GetEnvironmentVariable(HeadlessJob.EnvironmentVariable);
         if (string.IsNullOrEmpty(jobPath) || !File.Exists(jobPath)) return;
-        var log = new AgentLog("acad-files");
+        // The hub's script runs NEXUSJOB, and again after NETLOAD in case the autoloader did not load this
+        // assembly: the second run finds the result and does nothing.
+        if (File.Exists(Path.ChangeExtension(jobPath, ".done"))) return;
+        var log = new ConsoleLog();
         var result = new HeadlessJobResult
         {
             Product = "AutoCAD",
@@ -51,6 +53,7 @@ public sealed class HeadlessCommands
         {
             string target = job?.ResultPath is { Length: > 0 } p ? p : Path.ChangeExtension(jobPath, ".result.json");
             File.WriteAllText(target, JsonSerializer.Serialize(result, Nexus.Contracts.Json.Options));
+            File.WriteAllText(Path.ChangeExtension(jobPath, ".done"), "");
         }
         catch (System.Exception ex)
         {
@@ -66,7 +69,7 @@ public sealed class HeadlessCommands
     /// One PDF per layout with the layout's own page setup (plot area, scale, plot style, rotation), sent to
     /// AutoCAD's "DWG To PDF" with the same paper size (by name, else the closest size).
     /// </summary>
-    private static ExportPdfResult Plot(Document doc, ExportPdfRequest request, AgentLog log)
+    private static ExportPdfResult Plot(Document doc, ExportPdfRequest request, ConsoleLog log)
     {
         var result = new ExportPdfResult();
         var sw = Stopwatch.StartNew();
@@ -123,7 +126,7 @@ public sealed class HeadlessCommands
         return result;
     }
 
-    private static void PlotLayout(Layout layout, string target, AgentLog log)
+    private static void PlotLayout(Layout layout, string target, ConsoleLog log)
     {
         if (PlotFactory.ProcessPlotState != ProcessPlotState.NotPlotting)
             throw new InvalidOperationException("Another plot is running.");
@@ -181,5 +184,31 @@ public sealed class HeadlessCommands
             catch { /* skip */ }
         }
         return best;
+    }
+}
+
+/// <summary>A small log for the Core Console part (%LOCALAPPDATA%\Nexus\logs\acad-pdf-*.log).</summary>
+internal sealed class ConsoleLog
+{
+    private readonly string _path;
+
+    public ConsoleLog()
+    {
+        _path = Path.Combine(NexusPaths.LogsDir, $"acad-pdf-{DateTime.Now:yyyyMMdd}.log");
+        try { Directory.CreateDirectory(NexusPaths.LogsDir); } catch { /* ignored */ }
+    }
+
+    public void Info(string message) => Write("INFO ", message, null);
+    public void Warn(string message, System.Exception? ex = null) => Write("WARN ", message, ex);
+    public void Error(string message, System.Exception? ex = null) => Write("ERROR", message, ex);
+
+    private void Write(string level, string message, System.Exception? ex)
+    {
+        try
+        {
+            File.AppendAllText(_path, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {level} [{Process.GetCurrentProcess().Id}] {message}"
+                                      + (ex is null ? "" : Environment.NewLine + ex) + Environment.NewLine);
+        }
+        catch { /* never fail the job for the log */ }
     }
 }

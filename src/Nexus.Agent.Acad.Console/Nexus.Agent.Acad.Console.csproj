@@ -3,8 +3,10 @@
     Runs inside AutoCAD's Core Console (accoreconsole.exe, AutoCAD without a window), started by the hub's
     Print & PDF to make PDFs of a drawing's layouts from its saved file (NEXUSJOB command).
     The Core Console only has AutoCAD's core libraries (accoremgd, acdbmgd): this assembly must never use
-    acmgd, AdWindows, WPF or Windows Forms, or the Core Console refuses to load it. So it does not reference
-    the main agent.
+    acmgd, AdWindows, WPF or Windows Forms, or the Core Console refuses to load it. It is self-contained: it
+    references no other Nexus assembly (the few shared types are compiled in), so loading it depends on nothing
+    but AutoCAD. It is listed in the bundle (loaded by the autoloader, a trusted way); the hub NETLOADs it only
+    when the Core Console did not.
   -->
   <PropertyGroup>
     <TargetFramework>$(HostTargetFramework)</TargetFramework>
@@ -32,9 +34,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Deployed next to the main agent, which ships these. -->
-    <ProjectReference Include="..\Nexus.Agent.Shared\Nexus.Agent.Shared.csproj" Private="false" />
-    <ProjectReference Include="..\Nexus.Contracts\Nexus.Contracts.csproj" Private="false" />
+    <!-- The job and result shapes shared with the hub, compiled in (no Nexus.Contracts.dll needed). -->
+    <Compile Include="..\Nexus.Contracts\FileModels.cs" Link="Shared\FileModels.cs" />
+    <Compile Include="..\Nexus.Contracts\Json.cs" Link="Shared\Json.cs" />
+    <Compile Include="..\Nexus.Contracts\NexusPaths.cs" Link="Shared\NexusPaths.cs" />
   </ItemGroup>
 
   <Import Project="..\..\build\AutoCad.targets" />
