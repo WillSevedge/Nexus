@@ -13,6 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Nexus.Agent.Shared\Nexus.Agent.Shared.csproj" />
     <ProjectReference Include="..\..\src\Nexus.Hub.Core\Nexus.Hub.Core.csproj" />
+    <ProjectReference Include="..\..\src\Nexus.Rename\Nexus.Rename.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
