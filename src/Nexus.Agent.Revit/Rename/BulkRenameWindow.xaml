@@ -1,0 +1,351 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Nexus - Bulk Rename" Width="1420" Height="900" MinWidth="1000" MinHeight="620"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource WindowBg}" Foreground="{DynamicResource Text}" FontSize="12.5">
+  <Window.Resources>
+    <Style x:Key="Card" TargetType="Border">
+      <Setter Property="Background" Value="{DynamicResource PanelBg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Line}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="10,8,10,10" />
+      <Setter Property="Margin" Value="0,0,8,8" />
+      <Setter Property="Width" Value="262" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+    <Style x:Key="CardTitle" TargetType="CheckBox">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource Text}" />
+      <Setter Property="Margin" Value="0,0,0,6" />
+    </Style>
+    <Style x:Key="Label" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Margin" Value="0,0,8,0" />
+    </Style>
+    <Style TargetType="TextBox">
+      <Setter Property="Padding" Value="3,2" />
+      <Setter Property="Margin" Value="0,2" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style TargetType="ComboBox">
+      <Setter Property="Margin" Value="0,2" />
+    </Style>
+    <Style TargetType="CheckBox">
+      <Setter Property="Foreground" Value="{DynamicResource Text}" />
+      <Setter Property="Margin" Value="0,3,10,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style TargetType="Button">
+      <Setter Property="Padding" Value="12,4" />
+      <Setter Property="MinHeight" Value="26" />
+    </Style>
+    <Style x:Key="Accent" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Background" Value="{DynamicResource Accent}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </Window.Resources>
+
+  <Grid Margin="14,12,14,12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" MinHeight="200" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <!-- Header -->
+    <DockPanel Grid.Row="0" Margin="0,0,0,10">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+        <TextBlock Text="Rename" Style="{StaticResource Label}" />
+        <ComboBox x:Name="ScopeCombo" Width="230" />
+      </StackPanel>
+      <StackPanel>
+        <TextBlock Text="Bulk Rename" FontSize="20" FontWeight="SemiBold" />
+        <TextBlock x:Name="DocText" Foreground="{DynamicResource TextDim}" />
+      </StackPanel>
+    </DockPanel>
+
+    <!-- What to rename + preview -->
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="250" MinWidth="180" />
+        <ColumnDefinition Width="8" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <Border Grid.Column="0" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="6">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="What to rename" FontWeight="SemiBold" Margin="10,8,10,4" />
+          <ListBox x:Name="TargetsList" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource Text}"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.GroupStyle>
+              <GroupStyle>
+                <GroupStyle.HeaderTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextDim}" Margin="4,8,0,2" />
+                  </DataTemplate>
+                </GroupStyle.HeaderTemplate>
+              </GroupStyle>
+            </ListBox.GroupStyle>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding Tip}" Margin="2,1">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding Label}" />
+                    <TextBlock Text="{Binding CountText}" Foreground="{DynamicResource TextDim}" Margin="6,0,0,0" />
+                  </StackPanel>
+                </CheckBox>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </Border>
+
+      <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch" Background="Transparent" />
+
+      <DockPanel Grid.Column="2">
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+            <CheckBox x:Name="ChangesOnly" Content="Only names that change" />
+            <Button x:Name="SelectAllButton" Content="All" Padding="10,2" MinHeight="22" Margin="4,0,0,0" />
+            <Button x:Name="SelectNoneButton" Content="None" Padding="10,2" MinHeight="22" Margin="4,0,0,0" />
+          </StackPanel>
+          <TextBox x:Name="SearchBox" Width="260" HorizontalAlignment="Left" ToolTip="Show only names containing this text" />
+        </DockPanel>
+        <DataGrid x:Name="PreviewGrid" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" SelectionMode="Extended" IsReadOnly="False"
+                  Background="{DynamicResource PanelBg}" RowBackground="{DynamicResource PanelBg}" AlternatingRowBackground="{DynamicResource PanelAlt}"
+                  Foreground="{DynamicResource Text}" BorderBrush="{DynamicResource Line}" HorizontalGridLinesBrush="{DynamicResource Line}"
+                  EnableRowVirtualization="True">
+          <DataGrid.ColumnHeaderStyle>
+            <Style TargetType="DataGridColumnHeader">
+              <Setter Property="Background" Value="{DynamicResource HeaderBg}" />
+              <Setter Property="Foreground" Value="{DynamicResource Text}" />
+              <Setter Property="Padding" Value="6,4" />
+              <Setter Property="BorderBrush" Value="{DynamicResource Line}" />
+              <Setter Property="BorderThickness" Value="0,0,1,1" />
+            </Style>
+          </DataGrid.ColumnHeaderStyle>
+          <DataGrid.CellStyle>
+            <Style TargetType="DataGridCell">
+              <Setter Property="BorderThickness" Value="0" />
+              <Setter Property="Padding" Value="4,2" />
+              <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                  <Setter Property="Background" Value="{DynamicResource Selection}" />
+                  <Setter Property="Foreground" Value="{DynamicResource Text}" />
+                </Trigger>
+              </Style.Triggers>
+            </Style>
+          </DataGrid.CellStyle>
+          <DataGrid.Columns>
+            <DataGridTemplateColumn Width="30" CanUserSort="False">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <CheckBox IsChecked="{Binding Include, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" Margin="0" />
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTextColumn Header="Current Name" Binding="{Binding Current, Mode=OneWay}" IsReadOnly="True" Width="2*" />
+            <DataGridTextColumn Header="New Name" Binding="{Binding New, Mode=OneWay}" IsReadOnly="True" Width="2*" FontWeight="SemiBold" />
+            <DataGridTextColumn Header="What" Binding="{Binding Kind, Mode=OneWay}" IsReadOnly="True" Width="Auto" />
+            <DataGridTextColumn Header="Details" Binding="{Binding Detail, Mode=OneWay}" IsReadOnly="True" Width="1.4*" />
+            <DataGridTemplateColumn Header="Status" Width="1.4*" SortMemberPath="Status">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Status}" ToolTip="{Binding Message}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center">
+                    <TextBlock.Style>
+                      <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding Tone}" Value="Good"><Setter Property="Foreground" Value="{DynamicResource Good}" /></DataTrigger>
+                          <DataTrigger Binding="{Binding Tone}" Value="Bad"><Setter Property="Foreground" Value="{DynamicResource Bad}" /></DataTrigger>
+                          <DataTrigger Binding="{Binding Tone}" Value="Warn"><Setter Property="Foreground" Value="{DynamicResource Warn}" /></DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </TextBlock.Style>
+                  </TextBlock>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+          </DataGrid.Columns>
+        </DataGrid>
+      </DockPanel>
+    </Grid>
+
+    <!-- Rules -->
+    <ScrollViewer Grid.Row="2" Margin="0,10,0,0" MaxHeight="330" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <WrapPanel x:Name="RulesPanel">
+
+        <Border Style="{StaticResource Card}">
+          <StackPanel>
+            <CheckBox Style="{StaticResource CardTitle}" Content="1 · RegEx" IsChecked="{Binding Regex.Enabled}" />
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="58" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <Grid.RowDefinitions><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+              <TextBlock Text="Match" Style="{StaticResource Label}" />
+              <TextBox Grid.Column="1" Text="{Binding Regex.Match, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas" ToolTip="A regular expression, e.g. ^Level (\d+)" />
+              <TextBlock Grid.Row="1" Text="Replace" Style="{StaticResource Label}" />
+              <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Regex.Replace, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas" ToolTip="$1, $2... for the groups in brackets" />
+            </Grid>
+            <CheckBox Content="Match case" IsChecked="{Binding Regex.MatchCase}" />
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}">
+          <StackPanel>
+            <CheckBox Style="{StaticResource CardTitle}" Content="2 · Name" IsChecked="{Binding Name.Enabled}" />
+            <ComboBox x:Name="NameModeCombo" SelectedValue="{Binding Name.Mode}" />
+            <TextBox Text="{Binding Name.Fixed, UpdateSourceTrigger=PropertyChanged}" ToolTip="Fixed: the new name. Revit values such as {Level} or {Sheet Number} work (Insert Revit value)." />
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}">
+          <StackPanel>
+            <CheckBox Style="{StaticResource CardTitle}" Content="3 · Replace" IsChecked="{Binding Replace.Enabled}" />
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="58" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <Grid.RowDefinitions><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+              <TextBlock Text="Find" Style="{StaticResource Label}" />
+              <TextBox Grid.Column="1" Text="{Binding Replace.Find, UpdateSourceTrigger=PropertyChanged}" ToolTip="Several at once: separate with |  (Lvl|Flr)" />
+              <TextBlock Grid.Row="1" Text="With" Style="{StaticResource Label}" />
+              <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Replace.With, UpdateSourceTrigger=PropertyChanged}" ToolTip="One replacement for all, or one per find separated by |" />
+            </Grid>
+            <WrapPanel>
+              <CheckBox Content="Match case" IsChecked="{Binding Replace.MatchCase}" />
+              <CheckBox Content="First only" IsChecked="{Binding Replace.FirstOnly}" />
+              <CheckBox Content="Whole word" IsChecked="{Binding Replace.WholeWord}" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}">
+          <StackPanel>
+            <CheckBox Style="{StaticResource CardTitle}" Content="4 · Case" IsChecked="{Binding Case.Enabled}" />
+            <ComboBox x:Name="CaseModeCombo" SelectedValue="{Binding Case.Mode}" />
+            <DockPanel>
+              <TextBlock Text="Keep" Style="{StaticResource Label}" />
+              <TextBox Text="{Binding Case.Exceptions, UpdateSourceTrigger=PropertyChanged}" ToolTip="Words kept exactly as typed, e.g. HVAC, MEP, 3D" />
+            </DockPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}">
+          <StackPanel>
+            <CheckBox Style="{StaticResource CardTitle}" Content="5 · Remove" IsChecked="{Binding Remove.Enabled}" />
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="40" /><ColumnDefinition Width="*" /><ColumnDefinition Width="40" /><ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+              <TextBlock Text="First" Style="{StaticResource Label}" />
+              <TextBox Grid.Column="1" Text="{Binding Remove.First, UpdateSourceTrigger=PropertyChanged}" ToolTip="Characters removed from the start" />
+              <TextBlock Grid.Column="2" Text="Last" Style="{StaticResource Label}" Margin="8,0,8,0" />
+              <TextBox Grid.Column="3" Text="{Binding Remove.Last, UpdateSourceTrigger=PropertyChanged}" ToolTip="Characters removed from the end" />
+              <TextBlock Grid.Row="1" Text="From" Style="{StaticResource Label}" />
+              <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Remove.From, UpdateSourceTrigger=PropertyChanged}" ToolTip="Remove characters from this position (1 = first)" />
+              <TextBlock Grid.Row="1" Grid.Column="2" Text="to" Style="{StaticResource Label}" Margin="8,0,8,0" />
+              <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding Remove.To, UpdateSourceTrigger=PropertyChanged}" ToolTip="...to this position (0 = to the end)" />
+              <TextBlock Grid.Row="2" Text="Chars" Style="{StaticResource Label}" />
+              <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Remove.Chars, UpdateSourceTrigger=PropertyChanged}" ToolTip="Every one of these characters is removed" />
+              <TextBlock Grid.Row="3" Text="Words" Style="{StaticResource Label}" />
+              <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Remove.Words, UpdateSourceTrigger=PropertyChanged}" ToolTip="Whole words removed, e.g. Copy, of" />
+              <ComboBox x:Name="CropCombo" Grid.Row="4" Grid.ColumnSpan="2" SelectedValue="{Binding Remove.Crop}" Margin="0,2,6,2" ToolTip="Crop: remove everything before or after this text" />
+              <TextBox Grid.Row="4" Grid.Column="2" Grid.ColumnSpan="2" Text="{Binding Remove.CropText, UpdateSourceTrigger=PropertyChanged}" />
+            </Grid>
+            <WrapPanel>
+              <CheckBox Content="Digits" IsChecked="{Binding Remove.Digits}" />
+              <CheckBox Content="Symbols" IsChecked="{Binding Remove.Symbols}" ToolTip="Anything not a letter, digit or space" />
+              <CheckBox Content="Accents" IsChecked="{Binding Remove.Accents}" />
+              <CheckBox Content="Trim" IsChecked="{Binding Remove.Trim}" ToolTip="Spaces at the start and end" />
+              <CheckBox Content="Double spaces" IsChecked="{Binding Remove.DoubleSpaces}" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}">
+          <StackPanel>
+            <CheckBox Style="{StaticResource CardTitle}" Content="6 · Add" IsChecked="{Binding Add.Enabled}" />
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="50" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="40" /></Grid.ColumnDefinitions>
+              <Grid.RowDefinitions><RowDefinition /><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+              <TextBlock Text="Prefix" Style="{StaticResource Label}" />
+              <TextBox Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Add.Prefix, UpdateSourceTrigger=PropertyChanged}" ToolTip="Text before the name; Revit values such as {Level} work (Insert Revit value)" />
+              <TextBlock Grid.Row="1" Text="Insert" Style="{StaticResource Label}" />
+              <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Add.Insert, UpdateSourceTrigger=PropertyChanged}" />
+              <TextBlock Grid.Row="1" Grid.Column="2" Text="at" Style="{StaticResource Label}" Margin="6,0,6,0" />
+              <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding Add.AtPosition, UpdateSourceTrigger=PropertyChanged}" ToolTip="1 = before the first character; -1 = at the end" />
+              <TextBlock Grid.Row="2" Text="Suffix" Style="{StaticResource Label}" />
+              <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Add.Suffix, UpdateSourceTrigger=PropertyChanged}" ToolTip="Text after the name; Revit values such as {Sheet Number} work (Insert Revit value)" />
+            </Grid>
+            <CheckBox Content="Space between words (FloorPlan → Floor Plan)" IsChecked="{Binding Add.WordSpace}" />
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}">
+          <StackPanel>
+            <CheckBox Style="{StaticResource CardTitle}" Content="7 · Numbering" IsChecked="{Binding Numbering.Enabled}" />
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="44" /><ColumnDefinition Width="*" /><ColumnDefinition Width="44" /><ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+              <ComboBox x:Name="NumberModeCombo" Grid.ColumnSpan="2" SelectedValue="{Binding Numbering.Mode}" Margin="0,2,6,2" />
+              <ComboBox x:Name="NumberStyleCombo" Grid.Column="2" Grid.ColumnSpan="2" SelectedValue="{Binding Numbering.Style}" />
+              <TextBlock Grid.Row="1" Text="Start" Style="{StaticResource Label}" />
+              <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Numbering.Start, UpdateSourceTrigger=PropertyChanged}" />
+              <TextBlock Grid.Row="1" Grid.Column="2" Text="Step" Style="{StaticResource Label}" Margin="8,0,8,0" />
+              <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding Numbering.Increment, UpdateSourceTrigger=PropertyChanged}" />
+              <TextBlock Grid.Row="2" Text="Digits" Style="{StaticResource Label}" />
+              <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Numbering.Pad, UpdateSourceTrigger=PropertyChanged}" ToolTip="Minimum digits: 2 gives 01, 02..." />
+              <TextBlock Grid.Row="2" Grid.Column="2" Text="Sep." Style="{StaticResource Label}" Margin="8,0,8,0" />
+              <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding Numbering.Separator, UpdateSourceTrigger=PropertyChanged}" ToolTip="Text between the name and the number" />
+              <TextBlock Grid.Row="3" Text="At" Style="{StaticResource Label}" />
+              <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Numbering.AtPosition, UpdateSourceTrigger=PropertyChanged}" ToolTip="Insert mode: 1 = before the first character; -1 = at the end" />
+              <TextBlock Grid.Row="4" Text="Restart" Style="{StaticResource Label}" />
+              <TextBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Numbering.RestartFor, UpdateSourceTrigger=PropertyChanged}" ToolTip="Start again for each value, e.g. {Level}. Empty: one sequence. Numbers follow the list order (click a column to sort)." />
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}">
+          <StackPanel>
+            <CheckBox Style="{StaticResource CardTitle}" Content="8 · Filter" IsChecked="{Binding Filter.Enabled}" />
+            <DockPanel>
+              <TextBlock Text="Mask" Style="{StaticResource Label}" />
+              <TextBox Text="{Binding Filter.Mask, UpdateSourceTrigger=PropertyChanged}" ToolTip="Only names matching this: * and ? wildcards, several separated by ;" />
+            </DockPanel>
+            <WrapPanel>
+              <CheckBox Content="RegEx" IsChecked="{Binding Filter.UseRegex}" />
+              <CheckBox Content="Match case" IsChecked="{Binding Filter.MatchCase}" />
+              <CheckBox Content="Not matching" IsChecked="{Binding Filter.Invert}" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+      </WrapPanel>
+    </ScrollViewer>
+
+    <!-- Footer -->
+    <DockPanel Grid.Row="3" Margin="0,6,0,0">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+        <Button x:Name="ResetButton" Content="Reset" ToolTip="Turn every panel off" Margin="0,0,8,0" />
+        <Button x:Name="RenameButton" Content="Rename" Style="{StaticResource Accent}" MinWidth="110" Margin="0,0,8,0" />
+        <Button x:Name="CloseButton" Content="Close" IsCancel="True" MinWidth="80" />
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+        <Button x:Name="TokenButton" Content="Insert Revit value ▾" ToolTip="Put a Revit value such as {Level}, {Sheet Number} or any parameter into the text box you were typing in. Each item gets its own value." Margin="0,0,12,0" />
+        <TextBlock Text="Preset" Style="{StaticResource Label}" />
+        <ComboBox x:Name="PresetCombo" Width="170" IsEditable="True" ToolTip="Type a name to save, or pick one to load" />
+        <Button x:Name="LoadPresetButton" Content="Load" Margin="4,0,0,0" />
+        <Button x:Name="SavePresetButton" Content="Save" Margin="4,0,0,0" />
+        <Button x:Name="DeletePresetButton" Content="Delete" Margin="4,0,0,0" />
+      </StackPanel>
+      <TextBlock x:Name="SummaryText" VerticalAlignment="Center" Margin="16,0,16,0" TextWrapping="Wrap" />
+    </DockPanel>
+  </Grid>
+</Window>
