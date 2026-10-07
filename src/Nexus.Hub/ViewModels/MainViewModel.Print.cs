@@ -27,6 +27,21 @@ public sealed partial class MainViewModel
         return new PrintViewModel(this, _drawingPdfs, sheets, scope, _settings.PdfFolder, _settings.PdfNamePattern);
     }
 
+    /// <summary>"System", "Light" or "Dark" (⋯ › Theme).</summary>
+    public string Theme
+    {
+        get => AppTheme.Normalize(_settings.Theme);
+        set
+        {
+            string theme = AppTheme.Normalize(value);
+            if (theme == Theme) return;
+            _settings.Theme = theme;
+            _settings.Save();
+            AppTheme.Apply(theme);
+            Raise();
+        }
+    }
+
     public void RememberPdfSettings(string folder, string pattern)
     {
         _settings.PdfFolder = folder;

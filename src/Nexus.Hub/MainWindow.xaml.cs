@@ -165,6 +165,18 @@ public partial class MainWindow : Window
 
     private void OnHistory(object sender, RoutedEventArgs e) => OpenHistory();
 
+    /// <summary>⋯ › Theme: tick the current choice when the submenu opens.</summary>
+    private void OnThemeMenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menu) return;
+        foreach (var item in menu.Items.OfType<MenuItem>()) item.IsChecked = Equals(item.Tag, _vm.Theme);
+    }
+
+    private void OnTheme(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: string theme }) _vm.Theme = theme;
+    }
+
     private void OnPaletteMenu(object sender, RoutedEventArgs e) => OpenPalette();
 
     // ------------------------------------------------------------------ command palette (Ctrl+K)

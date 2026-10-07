@@ -84,10 +84,9 @@ public partial class App : Application
             }
         }
 
-        // Windows 11 look (rounded controls, Mica, light/dark following Windows, system accent colour).
-#pragma warning disable WPF0001 // ThemeMode is marked experimental in .NET 10
-        ThemeMode = ThemeMode.System;
-#pragma warning restore WPF0001
+        // Windows 11 look (rounded controls, Mica, system accent colour); light/dark follows Windows unless
+        // a theme was picked in the hub (⋯ › Theme).
+        AppTheme.Apply(UiSettings.Load().Theme);
 
         HubLog.Info($"Hub started ({(args.Contains("--background") ? "background" : "window")}). Log: {HubLog.FilePath}");
         StartupRegistration.Apply();

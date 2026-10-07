@@ -13,6 +13,8 @@ internal sealed class UiSettings
     public string? LastDataset { get; set; }
     public Dictionary<string, List<string>> VisibleColumns { get; set; } = new();
     public string? ExcelWorkbook { get; set; }
+    /// <summary>"System" (follow Windows), "Light" or "Dark".</summary>
+    public string? Theme { get; set; }
     /// <summary>Print &amp; PDF: last output folder and file name pattern.</summary>
     public string? PdfFolder { get; set; }
     public string? PdfNamePattern { get; set; }

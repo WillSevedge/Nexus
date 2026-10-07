@@ -434,6 +434,11 @@
               <ContextMenu>
                 <MenuItem Header="Go to anything…" Click="OnPaletteMenu" InputGestureText="Ctrl+K" />
                 <MenuItem Header="History and snapshots…" Click="OnHistory" />
+                <MenuItem Header="Theme" SubmenuOpened="OnThemeMenuOpened">
+                  <MenuItem Header="Use Windows setting" Tag="System" IsCheckable="True" Click="OnTheme" />
+                  <MenuItem Header="Light" Tag="Light" IsCheckable="True" Click="OnTheme" />
+                  <MenuItem Header="Dark" Tag="Dark" IsCheckable="True" Click="OnTheme" />
+                </MenuItem>
                 <Separator />
                 <MenuItem Header="Messages and log…" Click="OnMessages" />
                 <MenuItem Header="Advanced">
