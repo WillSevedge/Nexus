@@ -187,6 +187,29 @@ error instead of waiting forever.
 - Set `Nexus.Agent.Revit` as the startup project and press F5. The "Revit 2026" launch profile starts Revit.
 - Or attach to a running Revit: **Debug > Attach to Process…**, pick `Revit.exe`, code type **Managed (.NET Core, .NET 5+)**.
 
+### Bulk Rename (Revit)
+
+**Nexus tab › Tools › Bulk Rename** renames many things at once, like Bulk Rename Utility, inside Revit (2024–2027):
+
+- **What**: views, sheet numbers, sheet names, schedules, view templates, levels, grids, scope boxes, named
+  reference planes, room/space/area names and numbers, families, family types, system types (walls, floors,
+  text, dimensions...), group types, materials, view filters, line and fill patterns, phases, worksets.
+  Starts with what is selected in Revit (*Rename › Selected in Revit*), or views.
+- **Panels**, applied in order: 1 RegEx · 2 Name (keep, start empty, fixed text, reverse) · 3 Replace (several
+  pairs with `|`, match case, first only, whole word) · 4 Case (UPPER, lower, Title, Sentence, with words kept as
+  typed) · 5 Remove (first/last, from–to, characters, words, crop before/after, digits, symbols, accents, spaces)
+  · 6 Add (prefix, insert at, suffix, space between words) · 7 Numbering (start, step, digits, separator, letters,
+  restart per value such as `{Level}`) · 8 Filter (wildcards or RegEx, not matching).
+- **Tokens**: `{Level}`, `{Sheet Number}`, `{View Type}`, `{Family}`, `{Type}`, `{Scale}`... or any parameter
+  name (*Insert token*), in Name, Replace › With, Add and Numbering › Restart.
+- **Preview**: every new name and what will happen. Names Revit would refuse are flagged before anything changes:
+  characters Revit does not allow, empty names, names already used (per view type, level, family...), and
+  elements owned by other users. Numbering follows the list order: click a column to sort.
+- **Rename**: one undo step (Ctrl+Z puts every name back). Swaps and shifts (A101→A102, A102→A103) work: names
+  that are moving go through a temporary name first.
+- **Presets**: type a name and Save; Load or Delete later (`%APPDATA%\Nexus\rename-presets`). The last settings
+  are kept for next time.
+
 ## AutoCAD 2026 / Civil 3D 2026
 
 **Load**

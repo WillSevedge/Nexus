@@ -28,8 +28,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Bulk Rename layout: loaded at run time with XamlReader (compiled XAML can fail to load in add-ins Revit isolates). -->
+    <Page Remove="Rename\BulkRenameWindow.xaml" />
+    <EmbeddedResource Include="Rename\BulkRenameWindow.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Nexus.Agent.Shared\Nexus.Agent.Shared.csproj" />
     <ProjectReference Include="..\Nexus.Contracts\Nexus.Contracts.csproj" />
+    <ProjectReference Include="..\Nexus.Rename\Nexus.Rename.csproj" />
   </ItemGroup>
 
   <Import Project="..\..\build\Revit.targets" />

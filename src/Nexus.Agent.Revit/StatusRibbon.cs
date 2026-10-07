@@ -50,6 +50,15 @@ internal sealed class StatusRibbon : IDisposable
 
         try
         {
+            AddToolsPanel(app, assembly);
+        }
+        catch (Exception ex)
+        {
+            _log.Error("Could not create the Tools panel.", ex);
+        }
+
+        try
+        {
             AddFabricationPanel(app, assembly);
         }
         catch (Exception ex)
@@ -59,6 +68,20 @@ internal sealed class StatusRibbon : IDisposable
 
         app.Idling += OnIdling;
         try { app.ThemeChanged += OnThemeChanged; } catch { /* older Revit */ }
+    }
+
+    /// <summary>Tools: Bulk Rename.</summary>
+    private void AddToolsPanel(UIControlledApplication app, string assembly)
+    {
+        var panel = app.CreateRibbonPanel(TabName, "Tools");
+        var rename = (PushButton)panel.AddItem(new PushButtonData("NexusBulkRename", "Bulk\nRename", assembly,
+            typeof(Rename.BulkRenameCommand).FullName)
+        {
+            ToolTip = "Rename many views, sheets, levels, grids, rooms, families, types, materials and more at once: " +
+                      "find and replace, capitals, remove and add text, numbering, parameter values ({Level}, {Sheet Number}...), with a live preview. One undo puts every name back.",
+        });
+        _tools.Add((rename, BulkRename));
+        ApplyToolIcons(IsDark());
     }
 
     /// <summary>Fabrication: browse the database, reload it, export parts to a MAJ job, open the parts in the hub.</summary>
@@ -95,6 +118,7 @@ internal sealed class StatusRibbon : IDisposable
     }
 
     // Segoe Fluent Icons / MDL2 glyphs.
+    private const string BulkRename = "\uE8AC";  // Rename
     private const string Database = "\uE8F1";   // Library
     private const string Reload = "\uE72C";     // Refresh
     private const string Export = "\uEDE1";     // Export
