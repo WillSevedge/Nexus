@@ -144,87 +144,6 @@ public sealed class DocumentNode : Observable
     public string ToolTip => Info.Path ?? Info.Title;
 }
 
-/// <summary>
-/// A Revit model or drawing on disk (not open in a program), read in the background and shown read-only.
-/// Ticked files are loaded into the grid with the open files.
-/// </summary>
-public sealed class DiskFileNode : Observable
-{
-    private bool _isChecked;
-    private string _status = "";
-    private string? _error;
-    private bool _isBusy;
-
-    public DiskFileNode(Nexus.Hub.Core.Files.DiskFile file, bool isChecked)
-    {
-        File = file;
-        _isChecked = isChecked;
-    }
-
-    public Nexus.Hub.Core.Files.DiskFile File { get; }
-
-    public event Action<DiskFileNode>? CheckedChanged;
-
-    public bool IsChecked
-    {
-        get => _isChecked;
-        set
-        {
-            if (Set(ref _isChecked, value)) CheckedChanged?.Invoke(this);
-        }
-    }
-
-    public string Title => File.Name;
-    public string Badge => File.IsRevit ? "RVT" : "DWG";
-    public string BadgeColor => File.IsRevit ? "#1F72C7" : "#C8102E";
-    public string ToolTip => File.Path + (File.Format.Length > 0 ? "\n" + File.Format : "") + "\nRead-only: read without opening it in a program.";
-
-    /// <summary>"Revit 2025 model", "Read earlier (unchanged)"...</summary>
-    public string Status
-    {
-        get => _status;
-        set
-        {
-            if (Set(ref _status, value)) Raise(nameof(Subtitle));
-        }
-    }
-
-    public string? Error
-    {
-        get => _error;
-        set
-        {
-            if (Set(ref _error, value)) Raise(nameof(HasError));
-        }
-    }
-
-    public bool HasError => !string.IsNullOrEmpty(_error);
-
-    /// <summary>A Revit model that could not be read because no suitable Revit is running.</summary>
-    public bool NeedsRevit { get; set; }
-
-    public bool IsBusy
-    {
-        get => _isBusy;
-        set
-        {
-            if (Set(ref _isBusy, value)) Raise(nameof(Subtitle));
-        }
-    }
-
-    public string Subtitle => _isBusy ? "Reading…" : _status.Length > 0 ? _status : File.Format;
-
-    /// <summary>Set the tick without reading (the caller reloads once for several files).</summary>
-    public void Restore(bool isChecked) => Set(ref _isChecked, isChecked, nameof(IsChecked));
-
-    /// <summary>Call after <see cref="Nexus.Hub.Core.Files.DiskFile.Inspect"/> (version known).</summary>
-    public void Inspected()
-    {
-        Raise(nameof(ToolTip));
-        Raise(nameof(Subtitle));
-    }
-}
-
 /// <summary>One reader of one program, with its options (shown under Options for the dataset).</summary>
 public sealed class ReaderNode
 {
@@ -313,8 +232,6 @@ public sealed class ResultRun
     public ReadRequest? Request { get; init; }
     public ReadResult? Result { get; init; }
     public ErrorInfo? Error { get; init; }
-    /// <summary>Set when the file was read from disk (not open in a program): read-only.</summary>
-    public Nexus.Hub.Core.Files.DiskFile? Disk { get; init; }
 
     public string Title => $"{DocumentTitle} · {ReaderId}";
     public bool Failed => Error is not null;

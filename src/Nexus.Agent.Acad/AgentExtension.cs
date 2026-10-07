@@ -38,7 +38,7 @@ public sealed class AgentExtension : IExtensionApplication
         Instance = this;
         // 2024 (.NET Framework): load our own copies of the libraries we ship if the program has others.
         Compat.ResolveDependenciesFrom(System.IO.Path.GetDirectoryName(typeof(Compat).Assembly.Location) ?? AppContext.BaseDirectory);
-        // Started by the hub in AutoCAD's Core Console to read a file on disk: no agent, no ribbon
+        // Started by the hub in AutoCAD's Core Console to make PDFs (Print & PDF): no agent, no ribbon
         // (Nexus.Agent.Acad.Console does the work there).
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable(HeadlessJob.EnvironmentVariable))) return;
         StartAgent();

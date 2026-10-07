@@ -279,7 +279,18 @@ public sealed class ObjectPropertyReader
     /// <summary>Property id of a table cell (zero-based row and column).</summary>
     public static string TableCellId(int row, int column) => FormattableString.Invariant($"Cell:{row},{column}");
 
-    public static string EffectiveName(BlockReference br, Transaction tr) => Readers.AcadItems.EffectiveName(br, tr);
+    public static string EffectiveName(BlockReference br, Transaction tr)
+    {
+        try
+        {
+            var id = br.IsDynamicBlock ? br.DynamicBlockTableRecord : br.BlockTableRecord;
+            return ((BlockTableRecord)tr.GetObject(id, OpenMode.ForRead)).Name;
+        }
+        catch
+        {
+            return br.Name;
+        }
+    }
 
     private static string Describe(DBObject obj, Transaction tr)
     {
@@ -317,5 +328,14 @@ public sealed class ObjectPropertyReader
         return s.Length > 60 ? s[..60] + "…" : s;
     }
 
-    public static PropertyValue Derived(string name, string? value) => Readers.AcadItems.Derived(name, value);
+    public static PropertyValue Derived(string name, string? value) => new()
+    {
+        Name = name,
+        Value = value,
+        RawValue = value,
+        Source = PropertySource.Derived,
+        StorageType = "String",
+        IsReadOnly = true,
+        ReadOnlyReason = "Computed by Nexus",
+    };
 }

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Globalization;
 using Nexus.Agent;
+using Nexus.Agent.Acad.PropertyEngine;
 using Nexus.Contracts;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -93,13 +94,13 @@ internal sealed class SheetsReader : IHostDataReader<Document>
             StorageType = "String", Value = layout.LayoutName, RawValue = layout.LayoutName,
             IsReadOnly = docBlocker is not null, ReadOnlyReason = docBlocker,
         });
-        g.Properties.Add(AcadItems.Derived("Tab Order", layout.TabOrder.ToString(Inv)));
-        g.Properties.Add(AcadItems.Derived("Drawing", Path.GetFileName(doc.Name)));
-        g.Properties.Add(AcadItems.Derived("Page Setup", Safe(() => layout.PlotSettingsName)));
-        g.Properties.Add(AcadItems.Derived("Plotter", Safe(() => layout.PlotConfigurationName)));
-        g.Properties.Add(AcadItems.Derived("Paper Size", Safe(() => layout.CanonicalMediaName)));
-        g.Properties.Add(AcadItems.Derived("Plot Scale", Safe(() => PlotScale(layout))));
-        g.Properties.Add(AcadItems.Derived("Plot Style Table", Safe(() => layout.CurrentStyleSheet)));
+        g.Properties.Add(ObjectPropertyReader.Derived("Tab Order", layout.TabOrder.ToString(Inv)));
+        g.Properties.Add(ObjectPropertyReader.Derived("Drawing", Path.GetFileName(doc.Name)));
+        g.Properties.Add(ObjectPropertyReader.Derived("Page Setup", Safe(() => layout.PlotSettingsName)));
+        g.Properties.Add(ObjectPropertyReader.Derived("Plotter", Safe(() => layout.PlotConfigurationName)));
+        g.Properties.Add(ObjectPropertyReader.Derived("Paper Size", Safe(() => layout.CanonicalMediaName)));
+        g.Properties.Add(ObjectPropertyReader.Derived("Plot Scale", Safe(() => PlotScale(layout))));
+        g.Properties.Add(ObjectPropertyReader.Derived("Plot Style Table", Safe(() => layout.CurrentStyleSheet)));
 
         var btr = (BlockTableRecord)tr.GetObject(layout.BlockTableRecordId, OpenMode.ForRead);
         var candidates = new List<(BlockReference Block, string Name, List<AttributeReference> Attributes)>();
@@ -113,16 +114,16 @@ internal sealed class SheetsReader : IHostDataReader<Document>
             var attrs = new List<AttributeReference>();
             foreach (ObjectId aid in br.AttributeCollection)
                 if (tr.GetObject(aid, OpenMode.ForRead, false, true) is AttributeReference ar) attrs.Add(ar);
-            if (attrs.Count > 0) candidates.Add((br, AcadItems.EffectiveName(br, tr), attrs));
+            if (attrs.Count > 0) candidates.Add((br, ObjectPropertyReader.EffectiveName(br, tr), attrs));
         }
-        g.Properties.Add(AcadItems.Derived("Viewport Scales", string.Join(", ", viewportScales.Distinct())));
+        g.Properties.Add(ObjectPropertyReader.Derived("Viewport Scales", string.Join(", ", viewportScales.Distinct())));
         item.Groups.Add(g);
 
         var titleBlock = PickTitleBlock(candidates, patterns);
         var tb = new PropertyGroup("Title Block");
         if (titleBlock is { } chosen)
         {
-            tb.Properties.Add(AcadItems.Derived("Title Block Name", chosen.Name));
+            tb.Properties.Add(ObjectPropertyReader.Derived("Title Block Name", chosen.Name));
             string? blockBlocker = docBlocker; // locked layers are unlocked briefly when applying
             foreach (var ar in chosen.Attributes)
             {
@@ -137,12 +138,12 @@ internal sealed class SheetsReader : IHostDataReader<Document>
                 });
             }
             if (candidates.Count > 1)
-                tb.Properties.Add(AcadItems.Derived("Other Attributed Blocks",
+                tb.Properties.Add(ObjectPropertyReader.Derived("Other Attributed Blocks",
                     string.Join(", ", candidates.Where(c => c.Block != chosen.Block).Select(c => c.Name).Distinct())));
         }
         else
         {
-            tb.Properties.Add(AcadItems.Derived("Title Block Name", ""));
+            tb.Properties.Add(ObjectPropertyReader.Derived("Title Block Name", ""));
             ctx.Warn($"Layout '{layout.LayoutName}': no title block with attributes was found.");
         }
         item.Groups.Add(tb);

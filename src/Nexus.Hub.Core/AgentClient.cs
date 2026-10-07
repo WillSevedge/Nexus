@@ -69,14 +69,11 @@ public sealed class AgentClient : IAsyncDisposable
     public Task<WriteResult> WriteAsync(WriteRequest request, CancellationToken ct = default) =>
         RequestAsync<WriteResult>(MessageTypes.Write, request, ReadTimeout, ct);
 
-    /// <summary>Opening a large model in the background can take a while.</summary>
-    public static readonly TimeSpan FileTimeout = TimeSpan.FromMinutes(30);
-
-    public Task<ReadResult> ReadFileAsync(ReadFileRequest request, CancellationToken ct = default) =>
-        RequestAsync<ReadResult>(MessageTypes.ReadFile, request, FileTimeout, ct);
+    /// <summary>Exporting a large set of sheets can take a while.</summary>
+    public static readonly TimeSpan PdfTimeout = TimeSpan.FromMinutes(60);
 
     public Task<ExportPdfResult> ExportPdfAsync(ExportPdfRequest request, CancellationToken ct = default) =>
-        RequestAsync<ExportPdfResult>(MessageTypes.ExportPdf, request, FileTimeout * 2, ct);
+        RequestAsync<ExportPdfResult>(MessageTypes.ExportPdf, request, PdfTimeout, ct);
 
     public Task<SelectResult> SelectAsync(SelectRequest request, CancellationToken ct = default) =>
         RequestAsync<SelectResult>(MessageTypes.Select, request, DefaultTimeout, ct);

@@ -36,7 +36,6 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
     private readonly ReaderRegistry<TDoc> _readers;
     private readonly IHostDataWriter<TDoc>? _writer;
     private readonly IHostSelector<TDoc>? _selector;
-    private readonly IFileOpener<TDoc>? _files;
     private readonly IPdfExporter<TDoc>? _pdf;
     private readonly AgentLog _log;
     private readonly AgentServerOptions _options;
@@ -51,11 +50,10 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
     public AgentServer(HostInfo host, IHostDispatcher dispatcher, IDocumentProvider<TDoc> documents,
         ReaderRegistry<TDoc> readers, AgentLog log, AgentServerOptions? options = null,
         IHostDataWriter<TDoc>? writer = null, IHostSelector<TDoc>? selector = null,
-        IFileOpener<TDoc>? files = null, IPdfExporter<TDoc>? pdf = null)
+        IPdfExporter<TDoc>? pdf = null)
     {
         _writer = writer;
         _selector = selector;
-        _files = files;
         _pdf = pdf;
         _host = WithFeatures(host);
         _dispatcher = dispatcher;
@@ -102,8 +100,6 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
             host.Features.Add(AgentFeatures.Write);
         if (_selector is not null && !host.Features.Contains(AgentFeatures.Select))
             host.Features.Add(AgentFeatures.Select);
-        if (_files is not null && !host.Features.Contains(AgentFeatures.ReadFile))
-            host.Features.Add(AgentFeatures.ReadFile);
         if (_pdf is not null && !host.Features.Contains(AgentFeatures.ExportPdf))
             host.Features.Add(AgentFeatures.ExportPdf);
         return host;
@@ -239,7 +235,6 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
                 MessageTypes.Read => await ReadAsync(request.PayloadAs<ReadRequest>(), ct).ConfigureAwait(false),
                 MessageTypes.Write => await WriteAsync(request.PayloadAs<WriteRequest>(), ct).ConfigureAwait(false),
                 MessageTypes.Select => await SelectAsync(request.PayloadAs<SelectRequest>(), ct).ConfigureAwait(false),
-                MessageTypes.ReadFile => await ReadFileAsync(request.PayloadAs<ReadFileRequest>(), ct).ConfigureAwait(false),
                 MessageTypes.ExportPdf => await ExportPdfAsync(request.PayloadAs<ExportPdfRequest>(), ct).ConfigureAwait(false),
                 _ => throw new AgentException(ErrorCodes.UnknownMessage, $"Unknown message type '{request.Type}'."),
             };
@@ -295,81 +290,23 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
         }, _options.HostStartTimeout, ct).ConfigureAwait(false);
     }
 
-    /// <summary>Opening a large model can take minutes; the host only has to start the work in time.</summary>
-    private async Task<ReadResult> ReadFileAsync(ReadFileRequest? request, CancellationToken ct)
-    {
-        if (_files is null)
-            throw new AgentException(ErrorCodes.NotImplemented, $"{_host.Product} cannot read files that are not open.");
-        if (request is null || string.IsNullOrWhiteSpace(request.Path) || string.IsNullOrWhiteSpace(request.ReaderId))
-            throw new AgentException(ErrorCodes.BadRequest, "A file read needs a path and a readerId.");
-        var reader = _readers.Find(request.ReaderId)
-                     ?? throw new AgentException(ErrorCodes.ReaderNotFound, $"No reader '{request.ReaderId}' in this agent.");
-        if (!File.Exists(request.Path))
-            throw new AgentException(ErrorCodes.DocumentNotFound, $"File not found: {request.Path}");
-        _log.Info($"Read {reader.Descriptor.Id} on file {request.Path}");
-
-        return await _dispatcher.InvokeAsync(() =>
-        {
-            var sw = Stopwatch.StartNew();
-            var doc = _files.Open(request.Path, _log, out bool openedHere);
-            try
-            {
-                ct.ThrowIfCancellationRequested();
-                var context = new ReadContext(reader.Descriptor, request.Options, _log, ct);
-                reader.Read(doc, context);
-                sw.Stop();
-                _log.Info($"Read {reader.Descriptor.Id} on file '{Path.GetFileName(request.Path)}': {context.Items.Count} items, {sw.ElapsedMilliseconds} ms");
-                return new ReadResult
-                {
-                    ReaderId = reader.Descriptor.Id,
-                    DocumentId = "file-" + Compat.Sha1Hex(request.Path.ToLowerInvariant(), 6).ToLowerInvariant(),
-                    DocumentTitle = Path.GetFileName(request.Path),
-                    ReadUtc = DateTime.UtcNow,
-                    ElapsedMs = sw.ElapsedMilliseconds,
-                    Items = context.Items,
-                    Warnings = context.Warnings,
-                    Truncated = context.Truncated,
-                };
-            }
-            finally
-            {
-                if (openedHere) _files.Close(doc, _log);
-            }
-        }, _options.HostStartTimeout, ct).ConfigureAwait(false);
-    }
-
     private async Task<ExportPdfResult> ExportPdfAsync(ExportPdfRequest? request, CancellationToken ct)
     {
         if (_pdf is null)
             throw new AgentException(ErrorCodes.NotImplemented, $"{_host.Product} cannot create PDFs from Nexus.");
-        if (request is null || string.IsNullOrWhiteSpace(request.OutputFolder)
-            || (string.IsNullOrWhiteSpace(request.DocumentId) && string.IsNullOrWhiteSpace(request.Path)))
-            throw new AgentException(ErrorCodes.BadRequest, "A PDF export needs a document or a path, and an output folder.");
+        if (request is null || string.IsNullOrWhiteSpace(request.DocumentId) || string.IsNullOrWhiteSpace(request.OutputFolder))
+            throw new AgentException(ErrorCodes.BadRequest, "A PDF export needs an open document and an output folder.");
         Directory.CreateDirectory(request.OutputFolder);
 
         return await _dispatcher.InvokeAsync(() =>
         {
             var sw = Stopwatch.StartNew();
-            TDoc doc;
-            bool openedHere = false;
-            if (!string.IsNullOrWhiteSpace(request.DocumentId))
-                doc = _documents.Find(request.DocumentId!)
+            var doc = _documents.Find(request.DocumentId!)
                       ?? throw new AgentException(ErrorCodes.DocumentNotFound, $"Document '{request.DocumentId}' is not open (it may have been closed).");
-            else if (_files is null)
-                throw new AgentException(ErrorCodes.NotImplemented, $"{_host.Product} cannot open files that are not open.");
-            else
-                doc = _files.Open(request.Path, _log, out openedHere);
-            try
-            {
-                var result = _pdf.Export(doc, request, _log, ct);
-                result.ElapsedMs = sw.ElapsedMilliseconds;
-                _log.Info($"PDF: {result.Sheets.Count(s => s.PdfPath is not null)} of {result.Sheets.Count} sheet(s) in {sw.ElapsedMilliseconds} ms");
-                return result;
-            }
-            finally
-            {
-                if (openedHere) _files!.Close(doc, _log);
-            }
+            var result = _pdf.Export(doc, request, _log, ct);
+            result.ElapsedMs = sw.ElapsedMilliseconds;
+            _log.Info($"PDF: {result.Sheets.Count(s => s.PdfPath is not null)} of {result.Sheets.Count} sheet(s) in {sw.ElapsedMilliseconds} ms");
+            return result;
         }, _options.HostStartTimeout, ct).ConfigureAwait(false);
     }
 

@@ -3,8 +3,8 @@ using Nexus.Contracts;
 namespace Nexus.Hub.Core.Files;
 
 /// <summary>
-/// A private copy of a file on disk that a program opens instead of the original, so the original is
-/// never locked, changed or synced back (Desktop Connector), whatever the program does. Deleted when disposed.
+/// A private copy of a drawing that AutoCAD's Core Console opens instead of the original, so the original is
+/// never locked or changed, whatever the console does. Deleted when disposed.
 /// </summary>
 public sealed class WorkCopy : IDisposable
 {
@@ -41,11 +41,14 @@ public sealed class WorkCopy : IDisposable
 
     public void Dispose() => TryDelete(Folder);
 
-    /// <summary>Removes copies left behind (the hub was closed during a read). Called at start-up.</summary>
+    /// <summary>Removes copies left behind (the hub was closed while making PDFs). Called at start-up.</summary>
     public static void CleanUp()
     {
         try
         {
+            // Results kept by the former files-on-disk feature.
+            string oldCache = System.IO.Path.Combine(NexusPaths.Root, "offline", "cache");
+            if (Directory.Exists(oldCache)) Directory.Delete(oldCache, true);
             if (!Directory.Exists(NexusPaths.OfflineWorkDir)) return;
             foreach (var dir in Directory.EnumerateDirectories(NexusPaths.OfflineWorkDir))
                 if (Directory.GetLastWriteTimeUtc(dir) < DateTime.UtcNow.AddHours(-6)) TryDelete(dir);

@@ -52,14 +52,8 @@ public sealed class AgentConnection : IAsyncDisposable
     public async Task<SelectResult> SelectAsync(SelectRequest request, CancellationToken ct = default) =>
         await (await ConnectedAsync(ct).ConfigureAwait(false)).SelectAsync(request, ct).ConfigureAwait(false);
 
-    public async Task<ReadResult> ReadFileAsync(ReadFileRequest request, CancellationToken ct = default) =>
-        await (await ConnectedAsync(ct).ConfigureAwait(false)).ReadFileAsync(request, ct).ConfigureAwait(false);
-
     public async Task<ExportPdfResult> ExportPdfAsync(ExportPdfRequest request, CancellationToken ct = default) =>
         await (await ConnectedAsync(ct).ConfigureAwait(false)).ExportPdfAsync(request, ct).ConfigureAwait(false);
-
-    /// <summary>True when the agent can read files that are not open.</summary>
-    public bool CanReadFiles => Host.Features.Contains(AgentFeatures.ReadFile);
 
     /// <summary>True when the agent can make PDFs of sheets.</summary>
     public bool CanExportPdf => Host.Features.Contains(AgentFeatures.ExportPdf);

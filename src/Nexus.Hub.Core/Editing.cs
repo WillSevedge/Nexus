@@ -46,8 +46,6 @@ public static class Editing
     {
         if (!row.Values.TryGetValue(columnId, out var p)) return "This item does not have this property.";
         var host = row.Source.Host;
-        if (host.Features.Contains(AgentFeatures.FileOnDisk))
-            return $"Read from the file on disk (read-only). To edit it, open the file in {host.Product}.";
         if (!host.Features.Contains(AgentFeatures.Write)) return $"{host.Product} does not support editing yet.";
         if (p.Source == PropertySource.Derived) return "Computed by Nexus (not a parameter).";
         if (p.IsReadOnly) return p.ReadOnlyReason ?? "Read-only.";

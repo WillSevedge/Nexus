@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    Runs inside AutoCAD's Core Console (accoreconsole.exe, AutoCAD without a window), started by the hub to
-    read drawings that are not open and make PDFs of their layouts (NEXUSJOB command).
+    Runs inside AutoCAD's Core Console (accoreconsole.exe, AutoCAD without a window), started by the hub's
+    Print & PDF to make PDFs of a drawing's layouts from its saved file (NEXUSJOB command).
     The Core Console only has AutoCAD's core libraries (accoremgd, acdbmgd): this assembly must never use
     acmgd, AdWindows, WPF or Windows Forms, or the Core Console refuses to load it. So it does not reference
-    the main agent; it compiles the sheet reader's source files itself.
+    the main agent.
   -->
   <PropertyGroup>
     <TargetFramework>$(HostTargetFramework)</TargetFramework>
@@ -29,12 +29,6 @@
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
     <Using Include="System.IO" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Include="..\Nexus.Agent.Acad\Readers\SheetsReader.cs" Link="Shared\SheetsReader.cs" />
-    <Compile Include="..\Nexus.Agent.Acad\Readers\AcadItems.cs" Link="Shared\AcadItems.cs" />
-    <Compile Include="..\Nexus.Agent.Acad\AcadDocumentProvider.cs" Link="Shared\AcadDocumentProvider.cs" />
   </ItemGroup>
 
   <ItemGroup>

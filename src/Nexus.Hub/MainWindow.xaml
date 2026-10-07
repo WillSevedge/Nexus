@@ -289,51 +289,6 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
 
-          <!-- Files on disk (read-only): only shown once some were added (⋯ › Files on disk, Ctrl+K, or drop them on the window) -->
-          <StackPanel Visibility="{Binding HasDiskFiles, Converter={StaticResource BoolToVis}}">
-            <TextBlock Text="Files on disk · read-only" FontWeight="SemiBold" Margin="22,6,8,4" />
-            <Border Margin="14,2,8,6" Padding="10,8" CornerRadius="6" Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
-                    Visibility="{Binding NeedsRevit, Converter={StaticResource BoolToVis}}">
-              <StackPanel>
-                <TextBlock Text="{Binding NeedsRevitText}" TextWrapping="Wrap" FontSize="12" />
-                <Button Content="Start Revit" Command="{Binding StartRevitCommand}" HorizontalAlignment="Left" Margin="0,8,0,0" />
-              </StackPanel>
-            </Border>
-          </StackPanel>
-          <ItemsControl ItemsSource="{Binding DiskFiles}" Margin="20,0,8,6">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate DataType="{x:Type vm:DiskFileNode}">
-                <CheckBox IsChecked="{Binding IsChecked}" ToolTip="{Binding ToolTip}" Margin="0,2" MinHeight="0">
-                  <CheckBox.ContextMenu>
-                    <ContextMenu>
-                      <MenuItem Header="Read again" Click="OnDiskReread" />
-                      <MenuItem Header="Show in folder" Click="OnDiskShowInFolder" />
-                      <Separator />
-                      <MenuItem Header="Remove from list" Click="OnDiskRemove" />
-                      <MenuItem Header="Remove all files on disk" Click="OnDiskRemoveAll" />
-                    </ContextMenu>
-                  </CheckBox.ContextMenu>
-                  <DockPanel>
-                    <Border DockPanel.Dock="Left" CornerRadius="3" Padding="3,0" Margin="0,2,6,0" VerticalAlignment="Top" Height="15">
-                      <Border.Background>
-                        <SolidColorBrush Color="{Binding BadgeColor}" />
-                      </Border.Background>
-                      <TextBlock Text="{Binding Badge}" Foreground="White" FontSize="9" FontWeight="Bold" VerticalAlignment="Center" />
-                    </Border>
-                    <StackPanel>
-                      <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" MaxWidth="150" />
-                      <TextBlock Text="{Binding Subtitle}" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                 TextTrimming="CharacterEllipsis" MaxWidth="150" />
-                      <TextBlock Text="{Binding Error}" FontSize="11" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
-                                 TextWrapping="Wrap" MaxWidth="170"
-                                 Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}" />
-                    </StackPanel>
-                  </DockPanel>
-                </CheckBox>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-
           <!-- What to see in those files: shown once a program is connected -->
           <StackPanel Visibility="{Binding HasPrograms, Converter={StaticResource BoolToVis}}">
           <TextBlock Text="DATA" Style="{StaticResource SectionLabel}" />
@@ -425,19 +380,6 @@
           </Border>
           <TextBlock Text="Don't see your program? Make sure its Nexus add-in is loaded (Nexus tab on its ribbon)." TextWrapping="Wrap"
                      TextAlignment="Center" FontSize="12" Margin="0,14,0,0" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-          <Border Style="{StaticResource Card}" Padding="20,14" Margin="0,18,0,0">
-            <DockPanel>
-              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
-                <Button Content="Add files…" Command="{Binding AddDiskFilesCommand}" Style="{DynamicResource AccentButtonStyle}" />
-                <Button Content="Add folder…" Command="{Binding AddDiskFolderCommand}" Margin="6,0,0,0" />
-              </StackPanel>
-              <StackPanel>
-                <TextBlock Text="Or read files without opening them" FontWeight="SemiBold" />
-                <TextBlock TextWrapping="Wrap" FontSize="12" Margin="0,4,0,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                           Text="Revit models and drawings from Autodesk Docs (Desktop Connector) or any folder: read-only, for quick extraction, export and PDFs." />
-              </StackPanel>
-            </DockPanel>
-          </Border>
         </StackPanel>
       </Grid>
 
@@ -492,21 +434,6 @@
               <ContextMenu>
                 <MenuItem Header="Go to anything…" Click="OnPaletteMenu" InputGestureText="Ctrl+K" />
                 <MenuItem Header="History and snapshots…" Click="OnHistory" />
-                <MenuItem Header="Files on disk (read-only)">
-                  <MenuItem Header="Add files…" Command="{Binding AddDiskFilesCommand}" />
-                  <MenuItem Header="Add a folder…" Command="{Binding AddDiskFolderCommand}" />
-                  <Separator />
-                  <MenuItem Header="Retry files that failed" Click="OnDiskRetryFailed" IsEnabled="{Binding HasDiskFiles}" />
-                  <MenuItem Header="Remove files that failed" Click="OnDiskRemoveFailed" IsEnabled="{Binding HasDiskFiles}" />
-                  <MenuItem Header="Read every file again" Click="OnDiskReadAllAgain" IsEnabled="{Binding HasDiskFiles}" />
-                  <MenuItem Header="Replace with other files…" Click="OnDiskReplaceFiles" />
-                  <MenuItem Header="Replace with a folder…" Click="OnDiskReplaceFolder" />
-                  <MenuItem Header="Remove all files on disk…" Click="OnDiskRemoveAll" IsEnabled="{Binding HasDiskFiles}" />
-                  <Separator />
-                  <MenuItem Header="Let Revit open Revit models to read them" IsCheckable="True"
-                            IsChecked="{Binding AllowRevitToOpenModels, Mode=TwoWay}"
-                            ToolTip="Off: Revit models on disk are not read (Revit is the only program that can read them, by opening a copy in the background). Drawings are read either way, without AutoCAD." />
-                </MenuItem>
                 <Separator />
                 <MenuItem Header="Messages and log…" Click="OnMessages" />
                 <MenuItem Header="Advanced">

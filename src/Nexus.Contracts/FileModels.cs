@@ -1,21 +1,11 @@
 namespace Nexus.Contracts;
 
-/// <summary>
-/// Read a file that is not open: the agent opens it in the background (read-only, nothing is saved),
-/// runs one reader and closes it again. The hub sends the path of its own copy of the file.
-/// </summary>
-public sealed class ReadFileRequest
-{
-    public string Path { get; set; } = "";
-    public string ReaderId { get; set; } = "";
-    public Dictionary<string, string> Options { get; set; } = new();
-}
-
 /// <summary>Create one PDF per sheet (Revit sheet, AutoCAD layout).</summary>
 public sealed class ExportPdfRequest
 {
-    /// <summary>An open document (<see cref="DocumentInfo.Id"/>); when empty, <see cref="Path"/> is opened in the background.</summary>
+    /// <summary>An open document (<see cref="DocumentInfo.Id"/>), for agents.</summary>
     public string? DocumentId { get; set; }
+    /// <summary>The drawing, for AutoCAD's Core Console (the hub's copy of the saved file).</summary>
     public string Path { get; set; } = "";
     /// <summary>Sheets to export (<see cref="DataItem.Id"/>); empty for every sheet.</summary>
     public List<string> ItemIds { get; set; } = new();
@@ -45,25 +35,19 @@ public sealed class ExportedSheet
 }
 
 /// <summary>
-/// Work for AutoCAD's Core Console (accoreconsole.exe, no user interface): the hub writes this as JSON,
-/// starts the console on a copy of the drawing with NEXUS_JOB pointing at it, and the agent's NEXUSJOB
-/// command writes a <see cref="HeadlessJobResult"/> to <see cref="ResultPath"/>.
+/// Work for AutoCAD's Core Console (accoreconsole.exe, no user interface): PDFs of a drawing's layouts.
+/// The hub writes this as JSON, starts the console on a copy of the saved drawing with NEXUS_JOB pointing at
+/// it, and the NEXUSJOB command writes a <see cref="HeadlessJobResult"/> to <see cref="ResultPath"/>.
 /// </summary>
 public sealed class HeadlessJob
 {
     public const string EnvironmentVariable = "NEXUS_JOB";
-    public const string ModeRead = "read";
-    public const string ModePdf = "pdf";
-
-    public string Mode { get; set; } = ModeRead;
-    public List<ReadRequest> Reads { get; set; } = new();
     public ExportPdfRequest? Pdf { get; set; }
     public string ResultPath { get; set; } = "";
 }
 
 public sealed class HeadlessJobResult
 {
-    public List<ReadResult> Reads { get; set; } = new();
     public ExportPdfResult? Pdf { get; set; }
     public string? Error { get; set; }
     public string Product { get; set; } = "";

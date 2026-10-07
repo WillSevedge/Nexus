@@ -7,15 +7,8 @@ public static class AgentFeatures
     public const string Write = "write";
     /// <summary>The agent accepts <see cref="MessageTypes.Select"/> requests (show items in the host).</summary>
     public const string Select = "select";
-    /// <summary>The agent accepts <see cref="MessageTypes.ReadFile"/> requests (files that are not open).</summary>
-    public const string ReadFile = "readFile";
     /// <summary>The agent accepts <see cref="MessageTypes.ExportPdf"/> requests.</summary>
     public const string ExportPdf = "exportPdf";
-    /// <summary>
-    /// Set by the hub on results read from a file on disk (not open in a program): shown read-only.
-    /// Never sent by an agent.
-    /// </summary>
-    public const string FileOnDisk = "fileOnDisk";
 }
 
 /// <summary>Show items in the host: open the sheet/layout, or select and zoom to objects.</summary>

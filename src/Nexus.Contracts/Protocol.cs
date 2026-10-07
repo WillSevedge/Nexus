@@ -31,9 +31,7 @@ public static class MessageTypes
     public const string Read = "read";
     public const string Write = "write";
     public const string Select = "select";
-    /// <summary>Read a file that is not open (opened in the background, read, closed again).</summary>
-    public const string ReadFile = "readFile";
-    /// <summary>Create PDFs of sheets, from an open file or a file on disk.</summary>
+    /// <summary>Create PDFs of sheets of an open file.</summary>
     public const string ExportPdf = "exportPdf";
 
     public const string Result = "result";

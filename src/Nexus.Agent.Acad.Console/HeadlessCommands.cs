@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using Nexus.Agent;
-using Nexus.Agent.Acad.Readers;
 using Nexus.Contracts;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -15,18 +14,13 @@ using AcApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 namespace Nexus.Agent.Acad;
 
 /// <summary>
-/// Files on disk (drawings not open in AutoCAD): the hub starts AutoCAD's Core Console
-/// (accoreconsole.exe, no window) on its own copy of the drawing with NEXUS_JOB set, loads this assembly
-/// and runs NEXUSJOB, which reads the sheets or makes PDFs and writes the result for the hub.
-/// Nothing is saved: the console works on the copy, which the hub deletes afterwards.
+/// Print &amp; PDF for drawings: the hub starts AutoCAD's Core Console (accoreconsole.exe, no window) on its own
+/// copy of the saved drawing with NEXUS_JOB set, loads this assembly and runs NEXUSJOB, which makes a PDF of
+/// each layout and writes the result for the hub. Nothing is saved: the console works on the copy, which the
+/// hub deletes afterwards.
 /// </summary>
 public sealed class HeadlessCommands
 {
-    /// <summary>Readers that work without the AutoCAD window.</summary>
-    public static readonly string[] Readers = { "acad.sheets" };
-
-    public static bool IsHeadless => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(HeadlessJob.EnvironmentVariable));
-
     [CommandMethod("NEXUSJOB", CommandFlags.Modal)]
     public void Run()
     {
@@ -45,12 +39,8 @@ public sealed class HeadlessCommands
             job = JsonSerializer.Deserialize<HeadlessJob>(File.ReadAllText(jobPath), Nexus.Contracts.Json.Options)
                   ?? throw new InvalidOperationException("Empty job.");
             var doc = AcApp.DocumentManager.MdiActiveDocument ?? throw new InvalidOperationException("No drawing is open in the Core Console.");
-            log.Info($"Job '{job.Mode}' on {doc.Name}");
-            if (job.Mode == HeadlessJob.ModePdf && job.Pdf is not null)
-                result.Pdf = Plot(doc, job.Pdf, log);
-            else
-                foreach (var request in job.Reads)
-                    result.Reads.Add(Read(doc, request, log));
+            log.Info($"PDF job on {doc.Name}");
+            result.Pdf = Plot(doc, job.Pdf ?? throw new InvalidOperationException("The job has no PDF request."), log);
         }
         catch (System.Exception ex)
         {
@@ -66,29 +56,6 @@ public sealed class HeadlessCommands
         {
             log.Error("Could not write the job result.", ex);
         }
-    }
-
-    private static ReadResult Read(Document doc, ReadRequest request, AgentLog log)
-    {
-        IHostDataReader<Document> reader = request.ReaderId switch
-        {
-            "acad.sheets" => new SheetsReader(),
-            _ => throw new NotSupportedException($"'{request.ReaderId}' needs the drawing open in AutoCAD."),
-        };
-        var ctx = new ReadContext(reader.Descriptor, request.Options, log, CancellationToken.None);
-        var sw = Stopwatch.StartNew();
-        reader.Read(doc, ctx);
-        return new ReadResult
-        {
-            ReaderId = reader.Descriptor.Id,
-            DocumentId = AcadDocumentProvider.Id(doc),
-            DocumentTitle = Path.GetFileName(doc.Name),
-            ReadUtc = DateTime.UtcNow,
-            ElapsedMs = sw.ElapsedMilliseconds,
-            Items = ctx.Items,
-            Warnings = ctx.Warnings,
-            Truncated = ctx.Truncated,
-        };
     }
 
     // ------------------------------------------------------------------ PDF

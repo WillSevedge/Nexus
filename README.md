@@ -17,7 +17,7 @@ Later phases: Excel import/export, two-way sync and the MCP server.
 | `src/Nexus.Agent.Acad` | per year (see *Program years*) | AutoCAD-family core agent (`IExtensionApplication`), autoloader bundle, generic "Properties palette" reader, layouts reader, module loader. Loads in every AutoCAD-based product. |
 | `src/Nexus.Agent.Acad.Civil3D` | per year (see *Program years*) | Civil 3D module. The only project that references the Civil 3D API. Loaded by the core only when Civil 3D is detected. |
 | `src/Nexus.Agent.Acad.Plant3D` | per year (see *Program years*) | Plant 3D module. Reaches the Plant 3D API (project, DataLinksManager) by late binding, so it builds without Plant 3D. Loaded by the core only when Plant 3D is detected. |
-| `src/Nexus.Agent.Acad.Console` | per year (see *Program years*) | Runs in AutoCAD's Core Console (`accoreconsole.exe`) for files on disk: reads sheets and makes PDFs (`NEXUSJOB`). References only `accoremgd`/`acdbmgd` (the Core Console cannot load anything that uses AutoCAD's UI libraries). |
+| `src/Nexus.Agent.Acad.Console` | per year (see *Program years*) | Runs in AutoCAD's Core Console (`accoreconsole.exe`) for Print & PDF: PDFs of a drawing's layouts (`NEXUSJOB`). References only `accoremgd`/`acdbmgd` (the Core Console cannot load anything that uses AutoCAD's UI libraries). |
 | `src/Nexus.Hub.Core` | net10.0 | UI-free hub logic: discovery, pipe client, result flattening, CSV/JSON export. |
 | `src/Nexus.Hub` | net10.0-windows10.0.19041 (WPF) | The hub application (`Nexus.exe`). |
 | `src/Nexus.Cli` | net10.0 | `nexus` command-line client, for testing agents without the GUI. |
@@ -412,41 +412,22 @@ was; cancelling an apply stops before the next file (the file being written fini
 Problems and results appear in an info bar above the table instead of pop-ups; questions (discard changes, write
 to Excel) use the hub's own dialogs.
 
-### Files on disk (read-only)
-
-Read Revit models and drawings **without opening them** — from Autodesk Docs / Forma through Desktop Connector
-(`%USERPROFILE%\DC\ACCDocs\...`), a network share, or any folder. Use *⋯ › Files on disk › Add files* or *Add a folder*,
-Ctrl+K, or drop files/folders on the window; they are listed under Files once added. Ticked files load into the grid with the open files, can be
-searched, compared with Excel and exported like any other rows, and are **always read-only** (edits are blocked).
-
-- **How**: Nexus copies the file to `%LOCALAPPDATA%\Nexus\offline\work` and reads the copy, so the original is
-  never opened, locked or changed (and nothing is synced back by Desktop Connector). The copy is deleted afterwards.
-  - **Revit models** are only read when you allow it (*⋯ › Files on disk › Let Revit open Revit models to read them*; off by
-    default), because Revit is the only program that can read them. When allowed, they are opened in the background by a running Revit (same release or newer; no project needs to be
-    open), detached from central when workshared, read, and closed without saving. Nothing appears in Revit.
-    When no Revit is running, **Start Revit** (under Files) starts one; the models are read as soon as it is ready.
-    Models from an older release are upgraded in memory only (slower the first time; the result is kept).
-  - **Drawings** are read by AutoCAD's Core Console (`accoreconsole.exe`, AutoCAD without a window), installed with
-    AutoCAD, Civil 3D and Plant 3D 2024+. AutoCAD does not need to be running. Sheets only (layouts + title block).
-- **Fast again**: results are kept in `%LOCALAPPDATA%\Nexus\offline\cache`; a file is only read again when it
-  changes (right-click › *Read again* to force it).
-- If AutoCAD asks whether to load the Nexus add-in (SECURELOAD), add the `Nexus.bundle\Contents\<year>` folder to
-  *Options › Files › Trusted Locations*.
-
 ### Print & PDF
 
-**Print & PDF** on the command bar (Sheets view) works on the selected sheets, or every sheet shown, from open files
-and files on disk alike:
+**Print & PDF** on the command bar (Sheets view) works on the selected sheets, or every sheet shown:
 
-- **Create PDFs**: made by the programs themselves — Revit's PDF export (each sheet at its title block size) and
-  AutoCAD's *DWG To PDF* with each layout's own page setup (plot area, scale, plot style; same paper size, or the
-  closest). Open Revit models include unsaved changes; drawings are made from their saved file. Name files with
+- **Create PDFs**: made by the programs themselves — Revit's PDF export of the open model (each sheet at its
+  title block size, unsaved changes included) and, for drawings, AutoCAD's *DWG To PDF* with each layout's own
+  page setup (plot area, scale, plot style; same paper size, or the closest). Drawings are plotted by AutoCAD's
+  Core Console from a copy of the saved drawing, so AutoCAD keeps working meanwhile. Name files with
   `{Number}`, `{Name}`, `{File}`, and optionally combine everything into one PDF.
 - **Preview**: each sheet is shown in the window (Windows' own PDF renderer; no PDF program needed). Click it to
   open the PDF.
 - **Print…**: any printer; each sheet is turned to fit and scaled to the paper picked in the print dialog
   (half-size sets, check prints), or printed on its own paper size for plotters. Printing sends the sheet as a
   300 dpi image; for full vector plots send the PDFs from your plotter software.
+- If AutoCAD asks whether to load the Nexus add-in (SECURELOAD), add the `Nexus.bundle\Contents\<year>` folder to
+  *Options › Files › Trusted Locations*.
 
 ### Excel link
 

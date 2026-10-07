@@ -13,7 +13,7 @@ public sealed record CoreConsoleInstall(int Year, string Exe, string AgentDll, b
 
 /// <summary>
 /// AutoCAD's Core Console (accoreconsole.exe): AutoCAD without a window, installed with AutoCAD, Civil 3D and
-/// Plant 3D. Nexus runs it on its own copy of a drawing to read sheets or make PDFs without AutoCAD open.
+/// Plant 3D. Print &amp; PDF runs it on a copy of a saved drawing to make PDFs of its layouts.
 /// </summary>
 public static class CoreConsole
 {
@@ -38,8 +38,8 @@ public static class CoreConsole
     }
 
     public const string NotInstalled =
-        "Reading drawings that are not open needs AutoCAD, Civil 3D or Plant 3D 2024 or later on this PC, with the Nexus add-in built for it " +
-        "(Rebuild Solution installs it). AutoCAD does not have to be running.";
+        "PDFs of drawings need AutoCAD, Civil 3D or Plant 3D 2024 or later on this PC, with the Nexus add-in built for it " +
+        "(Rebuild Solution installs it).";
 
     /// <summary>Runs one job on <paramref name="drawing"/> (a working copy) and returns what the add-in wrote.</summary>
     public static async Task<HeadlessJobResult> RunAsync(CoreConsoleInstall install, string drawing, HeadlessJob job, string workFolder,
@@ -96,7 +96,7 @@ public static class CoreConsole
         process.OutputDataReceived += OnLine;
         process.ErrorDataReceived += OnLine;
         var sw = Stopwatch.StartNew();
-        HubLog.Info($"Core Console {install.Year}: {Path.GetFileName(drawing)} ({job.Mode})");
+        HubLog.Info($"Core Console {install.Year}: PDFs of {Path.GetFileName(drawing)}");
         if (!process.Start()) throw Failure("AutoCAD's Core Console did not start.");
         process.StandardInput.Close(); // nothing to answer: a question ends the console instead of waiting
         process.BeginOutputReadLine();

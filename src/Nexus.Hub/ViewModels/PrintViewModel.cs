@@ -23,8 +23,8 @@ public sealed class PrintSheet : Observable
     public required string Name { get; init; }
     public string File => Row.Document;
     public string ItemId => Row.ItemId;
-    /// <summary>"Revit 2026", "On disk"...</summary>
-    public string Source => Run.Disk is not null ? "On disk" : Run.Host.Name;
+    /// <summary>"Revit 2026", "Civil 3D 2026"...</summary>
+    public string Source => Run.Host.Name;
     public string Title => Number.Length > 0 ? $"{Number} - {Name}" : Name;
 
     public bool Include { get => _include; set => Set(ref _include, value); }
@@ -46,13 +46,13 @@ public sealed class PrintSheet : Observable
 
 /// <summary>
 /// Print &amp; PDF: PDFs of sheets made by the programs themselves (Revit's PDF export; AutoCAD's DWG To PDF
-/// with each layout's page setup), from open files or files on disk; a preview of each sheet; one combined PDF;
+/// with each layout's page setup), from the open files; a preview of each sheet; one combined PDF;
 /// and printing to any printer, all without opening the PDFs in another program.
 /// </summary>
 public sealed class PrintViewModel : Observable
 {
     private readonly MainViewModel _main;
-    private readonly DiskReader _disk;
+    private readonly DrawingPdfs _drawings;
     private PrintSheet? _selected;
     private BitmapSource? _preview;
     private string _previewText = "";
@@ -65,10 +65,10 @@ public sealed class PrintViewModel : Observable
     private string _combinedName;
     private bool _matchSheetSize;
 
-    public PrintViewModel(MainViewModel main, DiskReader disk, IEnumerable<PrintSheet> sheets, string scope, string? folder, string? pattern)
+    public PrintViewModel(MainViewModel main, DrawingPdfs drawings, IEnumerable<PrintSheet> sheets, string scope, string? folder, string? pattern)
     {
         _main = main;
-        _disk = disk;
+        _drawings = drawings;
         Scope = scope;
         foreach (var s in sheets) Sheets.Add(s);
         _folder = folder is { Length: > 0 } && Directory.Exists(folder)
@@ -90,9 +90,7 @@ public sealed class PrintViewModel : Observable
         SelectNoneCommand = new RelayCommand(() => { foreach (var s in Sheets) s.Include = false; RaiseCounts(); return Task.CompletedTask; });
         foreach (var s in Sheets) s.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(PrintSheet.Include)) RaiseCounts(); };
         Selected = Sheets.FirstOrDefault();
-        Status = Sheets.Any(s => s.Run.Disk is not null)
-            ? "Sheets of files on disk are made from a copy of the file, in the background (Revit) or AutoCAD's Core Console (drawings)."
-            : "PDFs are made by Revit and AutoCAD themselves, with each sheet's own size and page setup.";
+        Status = "PDFs are made by Revit and AutoCAD themselves, with each sheet's own size and page setup.";
     }
 
     public string Scope { get; }
@@ -286,29 +284,39 @@ public sealed class PrintViewModel : Observable
     }
 
     /// <summary>
-    /// Open Revit models: Revit makes the PDFs from the open model (unsaved changes included). Files on disk,
-    /// and drawings open in AutoCAD: from the saved file, through AutoCAD's Core Console or a background Revit.
+    /// Revit: Revit makes the PDFs from the open model (unsaved changes included), one model at a time per Revit.
+    /// Drawings: AutoCAD's Core Console makes them from a copy of the saved drawing (AutoCAD keeps working).
     /// </summary>
     private async Task<(ExportPdfResult Result, string Note)> ExportFileAsync(ResultRun run, ExportPdfRequest request, CancellationToken ct)
     {
-        if (run.Disk is { } disk)
-            return (await _disk.ExportPdfAsync(disk, request, ct), "");
-
         var agent = run.Agent?.Connection ?? throw new InvalidOperationException($"{run.DocumentTitle} is no longer open.");
         if (agent.Host.HostKind == HostKinds.Revit)
         {
             if (!agent.CanExportPdf)
                 throw new InvalidOperationException($"{agent.Host.Name}'s Nexus add-in is out of date. Close Revit, Rebuild Solution, and open it again.");
             request.DocumentId = run.Result?.DocumentId;
-            return (await _disk.OnRevitAsync(agent, () => agent.ExportPdfAsync(request, ct), ct), "");
+            return (await OneAtATime(agent.Host.ProcessId, () => agent.ExportPdfAsync(request, ct), ct), "");
         }
 
         var doc = agent.Documents.FirstOrDefault(d => d.Id == run.Result?.DocumentId);
         if (doc?.Path is not { Length: > 0 } path || !System.IO.File.Exists(path))
             throw new InvalidOperationException($"{run.DocumentTitle} has never been saved: save it first (PDFs are made from the saved drawing).");
-        var file = DiskFile.Create(path);
-        await Task.Run(file.Inspect, ct);
-        return (await _disk.ExportPdfAsync(file, request, ct), doc.IsModified ? " (from the last save)" : "");
+        return (await _drawings.ExportAsync(path, request, ct), doc.IsModified ? " (from the last save)" : "");
+    }
+
+    // Revit works on one thing at a time: a second export waiting behind a long one would time out as "busy".
+    private static readonly Dictionary<int, SemaphoreSlim> Queues = new();
+
+    private static async Task<T> OneAtATime<T>(int processId, Func<Task<T>> work, CancellationToken ct)
+    {
+        SemaphoreSlim gate;
+        lock (Queues)
+        {
+            if (!Queues.TryGetValue(processId, out gate!)) Queues[processId] = gate = new SemaphoreSlim(1, 1);
+        }
+        await gate.WaitAsync(ct);
+        try { return await work(); }
+        finally { gate.Release(); }
     }
 
     // ------------------------------------------------------------------ print

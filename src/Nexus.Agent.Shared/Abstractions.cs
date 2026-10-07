@@ -61,22 +61,6 @@ public interface IHostDataWriter<in TDoc> where TDoc : class
     WriteResult Write(TDoc document, WriteRequest request, AgentLog log, CancellationToken ct);
 }
 
-/// <summary>
-/// Opens files that are not open, in the background and read-only (the hub reads files on disk this way).
-/// Optional; agents without one do not advertise <see cref="AgentFeatures.ReadFile"/>.
-/// </summary>
-public interface IFileOpener<TDoc> where TDoc : class
-{
-    /// <summary>
-    /// Host thread only. Returns the document; <paramref name="openedHere"/> is false when the file was
-    /// already open (then it must not be closed).
-    /// </summary>
-    TDoc Open(string path, AgentLog log, out bool openedHere);
-
-    /// <summary>Host thread only. Closes a document opened by <see cref="Open"/> without saving.</summary>
-    void Close(TDoc document, AgentLog log);
-}
-
 /// <summary>Creates PDFs of sheets. Optional; advertises <see cref="AgentFeatures.ExportPdf"/>.</summary>
 public interface IPdfExporter<in TDoc> where TDoc : class
 {

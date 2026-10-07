@@ -46,7 +46,7 @@ public sealed class AgentApplication : IExternalApplication
             _dispatcher = new RevitDispatcher(Log);
             Server = new AgentServer<Document>(Host, _dispatcher.Queue, new RevitDocumentProvider(_dispatcher),
                 RevitReaders.CreateRegistry(), Log, writer: new RevitWriter(), selector: new RevitSelector(_dispatcher),
-                files: new RevitFiles(_dispatcher), pdf: new RevitFiles(_dispatcher));
+                pdf: new RevitPdfExporter());
             if (_ribbon is not null) Server.StatusChanged += _ribbon.OnStatusChanged;
             Server.Start();
             return Result.Succeeded;

@@ -239,9 +239,8 @@ public sealed partial class MainViewModel : Observable
     }
 
     /// <summary>At least one program is connected (the Data section of the sidebar shows).</summary>
-    /// <summary>Something to work with: a program connected, or files on disk added.</summary>
-    public bool HasPrograms => Agents.Count > 0 || DiskFiles.Count > 0;
-    public bool NoPrograms => !HasPrograms;
+    public bool HasPrograms => Agents.Count > 0;
+    public bool NoPrograms => Agents.Count == 0;
 
     /// <summary>Nothing to show yet: the grid is replaced by a short explanation.</summary>
     public bool IsEmpty => !_busy && (_table is null || _table.Rows.Count == 0);
@@ -293,7 +292,7 @@ public sealed partial class MainViewModel : Observable
     /// <summary>First start: find the programs, then load the last dataset (Sheets by default).</summary>
     public async Task StartAsync()
     {
-        RestoreDiskFiles();
+        Nexus.Hub.Core.Files.WorkCopy.CleanUp();
         await RefreshAsync();
         await LoadAsync(confirm: false);
     }
@@ -354,7 +353,6 @@ public sealed partial class MainViewModel : Observable
             }
         }
 
-        _programs = Agents.Select(a => a.Connection).ToList();
         RebuildDatasets();
         Raise(nameof(EmptyTitle));
         Raise(nameof(HasPrograms));
@@ -362,9 +360,7 @@ public sealed partial class MainViewModel : Observable
         Raise(nameof(EmptyText));
         int docs = Agents.Sum(a => a.Documents.Count);
         if (!_busy)
-            Status = found.Count == 0 && DiskFiles.Count > 0
-                ? $"{DiskFiles.Count} file(s) on disk. Revit models are read through a running Revit; drawings through AutoCAD's Core Console (AutoCAD does not need to be open)."
-                : found.Count == 0
+            Status = found.Count == 0
                 ? "Waiting for Revit, AutoCAD, Civil 3D or Plant 3D (with the Nexus add-in). They appear here automatically."
                 : $"Connected to {found.Count} program(s) with {docs} open file(s).";
         HostsChanged?.Invoke(found.Count == 0
@@ -408,7 +404,7 @@ public sealed partial class MainViewModel : Observable
             var before = CheckedDocumentKeys();
             await RefreshAsync();
             // New program with its active file ticked, or a program closed: reload (unless edits are pending).
-            if (_pendingEdits == 0 && (!before.SetEquals(CheckedDocumentKeys()) || RevitArrivedForWaitingModels())) await LoadAsync(confirm: false);
+            if (_pendingEdits == 0 && !before.SetEquals(CheckedDocumentKeys())) await LoadAsync(confirm: false);
         }
         finally
         {
@@ -510,14 +506,11 @@ public sealed partial class MainViewModel : Observable
                         && d.Agent.Connection.Readers.Any(r => r.Id == dataset.Readers[d.Agent.Connection.Host.HostKind].Descriptor.Id))
             .ToList();
 
-        // Files on disk: read in the background (read-only), alongside the open files.
-        var disk = DiskFiles.Where(f => f.IsChecked && DiskReaderId(dataset, f.File) is not null).ToList();
-
-        if (docs.Count == 0 && disk.Count == 0)
+        if (docs.Count == 0)
         {
             Runs = new List<ResultRun>();
             ShowResults(dataset);
-            Status = Agents.Count == 0 && DiskFiles.Count == 0
+            Status = Agents.Count == 0
                 ? "Waiting for Revit, AutoCAD, Civil 3D or Plant 3D. They appear on the left automatically."
                 : $"Tick a file on the left to see its {dataset.Title.ToLowerInvariant()}.";
             return;
@@ -525,9 +518,8 @@ public sealed partial class MainViewModel : Observable
 
         _busy = true;
         Raise(nameof(IsEmpty));
-        int total = docs.Count + disk.Count;
-        Status = $"Reading {dataset.Title.ToLowerInvariant()} from {total} file(s)…";
-        var work = BeginWork($"Reading {dataset.Title.ToLowerInvariant()}", total);
+        Status = $"Reading {dataset.Title.ToLowerInvariant()} from {docs.Count} file(s)…";
+        var work = BeginWork($"Reading {dataset.Title.ToLowerInvariant()}", docs.Count);
         try
         {
             var perAgent = docs.GroupBy(d => d.Agent).Select(async group =>
@@ -546,10 +538,7 @@ public sealed partial class MainViewModel : Observable
                 }
                 return runs;
             });
-            var open = Task.WhenAll(perAgent);
-            var fromDisk = disk.Count > 0 ? ReadDiskFilesAsync(dataset, disk, work, open) : Task.FromResult(new List<ResultRun>());
-            var all = (await open).SelectMany(r => r).ToList();
-            all.AddRange(await fromDisk);
+            var all = (await Task.WhenAll(perAgent)).SelectMany(r => r).ToList();
             if (generation != _loadGeneration) return; // a newer load started meanwhile
             Runs = all;
         }
@@ -1107,11 +1096,6 @@ public sealed partial class MainViewModel : Observable
         foreach (var group in rows.GroupBy(r => (Run: r.Source.Tag as ResultRun, Doc: r.Source.Result.DocumentId)))
         {
             var agent = group.Key.Run?.Agent;
-            if (group.Key.Run?.Disk is { } file)
-            {
-                Status = $"{file.Name} is not open (it was read from disk). Open it in {(file.IsRevit ? "Revit" : "AutoCAD")} to see it there.";
-                continue;
-            }
             if (agent is null) continue;
             if (!agent.Connection.CanSelect)
             {

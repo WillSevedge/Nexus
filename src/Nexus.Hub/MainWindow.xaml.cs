@@ -51,25 +51,6 @@ public partial class MainWindow : Window
             await _vm.RefreshIfHostsChangedAsync(force: true);
         };
 
-        // Drop Revit models, drawings or folders on the window: read them without opening them.
-        AllowDrop = true;
-        DragOver += (_, e) =>
-        {
-            e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
-            e.Handled = true;
-        };
-        Drop += (_, e) =>
-        {
-            if (e.Data.GetData(DataFormats.FileDrop) is not string[] dropped) return;
-            var files = new List<string>();
-            foreach (var path in dropped)
-            {
-                if (System.IO.Directory.Exists(path)) files.AddRange(Nexus.Hub.Core.Files.DiskFile.FindIn(path));
-                else if (Nexus.Hub.Core.Files.DiskFile.IsSupported(path)) files.Add(path);
-            }
-            if (files.Count > 0) _ = _vm.AddDiskFilesAsync(files);
-        };
-
         InputBindings.Add(new KeyBinding(new RelayCommand(() => { SearchBox.Focus(); SearchBox.SelectAll(); return Task.CompletedTask; }), Key.F, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(_vm.RefreshCommand, Key.F5, ModifierKeys.None));
         InputBindings.Add(new KeyBinding(new RelayCommand(() => { OpenPalette(); return Task.CompletedTask; }), Key.K, ModifierKeys.Control));
@@ -111,42 +92,6 @@ public partial class MainWindow : Window
             TableGrid.Columns.Add(column);
         }
         TableGrid.FrozenColumnCount = specs.Count(s => s.Frozen) + (health ? 1 : 0);
-    }
-
-    // ------------------------------------------------------------------ files on disk
-
-    private static DiskFileNode? DiskNode(object sender) =>
-        (sender as FrameworkElement)?.DataContext as DiskFileNode;
-
-    private void OnDiskReread(object sender, RoutedEventArgs e)
-    {
-        if (DiskNode(sender) is { } node) _ = _vm.RereadDiskFileAsync(node);
-    }
-
-    private void OnDiskShowInFolder(object sender, RoutedEventArgs e)
-    {
-        if (DiskNode(sender) is { } node) MainViewModel.ShowInFolder(node);
-    }
-
-    private void OnDiskRemove(object sender, RoutedEventArgs e)
-    {
-        if (DiskNode(sender) is { } node) _vm.RemoveDiskFile(node);
-    }
-
-    private void OnDiskRetryFailed(object sender, RoutedEventArgs e) => _ = _vm.RetryFailedDiskFilesAsync();
-
-    private void OnDiskRemoveFailed(object sender, RoutedEventArgs e) => _vm.RemoveFailedDiskFiles();
-
-    private void OnDiskReplaceFiles(object sender, RoutedEventArgs e) => _vm.PickDiskFiles(replace: true);
-
-    private void OnDiskReplaceFolder(object sender, RoutedEventArgs e) => _vm.PickDiskFolder(replace: true);
-
-    private void OnDiskReadAllAgain(object sender, RoutedEventArgs e) => _ = _vm.ReadAllDiskFilesAgainAsync();
-
-    private void OnDiskRemoveAll(object sender, RoutedEventArgs e)
-    {
-        if (Dialogs.Confirm("Remove all files on disk?", "They are only removed from this list; the files are not touched.", "Remove all"))
-            _vm.RemoveAllDiskFiles();
     }
 
     // ------------------------------------------------------------------ sheet health
@@ -243,8 +188,6 @@ public partial class MainWindow : Window
 
         Command("Review & apply changes", "\uE73E", _vm.ApplyChangesCommand, _vm.PendingText, "save write commit apply");
         Action("Print & PDF", "\uE749", OpenPrint, "PDFs, preview and printing of the sheets shown", "plot print pdf publish preview batch", _vm.IsSheetsView);
-        Action("Add files on disk…", "\uE8E5", () => _vm.AddDiskFilesCommand.Execute(null), "Read Revit models and drawings without opening them", "desktop connector forma docs closed offline read only");
-        Action("Add a folder on disk…", "\uE8F4", () => _vm.AddDiskFolderCommand.Execute(null), "Every drawing (and Revit model) in a folder, read-only", "desktop connector forma docs closed offline folder");
         Command("Discard changes", "\uE7A7", _vm.DiscardChangesCommand, "Undo every edit not applied yet", "undo revert cancel");
         Action("Rename & Renumber…", "\uE8AC", OpenRename, "Sheet numbers and names of the selected sheets, or every sheet shown", "renumber sequence replace find case prefix suffix sheet number name");
         Action("Sheet health", "\uE95E", () => _vm.Health.IsOpen = true, _vm.Health.Summary, "check qa qc issues errors duplicates", _vm.Health.IsAvailable);
