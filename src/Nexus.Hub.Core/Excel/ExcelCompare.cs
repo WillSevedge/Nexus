@@ -26,6 +26,8 @@ public sealed class ExcelDiff
     public TableRow? Row { get; init; }
     /// <summary>The Excel cell (null when only in the model).</summary>
     public ExcelCell? Cell { get; init; }
+    /// <summary>Which way this column may go (from the link).</summary>
+    public ExcelDirection Direction { get; init; } = ExcelDirection.Both;
 }
 
 public static class ExcelCompare
@@ -51,7 +53,10 @@ public static class ExcelCompare
             if (!excelRows.TryAdd(NormalizeKey(r.Key), r))
                 warnings.Add($"'{r.Key}' appears more than once in the workbook (rows {excelRows[NormalizeKey(r.Key)].Row} and {r.Row}); the first is compared.");
 
-        var linked = link.Columns.Where(c => c.ColumnId.Length > 0 && c.ColumnId != link.KeyColumnId).ToList();
+        // Program, file name and fixed text are Nexus → Excel only: not compared. Formula columns are Excel's.
+        var linked = link.Columns.Where(c => c.ColumnId.Length > 0 && c.ColumnId != link.KeyColumnId
+                                             && !ExcelSources.IsSpecial(c.ColumnId) && !c.IsFormula && c.Direction != ExcelDirection.None
+                                             && !excel.FormulaHeaders.Contains(c.Header)).ToList();
 
         foreach (var (key, row) in model)
         {
@@ -69,7 +74,7 @@ public static class ExcelCompare
                 diffs.Add(new ExcelDiff
                 {
                     Kind = ExcelDiffKind.Different, Key = xr.Key, Header = c.Header, ColumnId = c.ColumnId,
-                    ModelValue = mv.Value ?? "", ExcelValue = cell.Text, Row = row, Cell = cell,
+                    ModelValue = mv.Value ?? "", ExcelValue = cell.Text, Row = row, Cell = cell, Direction = c.Direction,
                 });
             }
         }
@@ -109,6 +114,8 @@ public static class ExcelCompare
                      ("No", "Number"), ("Sheet No", "Number"), ("Sheet #", "Number"), ("Dwg No", "Number"), ("Drawing No", "Number"),
                      ("Sheet Name", "Title"), ("Sheet Title", "Title"), ("Drawing Title", "Title"), ("Name", "Title"), ("Description", "Title"),
                      ("Rev", "Revision"), ("Rev No", "Revision"), ("Current Revision", "Revision"), ("Date", "Issue Date"),
+                     ("Rev Date", "Revision Date"), ("Revision Date", "Revision Date"), ("Rev Description", "Revision Description"),
+                     ("Sheet Status", "Status"), ("Dwg Status", "Status"), ("Drawing Status", "Status"),
                  })
         {
             string id = SheetFieldMap.ColumnId(field);
@@ -119,11 +126,21 @@ public static class ExcelCompare
             .GroupBy(c => SheetFieldMap.Normalize(c.Name))
             .ToDictionary(g => g.Key, g => g.First().Id, StringComparer.Ordinal);
 
+        // Not model values: which program and which file a row comes from.
+        var specials = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var name in new[] { "Source", "Program", "Software", "Application", "App", "Platform" }) specials[SheetFieldMap.Normalize(name)] = ExcelSources.Program;
+        foreach (var name in new[] { "File", "File Name", "Filename", "Model", "Model File", "Drawing File", "Document" }) specials[SheetFieldMap.Normalize(name)] = ExcelSources.File;
+
         return headers.Select(h =>
         {
             string n = SheetFieldMap.Normalize(h);
-            string id = bySynonym.TryGetValue(n, out var s) ? s : byName.TryGetValue(n, out var b) ? b : "";
-            return new ExcelColumnMap { Header = h, ColumnId = id };
+            string id = bySynonym.TryGetValue(n, out var s) ? s : byName.TryGetValue(n, out var b) ? b : specials.TryGetValue(n, out var sp) ? sp : "";
+            return new ExcelColumnMap
+            {
+                Header = h, ColumnId = id,
+                // Program and file name can only be written; revisions and dates normally come from the model.
+                Direction = ExcelSources.IsSpecial(id) ? ExcelDirection.ToExcel : ExcelDirection.Both,
+            };
         }).ToList();
     }
 

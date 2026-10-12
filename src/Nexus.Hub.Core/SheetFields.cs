@@ -70,7 +70,8 @@ public sealed class SheetFieldMap
                 var map = JsonSerializer.Deserialize<SheetFieldMap>(File.ReadAllText(path), FileOptions);
                 if (map is { Fields.Count: > 0 })
                 {
-                    if (MoveLayoutNameToTitle(map))
+                    bool moved = MoveLayoutNameToTitle(map);
+                    if (AddMissingFields(map) | moved)
                         File.WriteAllText(path, JsonSerializer.Serialize(map, FileOptions));
                     return map;
                 }
@@ -105,6 +106,22 @@ public sealed class SheetFieldMap
         var title = map.Fields.FirstOrDefault(f => f.Name == "Title");
         if (title is not null && !title.Rules.Any(IsLayoutName)) title.Rules.Add(rule);
         return true;
+    }
+
+    /// <summary>
+    /// Fields added to the built-in list after the user's sheet-fields.json was written (e.g. Status):
+    /// appended so they show up. Returns true when the map changed.
+    /// </summary>
+    public static bool AddMissingFields(SheetFieldMap map)
+    {
+        bool changed = false;
+        foreach (var field in Default().Fields)
+        {
+            if (map.Fields.Any(f => string.Equals(f.Name, field.Name, StringComparison.OrdinalIgnoreCase))) continue;
+            map.Fields.Add(field);
+            changed = true;
+        }
+        return changed;
     }
 
     /// <summary>Finds each field's property in a row. Returns field name → property (fields not found are absent).</summary>
@@ -215,6 +232,12 @@ public sealed class SheetFieldMap
                 new SheetField { Name = "Project Number", Rules =
                 {
                     Tag("PROJNO", "PROJ_NO", "PROJECTNO", "PROJECT_NO", "PROJECTNUMBER", "JOBNO", "JOB_NO", "JOBNUMBER"),
+                } },
+                new SheetField { Name = "Status", Rules =
+                {
+                    // A sheet status parameter (project or shared), in any group of the sheet's properties.
+                    new FieldRule { Host = HostKinds.Revit, Names = { "Sheet Status", "Status", "Drawing Status", "Issue Status" } },
+                    Tag("STATUS", "SHEETSTATUS", "SHEET_STATUS", "DWGSTATUS", "DWG_STATUS", "ISSUESTATUS", "ISSUE_STATUS"),
                 } },
             },
         };

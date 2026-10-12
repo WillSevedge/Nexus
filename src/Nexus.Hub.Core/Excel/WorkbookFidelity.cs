@@ -114,8 +114,11 @@ public sealed class WorkbookSnapshot
     /// <paramref name="expected"/> (sheet → cell reference → new value). Parts in <paramref name="mayChange"/>
     /// may be rewritten as long as their content checks pass; every other part must be byte-identical.
     /// </summary>
+    /// <remarks><paramref name="newFormulas"/>: per sheet, cells allowed to appear with a formula (a table's calculated
+    /// column copied into rows it was extended over).</remarks>
     public static List<FidelityIssue> Compare(WorkbookSnapshot before, WorkbookSnapshot after,
-        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> expected, ISet<string>? mayChange = null)
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> expected, ISet<string>? mayChange = null,
+        IReadOnlyDictionary<string, ISet<string>>? newFormulas = null)
     {
         var issues = new List<FidelityIssue>();
         mayChange ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -162,10 +165,13 @@ public sealed class WorkbookSnapshot
                 issues.Add(new FidelityIssue(FidelitySeverity.Changed, sheetName, $"<{feature}> added."));
 
             var wanted = expected.GetValueOrDefault(sheetName) ?? new Dictionary<string, string>();
+            var grown = newFormulas?.GetValueOrDefault(sheetName);
             foreach (var (cell, was) in b.Cells)
             {
                 if (wanted.ContainsKey(cell)) continue;
                 var now = a.Cells.GetValueOrDefault(cell);
+                // An empty (formatted) cell that received the table's calculated column formula.
+                if (grown?.Contains(cell) == true && was.Formula is null && was.Value.Length == 0 && now?.Formula is not null) continue;
                 // A blank cell that disappears (or appears) is not a change.
                 if (now is null) { if (was.Formula is not null || was.Value.Length > 0) issues.Add(new FidelityIssue(FidelitySeverity.Lost, sheetName, $"{cell}: cell removed (was '{was.Value}'{(was.Formula is null ? "" : $", ={was.Formula}")}).")); continue; }
                 if (was.Formula != now.Formula)
@@ -176,7 +182,7 @@ public sealed class WorkbookSnapshot
                     issues.Add(new FidelityIssue(FidelitySeverity.Changed, sheetName, $"{cell}: style changed."));
             }
             foreach (var (cell, now) in a.Cells.Where(c => !b.Cells.ContainsKey(c.Key) && !wanted.ContainsKey(c.Key)))
-                if (now.Formula is not null || now.Value.Length > 0)
+                if ((now.Formula is not null || now.Value.Length > 0) && !(now.Formula is not null && grown?.Contains(cell) == true))
                     issues.Add(new FidelityIssue(FidelitySeverity.Changed, sheetName, $"{cell}: unexpected new value '{now.Value}'."));
             foreach (var (cell, value) in wanted)
             {

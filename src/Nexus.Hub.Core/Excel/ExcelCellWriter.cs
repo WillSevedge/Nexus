@@ -56,12 +56,96 @@ internal static class ExcelCellWriter
         return stored;
     }
 
+    /// <summary>
+    /// Makes an Excel table longer, down to <paramref name="newLastRow"/>, the way Excel does when you type below
+    /// it: the table's range (and its filter range) grows, each new row gets the cell formats of the table's
+    /// last row, and calculated columns get their formula. Nothing else changes.
+    /// </summary>
+    public static ExcelTableGrowth GrowTable(string path, string worksheet, string tableName, int newLastRow)
+    {
+        using var doc = SpreadsheetDocument.Open(path, true, new OpenSettings { AutoSave = false });
+        var wbPart = doc.WorkbookPart ?? throw new InvalidDataException("The file has no workbook.");
+        var sheet = wbPart.Workbook.Sheets?.Elements<Sheet>().FirstOrDefault(s => string.Equals(s.Name?.Value, worksheet, StringComparison.OrdinalIgnoreCase))
+                    ?? throw new InvalidOperationException($"The workbook has no worksheet '{worksheet}'.");
+        var wsPart = (WorksheetPart)wbPart.GetPartById(sheet.Id!.Value!);
+        var tablePart = wsPart.TableDefinitionParts.FirstOrDefault(p =>
+                            string.Equals(p.Table?.Name?.Value, tableName, StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(p.Table?.DisplayName?.Value, tableName, StringComparison.OrdinalIgnoreCase))
+                        ?? throw new InvalidOperationException($"'{worksheet}' has no table '{tableName}'.");
+        var table = tablePart.Table!;
+        var (firstCol, firstRow, lastCol, lastRow) = ParseRange(table.Reference!.Value!);
+        bool totals = (table.TotalsRowCount?.Value ?? 0) > 0 || table.TotalsRowShown?.Value == true && (table.TotalsRowCount?.Value ?? 0) > 0;
+        if (totals) throw new InvalidOperationException($"Table '{tableName}' has a totals row; make it longer in Excel instead.");
+        if (newLastRow <= lastRow) return new ExcelTableGrowth(tablePart.Uri.OriginalString, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+        string newRef = $"{ColumnLetters(firstCol)}{firstRow}:{ColumnLetters(lastCol)}{newLastRow}";
+        table.Reference = newRef;
+        if (table.AutoFilter is { } filter) filter.Reference = newRef;
+
+        var sheetData = wsPart.Worksheet.GetFirstChild<SheetData>() ?? throw new InvalidDataException($"'{worksheet}' has no cell data.");
+        var columns = table.TableColumns?.Elements<TableColumn>().ToList() ?? new List<TableColumn>();
+        var formulaCells = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var templateRow = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex?.Value == (uint)lastRow);
+        for (int r = lastRow + 1; r <= newLastRow; r++)
+        {
+            var row = GetOrAddRow(sheetData, (uint)r);
+            if (templateRow?.StyleIndex is not null && row.StyleIndex is null)
+            {
+                row.StyleIndex = templateRow.StyleIndex.Value;
+                row.CustomFormat = templateRow.CustomFormat;
+            }
+            for (int i = 0; i < columns.Count; i++)
+            {
+                int column = firstCol + i;
+                string reference = Reference(r, column);
+                var template = templateRow?.Elements<Cell>().FirstOrDefault(c => c.CellReference?.Value == Reference(lastRow, column));
+                string? formula = columns[i].CalculatedColumnFormula?.Text;
+                if (template?.StyleIndex is null && formula is null) continue;
+                var cell = GetOrAddCell(row, reference, column, sheetData);
+                if (template?.StyleIndex is not null && cell.StyleIndex is null) cell.StyleIndex = template.StyleIndex.Value;
+                if (formula is not null && cell.CellFormula is null && cell.CellValue is null)
+                {
+                    cell.CellFormula = new CellFormula(formula);
+                    formulaCells.Add(reference);
+                }
+            }
+        }
+
+        // Excel works out the calculated values when the file is opened.
+        var calc = wbPart.Workbook.CalculationProperties;
+        if (calc is null) wbPart.Workbook.Append(calc = new CalculationProperties());
+        calc.FullCalculationOnLoad = true;
+
+        tablePart.Table.Save();
+        wsPart.Worksheet.Save();
+        wbPart.Workbook.Save();
+        return new ExcelTableGrowth(tablePart.Uri.OriginalString, formulaCells);
+    }
+
+    private static (int FirstCol, int FirstRow, int LastCol, int LastRow) ParseRange(string reference)
+    {
+        var m = Regex.Match(reference, @"^\$?([A-Z]+)\$?(\d+):\$?([A-Z]+)\$?(\d+)$", RegexOptions.IgnoreCase);
+        if (!m.Success) throw new InvalidDataException($"Unexpected table range '{reference}'.");
+        return (ColumnNumber(m.Groups[1].Value), int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture),
+                ColumnNumber(m.Groups[3].Value), int.Parse(m.Groups[4].Value, CultureInfo.InvariantCulture));
+    }
+
+    private static int ColumnNumber(string letters)
+    {
+        int n = 0;
+        foreach (char c in letters.ToUpperInvariant()) n = n * 26 + (c - 'A' + 1);
+        return n;
+    }
+
     /// <summary>A1-style reference, e.g. (4, 2) → "B4".</summary>
-    public static string Reference(int row, int column)
+    public static string Reference(int row, int column) => ColumnLetters(column) + row.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>3 → "C", 28 → "AB".</summary>
+    public static string ColumnLetters(int column)
     {
         string letters = "";
         for (int c = column; c > 0; c = (c - 1) / 26) letters = (char)('A' + (c - 1) % 26) + letters;
-        return letters + row.ToString(CultureInfo.InvariantCulture);
+        return letters;
     }
 
     // ------------------------------------------------------------------ values
@@ -240,3 +324,6 @@ internal static class ExcelCellWriter
         }
     }
 }
+
+/// <summary>What <see cref="ExcelCellWriter.GrowTable"/> changed: the table part, and the cells given the calculated formulas.</summary>
+public sealed record ExcelTableGrowth(string TablePart, ISet<string> FormulaCells);
