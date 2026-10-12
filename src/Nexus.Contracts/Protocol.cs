@@ -33,6 +33,7 @@ public static class MessageTypes
     public const string Select = "select";
     /// <summary>Create PDFs of sheets of an open file.</summary>
     public const string ExportPdf = "exportPdf";
+    public const string CreateSheets = "createSheets";
 
     public const string Result = "result";
     public const string Error = "error";

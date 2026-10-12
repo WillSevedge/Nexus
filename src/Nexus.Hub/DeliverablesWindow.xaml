@@ -12,7 +12,7 @@
     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
         <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="8,0,0,0" ToolTip="Read the workbook (as last saved) and the loaded sheets again." />
-        <Button Content="Export to Model Export" Command="{Binding ExportCommand}" Margin="8,0,0,0" Style="{DynamicResource AccentButtonStyle}"
+        <Button Content="Export to Model" Command="{Binding ExportCommand}" Margin="8,0,0,0" Style="{DynamicResource AccentButtonStyle}"
                 ToolTip="Fill the workbook's Model Export tab with the model's sheets. Nothing else in the workbook is written." />
       </StackPanel>
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -33,21 +33,29 @@
     <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
       <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" />
       <DockPanel>
-        <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="760"
-                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                   Text="The workbook is the source of truth: Nexus never writes the deliverables list. Tick drawings to take the list's values into the model, then Review &amp; apply in the main window." />
+        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center"
+                    Visibility="{Binding HasTargets, Converter={StaticResource BoolToVis}}">
+          <TextBlock Text="New sheets go in" VerticalAlignment="Center" Margin="0,0,8,0" />
+          <ComboBox ItemsSource="{Binding Targets}" SelectedItem="{Binding Target}" DisplayMemberPath="Title" MinWidth="220"
+                    ToolTip="The Revit model that gets sheets for drawings that are on the list but not in the model." />
+        </StackPanel>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-          <Button Content="Tick all shown" Command="{Binding TakeAllCommand}" Margin="8,0,0,0" />
-          <Button Content="Update model from list" Command="{Binding UpdateModelCommand}" Margin="8,0,0,0" />
+          <Button Content="Excel selection" Command="{Binding ExcelSelectionCommand}" Margin="8,0,0,0"
+                  ToolTip="Select here the drawings you have selected in Excel (rows of the deliverables list, or cells with drawing numbers)." />
+          <Button Content="{Binding MatchText}" Command="{Binding MatchCommand}" Margin="8,0,0,0" Style="{DynamicResource AccentButtonStyle}"
+                  ToolTip="Make the model match the list for the selected drawings: new sheets for drawings the model does not have, the list's values for the ones that differ (then Review &amp; apply)." />
           <Button Content="Close" IsCancel="True" Click="OnClose" Margin="8,0,0,0" />
         </StackPanel>
       </DockPanel>
+      <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                 Text="The workbook is the source of truth: Nexus never writes the deliverables list. Select drawings here (Ctrl/Shift+click, Ctrl+A) or in Excel, then Match model to list. Export to Model fills the Model Export tab." />
     </StackPanel>
 
     <Grid>
       <DataGrid x:Name="Grid" ItemsSource="{Binding View}" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
                 HeadersVisibility="Column" GridLinesVisibility="Vertical" VerticalGridLinesBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
-                EnableRowVirtualization="True" SelectionUnit="FullRow" FrozenColumnCount="2" />
+                EnableRowVirtualization="True" SelectionUnit="FullRow" SelectionMode="Extended" IsReadOnly="True" FrozenColumnCount="1"
+                SelectionChanged="OnSelectionChanged" />
       <ProgressBar IsIndeterminate="True" VerticalAlignment="Top" Height="3"
                    Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
     </Grid>

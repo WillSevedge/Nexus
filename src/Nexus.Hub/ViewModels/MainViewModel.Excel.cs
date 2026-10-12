@@ -2,6 +2,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using Microsoft.Win32;
+using Nexus.Contracts;
 using Nexus.Hub.Core;
 using Nexus.Hub.Core.Excel;
 using Nexus.Hub.Excel;
@@ -83,6 +84,103 @@ public sealed partial class MainViewModel
         window.Closed += (_, _) => _deliverables = null;
         window.Show();
         return vm.RefreshAsync();
+    }
+
+    // ------------------------------------------------------------------ match the model to the list
+
+    /// <summary>Open files new sheets can go in (programs that can create sheets: Revit).</summary>
+    internal List<DocumentNode> SheetTargets() =>
+        Agents.SelectMany(a => a.Documents).Where(d => d.Agent.Connection.CanCreateSheets).ToList();
+
+    /// <summary>
+    /// Makes the model match the list for these drawings: drawings not in the model become new sheets in
+    /// <paramref name="target"/> (number, name, status), and drawings that differ get the list's values as edits in the
+    /// table (written with Review &amp; apply). The workbook is not touched. Returns what happened, for the window.
+    /// </summary>
+    internal async Task<string> MatchToListAsync(IReadOnlyList<Deliverable> items, DocumentNode? target)
+    {
+        var table = _table;
+        if (table is null || !IsSheetsView) return "Show Sheets in the main window first.";
+        var before = DeliverablesCompare.Compare(items, table).Where(c => c.List is not null).ToList();
+        var missing = before.Where(c => c.Result == DeliverableResult.NotInModel).ToList();
+        var parts = new List<string>();
+
+        if (missing.Count > 0)
+        {
+            if (target is null)
+                return $"{missing.Count} drawing(s) are not in the model, and no open Revit model can take new sheets. Open the model in Revit (with Nexus) and try again.";
+            if (!Dialogs.Confirm($"Create {missing.Count} sheet(s) in {target.Title}?",
+                    string.Join(", ", missing.Take(12).Select(c => c.Number)) + (missing.Count > 12 ? $" and {missing.Count - 12} more" : "") +
+                    ".\n\nEach gets the number, name and status from the list, and the title block the model's sheets use most. " +
+                    "One Undo in Revit removes them all.", "Create sheets", kind: NoticeKind.Info, owner: _deliverables?.Window))
+                return "Nothing changed.";
+            if (!ConfirmDiscardEdits()) return "Nothing changed.";
+
+            var statusNames = string.Join("|", _sheetFields.Fields.FirstOrDefault(f => f.Name == "Status")?.Rules
+                .Where(r => r.Host == HostKinds.Revit).SelectMany(r => r.Names) ?? new[] { "Sheet Status" });
+            var request = new CreateSheetsRequest
+            {
+                DocumentId = target.Info.Id,
+                Sheets = missing.Select(c => new NewSheet
+                {
+                    Number = c.List!.Number, Name = c.List.Title,
+                    Values = c.List.Status.Length > 0 ? new Dictionary<string, string> { [statusNames] = c.List.Status } : new(),
+                }).ToList(),
+            };
+            CreateSheetsResult result;
+            try
+            {
+                Status = $"Creating {missing.Count} sheet(s) in {target.Title}…";
+                result = await target.Agent.Connection.CreateSheetsAsync(request);
+            }
+            catch (AgentRequestException ex)
+            {
+                HubLog.Warn($"Creating sheets in {target.Title} failed: {ex.Error}");
+                return "No sheets were created: " + ex.Error.Message;
+            }
+            int created = result.Sheets.Count(x => x.Created);
+            HubLog.Info($"{result.DocumentTitle}: created {created} sheet(s) with title block {result.TitleBlock}");
+            parts.Add(created > 0
+                ? $"{created} sheet(s) created in {result.DocumentTitle} (title block {result.TitleBlock}; Undo in Revit: \"{result.UndoName}\")"
+                : "no sheets were created");
+            var problems = result.Sheets.Where(x => x.Message is not null).Select(x => $"{x.Number}: {x.Message}").ToList();
+            if (problems.Count > 0) parts.Add(string.Join("; ", problems.Take(5)) + (problems.Count > 5 ? "…" : ""));
+
+            if (created > 0)
+            {
+                // Read again so the new sheets are in the table (and the values below go on the current rows).
+                if (!target.IsChecked) target.Restore(true);
+                await LoadAsync(confirm: false);
+                table = _table;
+                if (table is null) return string.Join(". ", parts) + ".";
+            }
+        }
+
+        // Drawings on both sides with different values: the list's values become edits in the table.
+        int staged = 0;
+        var refused = new List<string>();
+        foreach (var c in DeliverablesCompare.Compare(items, table).Where(c => c.Result == DeliverableResult.Differs && c.List is not null))
+        {
+            void Put(bool differs, string columnId, string value, string label)
+            {
+                if (!differs || value.Trim().Length == 0) return; // an empty list cell does not clear the model
+                var reason = TrySetValue(c.Model!, columnId, value);
+                if (reason is null) staged++;
+                else refused.Add($"{c.Number} › {label}: {reason}");
+            }
+            Put(c.TitleDiffers, DeliverablesCompare.TitleId, c.List!.Title, "Sheet Name");
+            Put(c.StatusDiffers, DeliverablesCompare.StatusId, c.List.Status, "Status");
+            Put(c.RevDiffers, DeliverablesCompare.RevId, c.List.Rev, "Rev");
+            Put(c.DateDiffers, DeliverablesCompare.DateId, c.List.Date, "Date");
+        }
+        if (staged > 0) parts.Add($"{staged} value(s) from the list are in the table (yellow): use Review & apply to write them to the model");
+        if (refused.Count > 0)
+            parts.Add($"{refused.Count} value(s) can't be set this way (in Revit, Rev and its date come from the sheet's revisions): " +
+                      string.Join("; ", refused.Take(4)) + (refused.Count > 4 ? "…" : ""));
+        if (parts.Count == 0) parts.Add("The model already matches the list for these drawings");
+        string message = string.Join(". ", parts) + ".";
+        Status = message;
+        return message;
     }
 
     // ------------------------------------------------------------------ export to Model Export

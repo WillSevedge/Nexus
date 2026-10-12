@@ -388,7 +388,7 @@ internal sealed class RevitWriter : IHostDataWriter<Document>
     }
 
     /// <summary>Turns commit-time warnings into messages for the hub instead of Revit dialogs; errors roll back.</summary>
-    private sealed class FailureCollector : IFailuresPreprocessor
+    internal sealed class FailureCollector : IFailuresPreprocessor
     {
         public List<string> Warnings { get; } = new();
         public List<string> Errors { get; } = new();

@@ -37,6 +37,7 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
     private readonly IHostDataWriter<TDoc>? _writer;
     private readonly IHostSelector<TDoc>? _selector;
     private readonly IPdfExporter<TDoc>? _pdf;
+    private readonly ISheetCreator<TDoc>? _sheets;
     private readonly AgentLog _log;
     private readonly AgentServerOptions _options;
     private readonly CancellationTokenSource _stop = new();
@@ -50,11 +51,12 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
     public AgentServer(HostInfo host, IHostDispatcher dispatcher, IDocumentProvider<TDoc> documents,
         ReaderRegistry<TDoc> readers, AgentLog log, AgentServerOptions? options = null,
         IHostDataWriter<TDoc>? writer = null, IHostSelector<TDoc>? selector = null,
-        IPdfExporter<TDoc>? pdf = null)
+        IPdfExporter<TDoc>? pdf = null, ISheetCreator<TDoc>? sheets = null)
     {
         _writer = writer;
         _selector = selector;
         _pdf = pdf;
+        _sheets = sheets;
         _host = WithFeatures(host);
         _dispatcher = dispatcher;
         _documents = documents;
@@ -102,6 +104,8 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
             host.Features.Add(AgentFeatures.Select);
         if (_pdf is not null && !host.Features.Contains(AgentFeatures.ExportPdf))
             host.Features.Add(AgentFeatures.ExportPdf);
+        if (_sheets is not null && !host.Features.Contains(AgentFeatures.CreateSheets))
+            host.Features.Add(AgentFeatures.CreateSheets);
         return host;
     }
 
@@ -236,6 +240,7 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
                 MessageTypes.Write => await WriteAsync(request.PayloadAs<WriteRequest>(), ct).ConfigureAwait(false),
                 MessageTypes.Select => await SelectAsync(request.PayloadAs<SelectRequest>(), ct).ConfigureAwait(false),
                 MessageTypes.ExportPdf => await ExportPdfAsync(request.PayloadAs<ExportPdfRequest>(), ct).ConfigureAwait(false),
+                MessageTypes.CreateSheets => await CreateSheetsAsync(request.PayloadAs<CreateSheetsRequest>(), ct).ConfigureAwait(false),
                 _ => throw new AgentException(ErrorCodes.UnknownMessage, $"Unknown message type '{request.Type}'."),
             };
             return Envelope.Result(request.Id, result);
@@ -306,6 +311,26 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
             var result = _pdf.Export(doc, request, _log, ct);
             result.ElapsedMs = sw.ElapsedMilliseconds;
             _log.Info($"PDF: {result.Sheets.Count(s => s.PdfPath is not null)} of {result.Sheets.Count} sheet(s) in {sw.ElapsedMilliseconds} ms");
+            return result;
+        }, _options.HostStartTimeout, ct).ConfigureAwait(false);
+    }
+
+    private async Task<CreateSheetsResult> CreateSheetsAsync(CreateSheetsRequest? request, CancellationToken ct)
+    {
+        if (_sheets is null)
+            throw new AgentException(ErrorCodes.NotImplemented, $"{_host.Product} cannot create sheets from Nexus.");
+        if (request is null || string.IsNullOrWhiteSpace(request.DocumentId) || request.Sheets.Count == 0)
+            throw new AgentException(ErrorCodes.BadRequest, "Creating sheets needs an open document and at least one sheet.");
+
+        return await _dispatcher.InvokeAsync(() =>
+        {
+            var doc = _documents.Find(request.DocumentId)
+                      ?? throw new AgentException(ErrorCodes.DocumentNotFound, $"Document '{request.DocumentId}' is not open (it may have been closed).");
+            var info = _documents.Describe(doc);
+            _log.Info($"Create {request.Sheets.Count} sheet(s) in '{info.Title}'");
+            var result = _sheets.Create(doc, request, _log, ct);
+            result.DocumentTitle = info.Title;
+            _log.Info($"Created {result.Sheets.Count(s => s.Created)} of {result.Sheets.Count} sheet(s) in '{info.Title}'");
             return result;
         }, _options.HostStartTimeout, ct).ConfigureAwait(false);
     }

@@ -62,6 +62,13 @@ public interface IHostDataWriter<in TDoc> where TDoc : class
 }
 
 /// <summary>Creates PDFs of sheets. Optional; advertises <see cref="AgentFeatures.ExportPdf"/>.</summary>
+/// <summary>Creates sheets in a document (one undoable operation).</summary>
+public interface ISheetCreator<in TDoc> where TDoc : class
+{
+    /// <summary>Host thread only. One result per requested sheet; never throws for a single sheet.</summary>
+    CreateSheetsResult Create(TDoc document, CreateSheetsRequest request, AgentLog log, CancellationToken ct);
+}
+
 public interface IPdfExporter<in TDoc> where TDoc : class
 {
     /// <summary>Host thread only. One result per sheet; never throws for a single sheet.</summary>

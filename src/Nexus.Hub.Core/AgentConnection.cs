@@ -55,6 +55,12 @@ public sealed class AgentConnection : IAsyncDisposable
     public async Task<ExportPdfResult> ExportPdfAsync(ExportPdfRequest request, CancellationToken ct = default) =>
         await (await ConnectedAsync(ct).ConfigureAwait(false)).ExportPdfAsync(request, ct).ConfigureAwait(false);
 
+    public async Task<CreateSheetsResult> CreateSheetsAsync(CreateSheetsRequest request, CancellationToken ct = default) =>
+        await (await ConnectedAsync(ct).ConfigureAwait(false)).CreateSheetsAsync(request, ct).ConfigureAwait(false);
+
+    /// <summary>True when the agent can create sheets.</summary>
+    public bool CanCreateSheets => Host.Features.Contains(AgentFeatures.CreateSheets);
+
     /// <summary>True when the agent can make PDFs of sheets.</summary>
     public bool CanExportPdf => Host.Features.Contains(AgentFeatures.ExportPdf);
 

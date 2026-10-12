@@ -1,18 +1,18 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Data;
 using Nexus.Hub.Core;
 using Nexus.Hub.Core.Excel;
+using Nexus.Hub.Excel;
 
 namespace Nexus.Hub.ViewModels;
 
 /// <summary>One drawing number in the comparison: the list's values next to the model's.</summary>
-public sealed class DeliverableRow : Observable
+public sealed class DeliverableRow
 {
-    private bool _take;
-
     public DeliverableRow(DeliverableComparison c) => C = c;
 
     public DeliverableComparison C { get; }
@@ -40,33 +40,27 @@ public sealed class DeliverableRow : Observable
         DeliverableResult.NotInModel => "Not in model",
         _ => "Not on list",
     };
-
-    /// <summary>Only a drawing on both sides with different values can take the list's values.</summary>
-    public bool CanTake => C.Result == DeliverableResult.Differs;
-
-    /// <summary>Take the list's values into the model for this drawing.</summary>
-    public bool Take
-    {
-        get => _take;
-        set => Set(ref _take, value && CanTake);
-    }
 }
 
 /// <summary>
 /// The workbook's deliverables list next to what Nexus reads from the models. The workbook is the source of truth:
-/// differences are fixed in the model (staged as edits, written with Review &amp; apply), and Nexus only writes the
-/// workbook's Model Export table.
+/// selected drawings are matched in the model (new sheets for drawings the model lacks, the list's values for those
+/// that differ), and Nexus only writes the workbook's Model Export table.
 /// </summary>
 public sealed class DeliverablesViewModel : Observable
 {
     public static readonly string[] Filters = { "Differences", "Everything", "Differs", "Not in model", "Not on list", "Match" };
 
     private readonly MainViewModel _main;
+    private DeliverablesWorkbook? _workbook;
     private string _filter = Filters[0];
     private string _summary = "";
     private string _message = "";
     private bool _busy;
     private int _version;
+    private int _selectedCount;
+    private List<DocumentNode> _targets = new();
+    private DocumentNode? _target;
 
     public DeliverablesViewModel(MainViewModel main)
     {
@@ -78,13 +72,8 @@ public sealed class DeliverablesViewModel : Observable
         {
             if (_main.ChooseWorkbook()) await RefreshAsync();
         }, () => !_busy);
-        TakeAllCommand = new RelayCommand(() =>
-        {
-            bool any = Rows.Any(r => r.CanTake && !r.Take && Shows(r));
-            foreach (var r in Rows.Where(r => r.CanTake && Shows(r))) r.Take = any;
-            return Task.CompletedTask;
-        });
-        UpdateModelCommand = new RelayCommand(() => { UpdateModel(); return Task.CompletedTask; }, () => Rows.Any(r => r.Take));
+        ExcelSelectionCommand = new RelayCommand(UseExcelSelectionAsync, () => !_busy && Rows.Count > 0);
+        MatchCommand = new RelayCommand(MatchAsync, () => !_busy && _selectedCount > 0);
         ExportCommand = new RelayCommand(async () =>
         {
             if (await _main.ExportModelAsync()) Message = _main.Status;
@@ -92,12 +81,16 @@ public sealed class DeliverablesViewModel : Observable
     }
 
     public Window? Window { get; set; }
+    /// <summary>The window supplies the selected rows, and selects rows (from Excel's selection).</summary>
+    public Func<IReadOnlyList<DeliverableRow>>? SelectedRows { get; set; }
+    public Action<IReadOnlyList<DeliverableRow>>? SelectRows { get; set; }
+
     public ObservableCollection<DeliverableRow> Rows { get; } = new();
     public ICollectionView View { get; }
     public RelayCommand RefreshCommand { get; }
     public RelayCommand ChangeWorkbookCommand { get; }
-    public RelayCommand TakeAllCommand { get; }
-    public RelayCommand UpdateModelCommand { get; }
+    public RelayCommand ExcelSelectionCommand { get; }
+    public RelayCommand MatchCommand { get; }
     public RelayCommand ExportCommand { get; }
 
     public string Title => "Deliverables vs model — " + _main.ExcelLinkTitle;
@@ -130,6 +123,34 @@ public sealed class DeliverablesViewModel : Observable
         private set => Set(ref _busy, value);
     }
 
+    /// <summary>Open Revit models new sheets can go in.</summary>
+    public List<DocumentNode> Targets
+    {
+        get => _targets;
+        private set
+        {
+            Set(ref _targets, value);
+            Raise(nameof(HasTargets));
+        }
+    }
+
+    public bool HasTargets => _targets.Count > 0;
+
+    public DocumentNode? Target
+    {
+        get => _target;
+        set => Set(ref _target, value);
+    }
+
+    public string MatchText => _selectedCount == 0 ? "Match model to list" : $"Match model to list ({_selectedCount})";
+
+    /// <summary>The window reports the selection count (for the button text).</summary>
+    public void SelectionChanged(int count)
+    {
+        _selectedCount = count;
+        Raise(nameof(MatchText));
+    }
+
     private bool Shows(DeliverableRow r) => _filter switch
     {
         "Everything" => true,
@@ -145,6 +166,9 @@ public sealed class DeliverablesViewModel : Observable
     {
         Raise(nameof(Title));
         Raise(nameof(WorkbookPath));
+        Targets = _main.SheetTargets();
+        if (_target is null || !_targets.Contains(_target))
+            Target = _targets.FirstOrDefault(d => d.IsChecked) ?? _targets.FirstOrDefault();
         if (_main.WorkbookPath is not { } path) return;
         var table = _main.Table;
         if (table is null || !_main.IsSheetsView)
@@ -163,6 +187,7 @@ public sealed class DeliverablesViewModel : Observable
                 return (wb, DeliverablesCompare.Compare(wb.Items, table));
             });
             if (version != _version) return;
+            _workbook = info;
             Rows.Clear();
             foreach (var c in comparison
                          .OrderBy(c => c.Result == DeliverableResult.NotOnList)
@@ -187,31 +212,75 @@ public sealed class DeliverablesViewModel : Observable
         }
     }
 
-    /// <summary>Stages the list's values for the ticked drawings as edits in the main table.</summary>
-    private void UpdateModel()
+    /// <summary>Selects the drawings that are selected in Excel (rows of the list, or cells holding drawing numbers).</summary>
+    private async Task UseExcelSelectionAsync()
     {
-        int staged = 0;
-        var problems = new List<string>();
-        foreach (var r in Rows.Where(r => r.Take).ToList())
+        if (_main.WorkbookPath is not { } path) return;
+        string listSheet = _workbook?.ListSheet ?? "";
+        ExcelLive.ExcelSelection? selection;
+        try
         {
-            void Put(bool differs, string columnId, string value, string label)
+            selection = await ExcelLive.RunSta(() =>
             {
-                if (!differs || value.Trim().Length == 0) return; // an empty list cell does not clear the model
-                var reason = _main.TrySetValue(r.C.Model!, columnId, value);
-                if (reason is null) staged++;
-                else problems.Add($"{r.Number} › {label}: {reason}");
-            }
-            Put(r.TitleDiffers, DeliverablesCompare.TitleId, r.ListTitle, "Sheet Name");
-            Put(r.RevDiffers, DeliverablesCompare.RevId, r.ListRev, "Rev");
-            Put(r.DateDiffers, DeliverablesCompare.DateId, r.ListDate, "Date");
-            Put(r.StatusDiffers, DeliverablesCompare.StatusId, r.ListStatus, "Status");
-            r.Take = false;
+                object? wb = ExcelLive.FindOpenWorkbook(path);
+                if (wb is null) return null;
+                try { return ExcelLive.Selection(wb); }
+                finally { Marshal.ReleaseComObject(wb); }
+            });
         }
-        Message = (staged > 0
-                      ? $"{staged} value(s) from the list are in the main table (yellow). Use Review & apply there to write them to the model. "
-                      : "Nothing was changed. ")
-                  + (problems.Count > 0 ? $"{problems.Count} could not be changed: " + string.Join("; ", problems.Take(5)) + (problems.Count > 5 ? "…" : "") : "");
-        if (problems.Count > 5)
-            Dialogs.Message($"{problems.Count} value(s) could not be changed", string.Join(Environment.NewLine, problems.Take(40)), NoticeKind.Info, Window);
+        catch (Exception ex)
+        {
+            Message = "Could not read the selection in Excel: " + ex.Message;
+            return;
+        }
+        if (selection is null)
+        {
+            Message = $"Open {Path.GetFileName(path)} in Excel and select the drawings there (rows of '{listSheet}', or cells with drawing numbers), then try again.";
+            return;
+        }
+
+        var picked = Rows.Where(r =>
+                (r.C.List is { } item && string.Equals(selection.Worksheet, listSheet, StringComparison.OrdinalIgnoreCase) && selection.Rows.Contains(item.Row))
+                || selection.Texts.Any(t => string.Equals(ExcelCompare.NormalizeKey(t), ExcelCompare.NormalizeKey(r.Number), StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        if (picked.Count == 0)
+        {
+            Message = $"Nothing selected in Excel matches a drawing here. Select rows on '{listSheet}' (or cells with drawing numbers), then try again.";
+            return;
+        }
+        if (picked.Any(r => !Shows(r))) Filter = "Everything";
+        SelectRows?.Invoke(picked);
+        Message = $"{picked.Count} drawing(s) selected from Excel. Match model to list makes the model match them.";
+    }
+
+    /// <summary>Makes the model match the list for the selected drawings.</summary>
+    private async Task MatchAsync()
+    {
+        var selected = SelectedRows?.Invoke() ?? Array.Empty<DeliverableRow>();
+        var items = selected.Where(r => r.C.List is not null && r.Result is DeliverableResult.Differs or DeliverableResult.NotInModel)
+            .Select(r => r.C.List!).ToList();
+        int notOnList = selected.Count(r => r.Result == DeliverableResult.NotOnList);
+        if (items.Count == 0)
+        {
+            Message = selected.Count == 0
+                ? "Select the drawings to match first (click, Ctrl+click, Shift+click, Ctrl+A), or pick them in Excel and use Excel selection."
+                : notOnList > 0
+                    ? "These sheets are not on the deliverables list. The list is the source of truth: add them to it in Excel, or leave them."
+                    : "The selected drawings already match.";
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            string result = await _main.MatchToListAsync(items, Target);
+            if (notOnList > 0) result += $" {notOnList} selected sheet(s) not on the list were left alone.";
+            await RefreshAsync();
+            Message = result;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 }

@@ -204,7 +204,7 @@
           <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">
             <Button Content="Compare" Command="{Binding CompareExcelCommand}" Style="{DynamicResource AccentButtonStyle}" Margin="0,0,6,6"
                     ToolTip="The deliverables list next to the model, with the differences." />
-            <Button Content="Export to Model Export" Command="{Binding UpdateExcelCommand}" Margin="0,0,6,6"
+            <Button Content="Export to Model" Command="{Binding UpdateExcelCommand}" Margin="0,0,6,6"
                     ToolTip="Fill the workbook's Model Export tab with the model's sheets. Nothing else in the workbook is written."
                     Visibility="{Binding HasExcelLink, Converter={StaticResource BoolToVis}}" />
             <Button Content="Choose…" Command="{Binding LinkExcelCommand}" Margin="0,0,6,6"
@@ -569,7 +569,7 @@
             <Button.ContextMenu>
               <ContextMenu>
                 <MenuItem Header="Compare with the deliverables list…" Command="{Binding CompareExcelCommand}" FontWeight="SemiBold" />
-                <MenuItem Header="Export to Model Export" Command="{Binding UpdateExcelCommand}" />
+                <MenuItem Header="Export to Model" Command="{Binding UpdateExcelCommand}" />
                 <MenuItem Header="Choose workbook…" Command="{Binding LinkExcelCommand}" />
                 <Separator />
                 <MenuItem Header="Export this view to Excel…" Command="{Binding ExportExcelCommand}" />

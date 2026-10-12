@@ -75,6 +75,9 @@ public sealed class AgentClient : IAsyncDisposable
     public Task<ExportPdfResult> ExportPdfAsync(ExportPdfRequest request, CancellationToken ct = default) =>
         RequestAsync<ExportPdfResult>(MessageTypes.ExportPdf, request, PdfTimeout, ct);
 
+    public Task<CreateSheetsResult> CreateSheetsAsync(CreateSheetsRequest request, CancellationToken ct = default) =>
+        RequestAsync<CreateSheetsResult>(MessageTypes.CreateSheets, request, ReadTimeout, ct);
+
     public Task<SelectResult> SelectAsync(SelectRequest request, CancellationToken ct = default) =>
         RequestAsync<SelectResult>(MessageTypes.Select, request, DefaultTimeout, ct);
 

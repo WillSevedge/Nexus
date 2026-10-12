@@ -9,6 +9,8 @@ public static class AgentFeatures
     public const string Select = "select";
     /// <summary>The agent accepts <see cref="MessageTypes.ExportPdf"/> requests.</summary>
     public const string ExportPdf = "exportPdf";
+    /// <summary>The agent accepts <see cref="MessageTypes.CreateSheets"/> requests.</summary>
+    public const string CreateSheets = "createSheets";
 }
 
 /// <summary>Show items in the host: open the sheet/layout, or select and zoom to objects.</summary>
@@ -89,4 +91,42 @@ public sealed class WriteResult
     public List<ChangeResult> Results { get; set; } = new();
     /// <summary>Host warnings raised while committing (e.g. duplicate values).</summary>
     public List<string> Warnings { get; set; } = new();
+}
+
+/// <summary>Create sheets (e.g. drawings on a deliverables list that the model does not have yet).</summary>
+public sealed class CreateSheetsRequest
+{
+    public string DocumentId { get; set; } = "";
+    public List<NewSheet> Sheets { get; set; } = new();
+}
+
+public sealed class NewSheet
+{
+    public string Number { get; set; } = "";
+    public string Name { get; set; } = "";
+    /// <summary>
+    /// Other sheet parameters to fill, by name (e.g. "Sheet Status" → "IFR"). A key may list alternative names
+    /// separated by '|' ("Sheet Status|Status"): the first one the sheet has is set. Missing ones are reported.
+    /// </summary>
+    public Dictionary<string, string> Values { get; set; } = new();
+}
+
+public sealed class CreateSheetsResult
+{
+    public string DocumentTitle { get; set; } = "";
+    /// <summary>Name of the undo entry in the host, when anything was created.</summary>
+    public string? UndoName { get; set; }
+    /// <summary>The title block used for the new sheets ("none" when the model has none).</summary>
+    public string TitleBlock { get; set; } = "";
+    public List<NewSheetResult> Sheets { get; set; } = new();
+}
+
+public sealed class NewSheetResult
+{
+    public string Number { get; set; } = "";
+    public bool Created { get; set; }
+    /// <summary>The new sheet's id (UniqueId), when created.</summary>
+    public string? Id { get; set; }
+    /// <summary>Why it was not created, or what was left out (a parameter the sheet does not have).</summary>
+    public string? Message { get; set; }
 }

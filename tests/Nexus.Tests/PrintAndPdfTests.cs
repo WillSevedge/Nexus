@@ -93,6 +93,46 @@ public sealed class PrintAndPdfTests : IDisposable
         Assert.Equal(ErrorCodes.BadRequest, refused.Code);
     }
 
+    [Fact]
+    public async Task Agent_creates_sheets_when_it_can()
+    {
+        var log = new AgentLog("test");
+        using var host = new FakeHost(log);
+        var readers = new ReaderRegistry<FakeDoc>();
+        readers.Register(new FakeSheetsReader());
+        var info = HostInfoFactory.Create("Fake", "FakeCAD", "2026", "test", log);
+        info.HostKind = "Fake" + Guid.NewGuid().ToString("N")[..8];
+        using var server = new AgentServer<FakeDoc>(info, host.Queue, new FakeDocs(), readers, log,
+            new AgentServerOptions { WriteRegistration = false }, sheets: new FakeSheets());
+        server.Start();
+        await using var client = await AgentClient.ConnectAsync(server.PipeName, TimeSpan.FromSeconds(5));
+
+        Assert.Contains(AgentFeatures.CreateSheets, (await client.HelloAsync()).Host.Features);
+        var result = await client.CreateSheetsAsync(new CreateSheetsRequest
+        {
+            DocumentId = "d1",
+            Sheets = { new NewSheet { Number = "C-101", Name = "SITE PLAN", Values = { ["Sheet Status|Status"] = "IFR" } } },
+        });
+        var sheet = Assert.Single(result.Sheets);
+        Assert.True(sheet.Created);
+        Assert.Equal("Tower.rvt/C-101/SITE PLAN/IFR", sheet.Id);
+        Assert.Equal("Tower.rvt", result.DocumentTitle);
+
+        var empty = await Assert.ThrowsAsync<AgentRequestException>(() => client.CreateSheetsAsync(new CreateSheetsRequest { DocumentId = "d1" }));
+        Assert.Equal(ErrorCodes.BadRequest, empty.Code);
+    }
+
+    private sealed class FakeSheets : ISheetCreator<FakeDoc>
+    {
+        public CreateSheetsResult Create(FakeDoc document, CreateSheetsRequest request, AgentLog log, CancellationToken ct) => new()
+        {
+            Sheets = request.Sheets.Select(s => new NewSheetResult
+            {
+                Number = s.Number, Created = true, Id = $"{document.Title}/{s.Number}/{s.Name}/{s.Values.Values.FirstOrDefault()}",
+            }).ToList(),
+        };
+    }
+
     private sealed class FakePdf : IPdfExporter<FakeDoc>
     {
         public ExportPdfResult Export(FakeDoc document, ExportPdfRequest request, AgentLog log, CancellationToken ct) => new()

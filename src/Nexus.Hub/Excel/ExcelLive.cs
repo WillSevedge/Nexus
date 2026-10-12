@@ -156,6 +156,48 @@ internal static class ExcelLive
         }
     }
 
+    /// <summary>What is selected in Excel, when it is in this workbook: the worksheet, the selected rows, and the texts of the selected cells.</summary>
+    public sealed record ExcelSelection(string Worksheet, HashSet<int> Rows, HashSet<string> Texts);
+
+    /// <summary>The current selection in Excel if it is in <paramref name="workbook"/>; null when Excel's selection is elsewhere or not cells.</summary>
+    public static ExcelSelection? Selection(object workbook)
+    {
+        dynamic wb = workbook;
+        return Retry(() =>
+        {
+            dynamic app = wb.Application;
+            dynamic selection = app.Selection;
+            dynamic? sheet;
+            try { sheet = selection.Worksheet; }
+            catch (Exception ex) when (ex is Microsoft.CSharp.RuntimeBinder.RuntimeBinderException
+                                       || (ex is COMException com && com.HResult != CallRejected && com.HResult != Busy))
+            {
+                return null; // a shape or chart is selected, not cells
+            }
+            if (!string.Equals((string)sheet.Parent.FullName, (string)wb.FullName, StringComparison.OrdinalIgnoreCase)) return null;
+
+            var rows = new HashSet<int>();
+            var texts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            int cells = 0;
+            foreach (dynamic area in selection.Areas)
+            {
+                int top = (int)area.Row, count = Math.Min((int)area.Rows.Count, 5000);
+                for (int r = top; r < top + count; r++) rows.Add(r);
+                // Whole-column selections are not read cell by cell.
+                if (cells > 5000 || (long)area.Count > 5000) continue;
+                cells += (int)area.Count;
+                object? values = area.Value;
+                if (values is object[,] array)
+                {
+                    foreach (var v in array)
+                        if (TextOf(v).Trim() is { Length: > 0 } t) texts.Add(t);
+                }
+                else if (TextOf(values).Trim() is { Length: > 0 } one) texts.Add(one);
+            }
+            return (ExcelSelection?)new ExcelSelection((string)sheet.Name, rows, texts);
+        });
+    }
+
     private static string TextOf(object? value) => value switch
     {
         null => "",

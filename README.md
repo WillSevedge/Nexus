@@ -460,27 +460,34 @@ one place in it: the **Model Export** tab.
 
 1. **Choose…** on the Excel card (bottom left) picks the workbook. Use it again to switch to another workbook.
 2. **Compare** opens the deliverables list next to the model, lined up by drawing number:
-   - the list's Title, Rev, Date and Status beside the model's Sheet Name, Rev, Rev Date and Status, with the
-     program and file each sheet comes from. Values that differ are highlighted on both sides;
+   - the list's Title, Rev, Date and Status sit beside the model's Sheet Name, Rev, Rev Date and Status, with
+     the program and file each sheet comes from. Values that differ are highlighted on both sides;
    - each drawing is *Match*, *Differs*, *Not in model* or *Not on list* (a model sheet missing from the list).
-     *Show* filters them;
-   - tick drawings and **Update model from list** to take the list's values into the model: they are staged in
-     the main table (yellow) and written with *Review & apply*. An empty cell on the list never clears a model
-     value. Nexus never writes the deliverables list.
+     *Show* filters them.
+3. **Match model to list**: select drawings in the window (click, Ctrl/Shift+click, Ctrl+A), or select them in
+   Excel and click **Excel selection**. Excel selection takes rows on the Deliverables List, or any cells
+   holding drawing numbers. Then click **Match model to list**:
+   - **Not in model**: each becomes a new sheet in the Revit model chosen under *New sheets go in*. It gets the
+     number, name and status from the list, and the title block the model's sheets use most. Nexus asks first.
+     It is one undo step in Revit;
+   - **Differs**: the list's values go into the main table (yellow), to write with *Review & apply*. In Revit,
+     Rev and its date come from the sheet's revisions, so Nexus says when it can't set them. An empty cell on
+     the list never clears a model value;
+   - **Not on list**: left alone. Add the drawing to the list in Excel if it belongs there.
 
    The list is found by its headers (*Dwg/Doc No.*, *Rev.*, *Date*, *Status*, *Drawing Title…*), on the
    *Deliverables List* tab when there is one. Lists built by formulas read as Excel last saved them. Items
    without a drawing number are not compared.
-3. **Export to Model Export** fills the `ModelExport` table: one row per sheet, sorted by program then sheet
-   number. Source is the program, and the other columns are matched by name (Sheet Number, Sheet Name, Rev,
-   Rev Date, Status). Formula columns (*On Deliverables List?*) are left to Excel, and the table grows as needed.
+4. **Export to Model** fills the `ModelExport` table: one row per sheet, sorted by program then sheet number.
+   Source is the program, and the other columns are matched by name (Sheet Number, Sheet Name, Rev, Rev Date,
+   Status). Formula columns (*On Deliverables List?*) are left to Excel, and the table grows as needed.
    - If the workbook is open in Excel, Nexus writes into Excel itself; save it there. Otherwise the file is
      written after a backup in `%LOCALAPPDATA%\Nexus\excel-backups`, and only those cells change. The edited
      copy is checked against the original (macros, controls, validation, formatting, every other cell) before it
      replaces it.
    - Files that are not open keep their rows, so opening one model doesn't erase the others' sheets.
    - The first export asks before replacing rows Nexus did not put there.
-4. Nexus watches the workbook. When it is saved, an open comparison refreshes. Otherwise the info bar says how
+5. Nexus watches the workbook. When it is saved, an open comparison refreshes. Otherwise the info bar says how
    many drawings differ and offers *Compare…*.
 
 **Excel ▾ → Export this view to Excel…** saves the grid as shown (columns, filter and sort) to a new formatted workbook.
