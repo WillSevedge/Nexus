@@ -34,14 +34,28 @@ internal static class ExcelLive
             if (GetRunningObjectTable(0, out rot) != 0 || CreateBindCtx(0, out var ctx) != 0) return null;
             rot.EnumRunning(out monikers);
             var one = new IMoniker[1];
+            // A synced file (OneDrive, SharePoint, Desktop Connector) is registered under its web address: matched by
+            // file name when no local path matches and only one open workbook has that name.
+            string fileName = Path.GetFileName(full);
+            var byName = new List<object>();
             while (monikers.Next(1, one, IntPtr.Zero) == 0)
             {
                 try
                 {
                     one[0].GetDisplayName(ctx, null, out string name);
-                    if (string.IsNullOrEmpty(name) || !string.Equals(name, full, StringComparison.OrdinalIgnoreCase)) continue;
-                    rot.GetObject(one[0], out object workbook);
-                    return workbook;
+                    if (string.IsNullOrEmpty(name)) continue;
+                    if (string.Equals(name, full, StringComparison.OrdinalIgnoreCase))
+                    {
+                        rot.GetObject(one[0], out object workbook);
+                        foreach (var other in byName) Marshal.ReleaseComObject(other);
+                        return workbook;
+                    }
+                    if (name.Contains("://", StringComparison.Ordinal)
+                        && Uri.UnescapeDataString(name).EndsWith("/" + fileName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        rot.GetObject(one[0], out object candidate);
+                        byName.Add(candidate);
+                    }
                 }
                 catch (COMException) { /* not ours */ }
                 finally
@@ -49,6 +63,8 @@ internal static class ExcelLive
                     Marshal.ReleaseComObject(one[0]);
                 }
             }
+            if (byName.Count == 1) return byName[0];
+            foreach (var other in byName) Marshal.ReleaseComObject(other);
         }
         catch (Exception ex)
         {
@@ -61,6 +77,93 @@ internal static class ExcelLive
         }
         return null;
     }
+
+    /// <summary>
+    /// Runs <paramref name="work"/> on its own STA thread: Excel's objects are used from one thread, and the UI
+    /// stays responsive while Excel is busy.
+    /// </summary>
+    public static Task<T> RunSta<T>(Func<T> work)
+    {
+        var done = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try { done.SetResult(work()); }
+            catch (Exception ex) { done.SetException(ex); }
+        }) { IsBackground = true, Name = "Nexus Excel" };
+        if (OperatingSystem.IsWindows()) thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        return done.Task;
+    }
+
+    /// <summary>
+    /// Brings <paramref name="data"/> (read from the saved file) up to date with the open workbook: values typed but
+    /// not saved, values Nexus put there earlier, and the table's current size. Plans are then made against what
+    /// Excel shows now.
+    /// </summary>
+    public static void Refresh(object workbook, ExcelLink link, ExcelData data)
+    {
+        dynamic wb = workbook;
+        dynamic ws = Retry(() => wb.Worksheets[data.Worksheet]);
+        int first = data.FirstDataRow;
+        int last = data.LastRow;
+        if (link.Table is { Length: > 0 } tableName)
+        {
+            data.TableLastRow = Retry(() =>
+            {
+                dynamic table = ws.ListObjects[tableName];
+                dynamic range = table.Range;
+                return (int)range.Row + (int)range.Rows.Count - 1 - ((bool)table.ShowTotals ? 1 : 0);
+            });
+            last = Math.Max(last, data.TableLastRow);
+        }
+        else
+        {
+            int used = Retry(() => { dynamic u = ws.UsedRange; return (int)u.Row + (int)u.Rows.Count - 1; });
+            last = Math.Max(last, Math.Min(used, data.LastRow + 500));
+        }
+        if (last < first) return;
+
+        foreach (var map in link.Columns.Where(c => c.ColumnId.Length > 0 && data.HeaderColumns.ContainsKey(c.Header)))
+        {
+            int column = data.HeaderColumns[map.Header];
+            // One call per column: Value gives dates as dates (Value2 gives serial numbers).
+            object? values = Retry(() => (object?)ws.Range[ws.Cells[first, column], ws.Cells[last, column]].Value);
+            for (int r = first; r <= last; r++)
+            {
+                object? value = values is object[,] array ? array[array.GetLowerBound(0) + r - first, array.GetLowerBound(1)] : values;
+                if (!data.Area.TryGetValue(r, out var row)) data.Area[r] = row = new ExcelRow { Row = r };
+                bool formula = row.Cells.TryGetValue(map.Header, out var old) ? old.HasFormula : data.FormulaHeaders.Contains(map.Header);
+                row.Cells[map.Header] = new ExcelCell { Row = r, Column = column, Text = TextOf(value), HasFormula = formula };
+            }
+        }
+
+        // Keys and the last used row as Excel has them now.
+        string? keyHeader = link.KeyHeader;
+        data.Rows.Clear();
+        data.LastRow = data.FirstDataRow - 1;
+        foreach (var r in data.Area.Keys.Order().ToList())
+        {
+            var row = data.Area[r];
+            string key = keyHeader is not null && row.Cells.TryGetValue(keyHeader, out var k) ? k.Text.Trim() : "";
+            if (key != row.Key)
+            {
+                var keyed = new ExcelRow { Row = r, Key = key };
+                foreach (var (h, c) in row.Cells) keyed.Cells[h] = c;
+                data.Area[r] = row = keyed;
+            }
+            if (row.Cells.Values.Any(c => !c.HasFormula && c.Text.Trim().Length > 0)) data.LastRow = r;
+            if (key.Length > 0) data.Rows.Add(row);
+        }
+    }
+
+    private static string TextOf(object? value) => value switch
+    {
+        null => "",
+        DateTime d => d.TimeOfDay == TimeSpan.Zero ? d.ToString("d", CultureInfo.CurrentCulture) : d.ToString(CultureInfo.CurrentCulture),
+        double n => n.ToString(CultureInfo.CurrentCulture),
+        int e when e < 0 => "", // an error value (#N/A...)
+        _ => Convert.ToString(value, CultureInfo.CurrentCulture) ?? "",
+    };
 
     /// <summary>
     /// Applies a plan to the open workbook: makes the table longer first (Excel copies formulas and formats),
@@ -83,14 +186,20 @@ internal static class ExcelLive
                     dynamic table = ws.ListObjects[tableName];
                     dynamic range = table.Range;
                     int top = (int)range.Row, left = (int)range.Column, width = (int)range.Columns.Count;
+                    if (top + (int)range.Rows.Count - 1 >= plan.GrowToRow) return 0; // already that long
                     table.Resize(ws.Range[ws.Cells[top, left], ws.Cells[plan.GrowToRow, left + width - 1]]);
                     return 0;
                 });
             }
             foreach (var u in plan.Updates)
             {
-                object value = ToExcel(u.Value);
-                Retry(() => { ws.Cells[u.Row, u.Column].Value2 = value; return 0; });
+                Retry(() =>
+                {
+                    dynamic cell = ws.Cells[u.Row, u.Column];
+                    string format = cell.NumberFormat is string f ? f : "";
+                    cell.Value2 = ToExcel(u.Value, IsDateFormat(format));
+                    return 0;
+                });
             }
         }
         finally
@@ -99,17 +208,27 @@ internal static class ExcelLive
         }
     }
 
-    /// <summary>Numbers as numbers, dates as dates, everything else as text exactly as given (no conversion by Excel).</summary>
-    private static object ToExcel(string text)
+    /// <summary>A date number format ("m/d/yyyy", "dd-mmm-yy"...), as opposed to General, text or a number format.</summary>
+    private static bool IsDateFormat(string format)
+    {
+        if (format.Length == 0 || format.Contains('@')) return false;
+        // Ignore quoted text and [colour]/[$-locale] sections.
+        var plain = System.Text.RegularExpressions.Regex.Replace(format, "\"[^\"]*\"|\\[[^\\]]*\\]", "");
+        return plain.IndexOfAny(new[] { 'd', 'D', 'y', 'Y' }) >= 0;
+    }
+
+    /// <summary>
+    /// Numbers as numbers; dates as dates in date-formatted cells; everything else as text exactly as given (no
+    /// conversion by Excel). The same rules as writing the file.
+    /// </summary>
+    private static object ToExcel(string text, bool dateCell)
     {
         if (text.Length == 0) return "";
         bool leadingZero = text.Length > 1 && text[0] == '0' && char.IsDigit(text[1]);
         if (!leadingZero && double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out double number)
             && !text.Contains(',', StringComparison.Ordinal))
             return number;
-        if (text.Any(char.IsDigit) && (text.Contains('/') || text.Contains('-') && text.Length <= 10)
-            && DateTime.TryParse(text, CultureInfo.CurrentCulture, DateTimeStyles.None, out var date)
-            && !text.Any(char.IsLetter))
+        if (dateCell && DateTime.TryParse(text, CultureInfo.CurrentCulture, DateTimeStyles.None, out var date))
             return date.ToOADate();
         // Text that Excel would turn into a number or date on its own ("001", "1-2") stays text.
         bool looksConvertible = double.TryParse(text, NumberStyles.Any, CultureInfo.CurrentCulture, out _)

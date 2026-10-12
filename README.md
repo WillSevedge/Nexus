@@ -453,33 +453,57 @@ to Excel) use the hub's own dialogs.
 - If AutoCAD asks whether to load the Nexus add-in (SECURELOAD), add the `Nexus.bundle\Contents\<year>` folder to
   *Options › Files › Trusted Locations*.
 
-### Excel link
+### Excel link (live)
 
-Link your sheet index or template once; Nexus remembers it (per workbook) and compares it with the model.
+Link a workbook once; Nexus remembers it (per workbook), keeps it filled from the open models, notices when it is
+saved, and takes values typed in Excel back into the model when you choose. The **Budget Tool** is built in.
 
-1. **Excel ▾ → Link a workbook…** (or *Link workbook…* in the left panel). Pick the `.xlsx`/`.xlsm`, the worksheet
-   and the header row (found automatically). Each Excel column is matched to a Nexus column (e.g. *Sheet No.* →
-   Number, *Sheet Title* → Title, *Rev* → Revision); fix or add matches, and pick the column rows are matched on
-   (normally the sheet number). Any Nexus column can be linked, not only the standard ones.
-2. **Compare…** lists every linked value that differs, every sheet that is only in the model, and every row only
+1. **Link…** (Excel card, bottom left) or **Excel ▾ → Link a workbook…**:
+   - **Workbook**: *Browse…* for any `.xlsx`/`.xlsm`, or **New Budget Tool…** to save a fresh copy of the Budget
+     Tool built into Nexus. Link another workbook at any time the same way. Workbooks are never committed
+     (`.gitignore`), so the Budget Tool is built in from your clone: copy `Budget_Tool.xlsm` to
+     `src\Nexus.Hub\Templates\` before building.
+   - **Link to**: an Excel table (e.g. `ModelExport` on *Model Export*) or a worksheet with a header row. A table
+     grows as sheets are added; its formula columns (e.g. *On Deliverables List?*) fill in by themselves.
+   - **Rows**: *Fill the list* writes one row per sheet, sorted by program then sheet number, and clears rows left
+     over (a landing tab). *Match existing rows* finds each sheet by its number, updates it, and adds new sheets at
+     the end (a sheet index kept by hand).
+   - **Columns**: each Excel column gets a Nexus value (any column Nexus reads, or *Program*, *File name* or
+     *Fixed text*) and a direction: *Both ways*, *Nexus → Excel*, *Excel → Nexus* or *Not used*. Formula
+     columns are always left to Excel.
+   - **Live**: *Keep the workbook up to date* updates it after every read and every *Review & apply*.
+     *Watch the workbook* notices saves.
+
+   Pointing at the Budget Tool sets it up for you: `ModelExport`, Fill, Source = Program, Sheet Number (key),
+   Sheet Name, Rev, Rev Date and Status both ways, On Deliverables List? left to Excel, live and watched.
+2. **Update Excel** sends the sheets shown now. If the workbook is **open in Excel**, Nexus writes into Excel
+   itself (the values appear immediately; save in Excel to keep them). This also works for synced files
+   (OneDrive, SharePoint, Desktop Connector). Otherwise the file is written directly (below).
+   - **Files that are not open keep their rows.** Nexus remembers what it last sent for each file, so opening one
+     model does not wipe the others' sheets. *Forget them* in the link window removes them.
+   - **Values typed in Excel are never overwritten silently.** A value that differs from what Nexus last sent was
+     typed in Excel. An automatic update then stops and offers *Compare…*; *Update Excel* asks before
+     overwriting.
+   - The first update of a workbook asks before clearing rows that Nexus did not put there.
+3. **Watching**: when the workbook is saved with values that differ from the model in a *Both ways* or
+   *Excel → Nexus* column, the info bar says what changed and offers **Compare…**.
+4. **Compare…** lists every linked value that differs, every sheet that is only in the model, and every row only
    in Excel. For each, choose:
-   - **Excel → model**: the value is staged in the grid (yellow) and written with *Review & apply*, as usual;
+   - **Excel → model**: the value is staged in the grid (yellow) and written with *Review & apply*, as usual (and
+     then sent back to Excel when the link is live);
    - **Model → Excel**: the workbook cell is updated;
-   - **Add row to Excel**: a missing sheet goes into the first empty row below the list. Rows are never inserted,
-     so pre-built rows (formulas already in place) are filled, and nothing below the list moves. A new cell takes
-     the format of the cell above it.
-   Buttons apply one choice to every row.
-3. Writing to Excel needs the workbook closed in Excel. A backup copy is saved first in
-   `%LOCALAPPDATA%\Nexus\excel-backups`. Cells with formulas are never overwritten (the whole write is refused);
-   numbers and dates stay numbers and dates; codes like `007` stay text. Reading and comparing work while the
-   workbook is open.
+   - **Add row to Excel**: a missing sheet goes into the first empty row of the table or below the list.
+   Buttons apply one choice to every row. A column's direction limits the choices.
+5. Writing the file (workbook not open in Excel) saves a backup first in `%LOCALAPPDATA%\Nexus\excel-backups`.
+   Cells with formulas are never overwritten. Numbers and dates stay numbers and dates; codes like `007` stay text.
 
    **Only the cells being written change.** The write edits those cells directly in the file (DocumentFormat.OpenXml)
    on a copy, then compares the copy with the original: every part of the package (macros, form controls, comments,
    custom XML, tables, styles…), every worksheet feature (data validation and dropdowns, conditional formatting and
-   data bars including the Excel 2010+ extensions, protection, page setup, controls) and every other cell. If
-   anything else changed, the original is left as it was and the hub says what the check found. Excel recalculates
-   formulas when the file is next opened. (Reading uses ClosedXML; it never saves.)
+   data bars including the Excel 2010+ extensions, protection, page setup, controls) and every other cell. When a
+   table grows, its new rows get the table's formulas and formats. If anything else changed, the original is left as
+   it was and the hub says what the check found. Excel recalculates formulas when the file is next opened. (Reading
+   uses ClosedXML; it never saves.)
 
 **Excel ▾ → Export this view to Excel…** saves the grid as shown (columns, filter and sort) to a new formatted workbook.
 **⋯** has the CSV and JSON exports.

@@ -196,13 +196,21 @@
             </Border>
             <TextBlock Text="Excel" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center" />
           </StackPanel>
-          <TextBlock Text="{Binding ExcelLinkTitle}" TextWrapping="Wrap" Margin="0,6,0,8"
+          <TextBlock Text="{Binding ExcelLinkTitle}" TextWrapping="Wrap" Margin="0,6,0,2"
                      Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" />
-          <StackPanel Orientation="Horizontal">
-            <Button Content="Compare" Command="{Binding CompareExcelCommand}" Style="{DynamicResource AccentButtonStyle}" Margin="0,0,6,0"
+          <TextBlock Text="{Binding ExcelState}" TextWrapping="Wrap" Margin="0,0,0,8" FontSize="11"
+                     Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                     Visibility="{Binding HasExcelLink, Converter={StaticResource BoolToVis}}" />
+          <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">
+            <Button Content="Update Excel" Command="{Binding UpdateExcelCommand}" Style="{DynamicResource AccentButtonStyle}" Margin="0,0,6,6"
+                    ToolTip="Send the sheets shown to the linked workbook now (into Excel if it is open there)."
                     Visibility="{Binding HasExcelLink, Converter={StaticResource BoolToVis}}" />
-            <Button Content="Link workbook…" Command="{Binding LinkExcelCommand}" />
-          </StackPanel>
+            <Button Content="Compare" Command="{Binding CompareExcelCommand}" Margin="0,0,6,6"
+                    ToolTip="See what differs, and take values typed in Excel into the model."
+                    Visibility="{Binding HasExcelLink, Converter={StaticResource BoolToVis}}" />
+            <Button Content="Link…" Command="{Binding LinkExcelCommand}" Margin="0,0,6,6"
+                    ToolTip="Choose the workbook, the table or worksheet, and which column holds what." />
+          </WrapPanel>
         </StackPanel>
       </Border>
 
@@ -561,7 +569,8 @@
             </StackPanel>
             <Button.ContextMenu>
               <ContextMenu>
-                <MenuItem Header="Compare with linked workbook…" Command="{Binding CompareExcelCommand}" FontWeight="SemiBold" />
+                <MenuItem Header="Update linked workbook" Command="{Binding UpdateExcelCommand}" FontWeight="SemiBold" />
+                <MenuItem Header="Compare with linked workbook…" Command="{Binding CompareExcelCommand}" />
                 <MenuItem Header="Link a workbook…" Command="{Binding LinkExcelCommand}" />
                 <Separator />
                 <MenuItem Header="Export this view to Excel…" Command="{Binding ExportExcelCommand}" />
@@ -597,6 +606,9 @@
                   Background="Transparent" BorderThickness="0">
             <TextBlock Text="&#xE711;" Style="{StaticResource Glyph}" FontSize="12" />
           </Button>
+          <Button DockPanel.Dock="Right" Command="{Binding NoticeActionCommand}" Content="{Binding NoticeActionText}"
+                  VerticalAlignment="Top" Margin="12,0,6,0" Padding="12,4"
+                  Visibility="{Binding HasNoticeAction, Converter={StaticResource BoolToVis}}" />
           <TextBlock DockPanel.Dock="Left" Style="{StaticResource NoticeGlyph}" Margin="0,1,12,0" VerticalAlignment="Top" />
           <StackPanel>
             <TextBlock Text="{Binding NoticeTitle}" FontWeight="SemiBold" TextWrapping="Wrap" />

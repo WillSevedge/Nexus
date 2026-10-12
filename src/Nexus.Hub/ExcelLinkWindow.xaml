@@ -1,15 +1,20 @@
 <Window x:Class="Nexus.Hub.ExcelLinkWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Nexus - Link an Excel workbook" Height="620" Width="760" WindowStartupLocation="CenterOwner"
+        xmlns:local="clr-namespace:Nexus.Hub"
+        Title="Nexus - Link an Excel workbook" Height="760" Width="980" WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False" Icon="Assets/Nexus.ico">
+  <Window.Resources>
+    <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    <local:NotConverter x:Key="Not" />
+  </Window.Resources>
   <DockPanel Margin="20">
-    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"
-               Text="Link your sheet index or template once. Nexus remembers it, compares it with the model, and can update either side." />
+    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,12"
+               Text="Link a workbook once. Nexus fills it from the open models, notices when it is saved, and takes values typed in Excel back into the model when you choose. If the workbook is open in Excel, Nexus writes into Excel directly; save it there." />
 
-    <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+    <Grid DockPanel.Dock="Top" Margin="0,0,0,10" IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="120" />
+        <ColumnDefinition Width="130" />
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
@@ -18,24 +23,57 @@
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
+
       <TextBlock Text="Workbook" VerticalAlignment="Center" />
       <TextBox Grid.Column="1" Text="{Binding WorkbookPath, Mode=OneWay}" IsReadOnly="True" Margin="0,2" Padding="4,3" />
-      <Button Grid.Column="2" Content="Browse…" Command="{Binding BrowseCommand}" Margin="6,2,0,2" />
+      <StackPanel Grid.Column="2" Orientation="Horizontal">
+        <Button Content="Browse…" Command="{Binding BrowseCommand}" Margin="6,2,0,2" ToolTip="Link a workbook you already have." />
+        <Button Content="New Budget Tool…" Command="{Binding NewFromTemplateCommand}" Margin="6,2,0,2"
+                ToolTip="Save a fresh copy of the Budget Tool (built into Nexus) and link its Model Export table." />
+      </StackPanel>
 
-      <TextBlock Grid.Row="1" Text="Worksheet" VerticalAlignment="Center" />
-      <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Sheets}" SelectedItem="{Binding SelectedSheet}" DisplayMemberPath="Name" Margin="0,2" />
+      <TextBlock Grid.Row="1" Text="Link to" VerticalAlignment="Center" />
+      <ComboBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" ItemsSource="{Binding Places}" SelectedItem="{Binding SelectedPlace}"
+                DisplayMemberPath="Label" Margin="0,2"
+                ToolTip="An Excel table (Insert › Table) grows as rows are added and keeps its formulas. A worksheet uses the rows under its header row." />
 
       <TextBlock Grid.Row="2" Text="Header row" VerticalAlignment="Center" />
       <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
-        <TextBox Text="{Binding HeaderRow, UpdateSourceTrigger=LostFocus}" Width="60" Padding="4,3" />
-        <TextBlock Text="the row with the column titles (found automatically)" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
+        <TextBox Text="{Binding HeaderRow, UpdateSourceTrigger=LostFocus}" Width="60" Padding="4,3"
+                 IsEnabled="{Binding IsTable, Converter={StaticResource Not}}" />
+        <TextBlock Text="the row with the column titles (a table has its own)" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                   VerticalAlignment="Center" Margin="8,0,0,0" />
       </StackPanel>
 
-      <TextBlock Grid.Row="3" Text="Match rows on" VerticalAlignment="Center" />
-      <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
-        <ComboBox ItemsSource="{Binding KeyChoices}" SelectedItem="{Binding KeyHeader}" Width="220" />
-        <TextBlock Text="usually the sheet number" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
+      <TextBlock Grid.Row="3" Text="Rows" VerticalAlignment="Top" Margin="0,6,0,0" />
+      <StackPanel Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4">
+        <RadioButton IsChecked="{Binding FillMode}" GroupName="mode">
+          <TextBlock TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Fill the list" /><Run Text="  one row per sheet, sorted by program then " /><Run Text="{Binding KeyHeader, Mode=OneWay}" /><Run Text="; leftover rows are cleared (a landing tab such as Model Export)" /></TextBlock>
+        </RadioButton>
+        <RadioButton IsChecked="{Binding MatchMode}" GroupName="mode" Margin="0,4,0,0">
+          <TextBlock TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Match existing rows" /><Run Text="  find each sheet by " /><Run Text="{Binding KeyHeader, Mode=OneWay}" /><Run Text=" and update it; new sheets are added at the end (a sheet index you keep by hand)" /></TextBlock>
+        </RadioButton>
+        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+          <TextBlock Text="Match and sort on" VerticalAlignment="Center" Margin="0,0,8,0" />
+          <ComboBox ItemsSource="{Binding KeyChoices}" SelectedItem="{Binding KeyHeader}" Width="220" />
+          <TextBlock Text="usually the sheet number" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
+        </StackPanel>
+      </StackPanel>
+
+      <TextBlock Grid.Row="4" Text="Live" VerticalAlignment="Top" Margin="0,6,0,0" />
+      <StackPanel Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4">
+        <CheckBox IsChecked="{Binding AutoUpdate}"
+                  Content="Keep the workbook up to date: update it after every read and every Review &amp; apply" />
+        <CheckBox IsChecked="{Binding Watch}" Margin="0,4,0,0"
+                  Content="Watch the workbook: when it is saved with values that differ from the model, offer to compare" />
+        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+          <TextBlock Text="{Binding ClosedFilesText}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="620" />
+          <Button Content="Forget them" Command="{Binding ForgetClosedCommand}" Margin="8,0,0,0" Padding="8,2"
+                  Visibility="{Binding HasClosedFiles, Converter={StaticResource BoolToVis}}"
+                  ToolTip="Their rows leave the workbook at the next update." />
+        </StackPanel>
       </StackPanel>
     </Grid>
 
@@ -48,18 +86,43 @@
     </StackPanel>
 
     <DataGrid ItemsSource="{Binding Mappings}" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
-              HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
+              CanUserSortColumns="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+              HorizontalGridLinesBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
       <DataGrid.Columns>
-        <DataGridTextColumn Header="Excel column" Binding="{Binding Header}" IsReadOnly="True" Width="240" />
-        <DataGridTemplateColumn Header="Nexus column" Width="*">
+        <DataGridTextColumn Header="Excel column" Binding="{Binding Header}" IsReadOnly="True" Width="190" />
+        <DataGridTemplateColumn Header="Nexus value" Width="2*">
           <DataGridTemplateColumn.CellTemplate>
             <DataTemplate>
               <ComboBox ItemsSource="{Binding DataContext.ColumnChoices, RelativeSource={RelativeSource AncestorType=Window}}"
-                        SelectedValuePath="Id" DisplayMemberPath="Label"
+                        SelectedValuePath="Id" DisplayMemberPath="Label" IsEnabled="{Binding CanLink}"
                         SelectedValue="{Binding ColumnId, UpdateSourceTrigger=PropertyChanged}" BorderThickness="0" />
             </DataTemplate>
           </DataGridTemplateColumn.CellTemplate>
         </DataGridTemplateColumn>
+        <DataGridTemplateColumn Header="Direction" Width="140">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <ComboBox ItemsSource="{Binding DirectionChoices}" SelectedValuePath="Value" DisplayMemberPath="Label"
+                        SelectedValue="{Binding Direction, UpdateSourceTrigger=PropertyChanged}" BorderThickness="0" />
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+        <DataGridTemplateColumn Header="Fixed text" Width="*">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <TextBox Text="{Binding FixedText, UpdateSourceTrigger=PropertyChanged}" BorderThickness="0" Padding="2"
+                       Visibility="{Binding IsFixed, Converter={StaticResource BoolToVis}}" />
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+        <DataGridTextColumn Header="What happens" Binding="{Binding Note}" IsReadOnly="True" Width="2*">
+          <DataGridTextColumn.ElementStyle>
+            <Style TargetType="TextBlock">
+              <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+              <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+          </DataGridTextColumn.ElementStyle>
+        </DataGridTextColumn>
       </DataGrid.Columns>
     </DataGrid>
   </DockPanel>

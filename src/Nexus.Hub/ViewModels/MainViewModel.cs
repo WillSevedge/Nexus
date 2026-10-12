@@ -78,6 +78,7 @@ public sealed partial class MainViewModel : Observable
         });
 
         if (_settings.ExcelWorkbook is { } wbPath) _excelLink = ExcelLink.LoadFor(wbPath);
+        WatchExcel();
 
         HubLog.Message += line => Application.Current?.Dispatcher.BeginInvoke(() =>
         {
@@ -189,22 +190,48 @@ public sealed partial class MainViewModel : Observable
     public NoticeKind NoticeKind { get => _noticeKind; private set => Set(ref _noticeKind, value); }
     public bool HasNotice => _noticeTitle.Length > 0;
 
-    /// <summary>Shows a message in the info bar above the table (instead of a pop-up).</summary>
-    public void Notify(NoticeKind kind, string title, string text = "")
+    /// <summary>
+    /// Shows a message in the info bar above the table (instead of a pop-up), optionally with a button
+    /// (<paramref name="actionText"/>) that closes the message and runs <paramref name="action"/>.
+    /// </summary>
+    public void Notify(NoticeKind kind, string title, string text = "", string? actionText = null, Func<Task>? action = null)
     {
         NoticeKind = kind;
         NoticeText = text;
         NoticeTitle = title;
+        _noticeAction = action;
+        NoticeActionText = action is null ? "" : actionText ?? "OK";
         Raise(nameof(HasNotice));
+        Raise(nameof(HasNoticeAction));
     }
+
+    private Func<Task>? _noticeAction;
+    private string _noticeActionText = "";
+    public string NoticeActionText { get => _noticeActionText; private set => Set(ref _noticeActionText, value); }
+    public bool HasNoticeAction => _noticeAction is not null;
+
+    public RelayCommand NoticeActionCommand => _noticeActionCommand ??= new RelayCommand(async () =>
+    {
+        var action = _noticeAction;
+        CloseNotice();
+        if (action is not null) await action();
+    });
+    private RelayCommand? _noticeActionCommand;
 
     public RelayCommand DismissNoticeCommand => _dismissNotice ??= new RelayCommand(() =>
     {
-        NoticeTitle = "";
-        Raise(nameof(HasNotice));
+        CloseNotice();
         return Task.CompletedTask;
     });
     private RelayCommand? _dismissNotice;
+
+    private void CloseNotice()
+    {
+        NoticeTitle = "";
+        _noticeAction = null;
+        Raise(nameof(HasNotice));
+        Raise(nameof(HasNoticeAction));
+    }
 
     /// <summary>"3 files · 42 rows · 2 warnings".</summary>
     public string Summary
@@ -267,6 +294,7 @@ public sealed partial class MainViewModel : Observable
             if (!Set(ref _excelLink, value)) return;
             Raise(nameof(ExcelLinkTitle));
             Raise(nameof(HasExcelLink));
+            WatchExcel();
         }
     }
 
@@ -655,6 +683,8 @@ public sealed partial class MainViewModel : Observable
             Status = Runs.Any(r => r.Failed)
                 ? $"Some files could not be read: {string.Join("; ", Runs.Where(r => r.Failed).Select(r => $"{r.DocumentTitle}: {r.Error!.Message}"))}"
                 : "Double-click a value to edit it. Edited values turn yellow until you apply them.";
+        if (IsSheetsView && _excelLink is { AutoUpdate: true } && Runs.Any(r => !r.Failed))
+            _ = UpdateExcelAsync(auto: true);
     }
 
     // ------------------------------------------------------------------ grid
@@ -1312,60 +1342,7 @@ public sealed partial class MainViewModel : Observable
         Status = "Applied and refreshed from the model. Use Undo in Revit (or U in AutoCAD) to revert.";
     }
 
-    // ------------------------------------------------------------------ Excel
-
-    private Task LinkExcelAsync()
-    {
-        if (_table is null) return Task.CompletedTask;
-        var vm = new ExcelLinkViewModel(_table, _sheetFields, _excelLink);
-        var window = new ExcelLinkWindow(vm) { Owner = Application.Current.MainWindow };
-        if (window.ShowDialog() == true && vm.Result is { } link)
-        {
-            link.Save();
-            ExcelLink = link;
-            _settings.ExcelWorkbook = link.WorkbookPath;
-            _settings.Save();
-            Status = $"Linked {link.Title}. Use Compare to see what differs.";
-        }
-        return Task.CompletedTask;
-    }
-
-    private async Task CompareExcelAsync()
-    {
-        if (_table is null) return;
-        if (_excelLink is null)
-        {
-            await LinkExcelAsync();
-            if (_excelLink is null) return;
-        }
-        CommitGridEdits?.Invoke();
-        var link = _excelLink;
-        if (!_table.ColumnsById.ContainsKey(link.KeyColumnId))
-        {
-            Notify(NoticeKind.Info, "Nothing to compare the workbook with yet",
-                $"The loaded data has no '{link.KeyColumnId}' column to match rows on. Open the Sheets view, or link the workbook again.");
-            return;
-        }
-
-        List<ExcelDiff> diffs;
-        var warnings = new List<string>();
-        try
-        {
-            var data = ExcelWorkbook.Read(link);
-            warnings.AddRange(data.Warnings);
-            diffs = ExcelCompare.Compare(_table, data, link, warnings);
-        }
-        catch (Exception ex)
-        {
-            HubLog.Warn("Reading the linked workbook failed.", ex);
-            Notify(NoticeKind.Warning, $"Could not read {Path.GetFileName(link.WorkbookPath)}", ex.Message);
-            return;
-        }
-
-        var vm = new CompareViewModel(link, diffs, warnings, this);
-        new CompareWindow(vm) { Owner = Application.Current.MainWindow }.ShowDialog();
-        if (vm.Outcome is { } outcome) Status = outcome;
-    }
+    // ------------------------------------------------------------------ Excel (see MainViewModel.Excel.cs)
 
     private Task ExportExcel()
     {

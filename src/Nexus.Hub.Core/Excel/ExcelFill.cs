@@ -59,6 +59,26 @@ public static class ExcelFill
         }
         return (updates, newRows);
     }
+
+    /// <summary>
+    /// The differences that were typed in Excel: the workbook no longer holds what Nexus last sent there (or Nexus
+    /// never sent anything for that cell). Differences where Excel still has the value Nexus sent are model changes
+    /// and are simply written. Excel edits are not overwritten automatically; they are taken into the model with
+    /// Compare, or overwritten when the user says so.
+    /// </summary>
+    public static List<ExcelDiff> ExcelEdits(IEnumerable<ExcelDiff> diffs, IReadOnlyDictionary<string, Dictionary<string, string>> lastSent)
+    {
+        var edits = new List<ExcelDiff>();
+        foreach (var d in diffs)
+        {
+            if (d.Kind != ExcelDiffKind.Different || d.Direction is not (ExcelDirection.Both or ExcelDirection.ToModel)) continue;
+            if (d.Direction == ExcelDirection.Both && lastSent.TryGetValue(ExcelCompare.NormalizeKey(d.Key), out var sent)
+                && sent.TryGetValue(d.Header, out var value) && ExcelCompare.SameValue(value, d.ExcelValue))
+                continue;
+            edits.Add(d);
+        }
+        return edits;
+    }
 }
 
 /// <summary>
@@ -119,6 +139,17 @@ public sealed class ExcelFillMemory
         foreach (var group in current.GroupBy(r => r.Document, StringComparer.OrdinalIgnoreCase))
             Files[group.Key] = group.Select(r => r.Values.ToDictionary(v => v.Key, v => v.Value, StringComparer.OrdinalIgnoreCase)).ToList();
         return Files.SelectMany(f => f.Value.Select(v => (f.Key, (IReadOnlyDictionary<string, string>)v))).ToList();
+    }
+
+    /// <summary>What Nexus last sent for each key (normalized), header → value.</summary>
+    public Dictionary<string, Dictionary<string, string>> LastSent(ExcelLink link)
+    {
+        var sent = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        if (link.KeyHeader is not { } keyHeader) return sent;
+        foreach (var row in Files.Values.SelectMany(rows => rows))
+            if (row.TryGetValue(keyHeader, out var key) && !string.IsNullOrWhiteSpace(key))
+                sent.TryAdd(ExcelCompare.NormalizeKey(key), row);
+        return sent;
     }
 
     /// <summary>Files remembered but not open now.</summary>
