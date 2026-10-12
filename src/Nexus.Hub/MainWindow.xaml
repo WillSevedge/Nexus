@@ -202,14 +202,13 @@
                      Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                      Visibility="{Binding HasExcelLink, Converter={StaticResource BoolToVis}}" />
           <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">
-            <Button Content="Update Excel" Command="{Binding UpdateExcelCommand}" Style="{DynamicResource AccentButtonStyle}" Margin="0,0,6,6"
-                    ToolTip="Send the sheets shown to the linked workbook now (into Excel if it is open there)."
+            <Button Content="Compare" Command="{Binding CompareExcelCommand}" Style="{DynamicResource AccentButtonStyle}" Margin="0,0,6,6"
+                    ToolTip="The deliverables list next to the model, with the differences." />
+            <Button Content="Export to Model Export" Command="{Binding UpdateExcelCommand}" Margin="0,0,6,6"
+                    ToolTip="Fill the workbook's Model Export tab with the model's sheets. Nothing else in the workbook is written."
                     Visibility="{Binding HasExcelLink, Converter={StaticResource BoolToVis}}" />
-            <Button Content="Compare" Command="{Binding CompareExcelCommand}" Margin="0,0,6,6"
-                    ToolTip="See what differs, and take values typed in Excel into the model."
-                    Visibility="{Binding HasExcelLink, Converter={StaticResource BoolToVis}}" />
-            <Button Content="Link…" Command="{Binding LinkExcelCommand}" Margin="0,0,6,6"
-                    ToolTip="Choose the workbook, the table or worksheet, and which column holds what." />
+            <Button Content="Choose…" Command="{Binding LinkExcelCommand}" Margin="0,0,6,6"
+                    ToolTip="Choose the workbook (e.g. your Budget Tool)." />
           </WrapPanel>
         </StackPanel>
       </Border>
@@ -561,7 +560,7 @@
               </StackPanel>
             </Border>
           </Popup>
-          <Button Style="{StaticResource CommandButton}" Click="OnDropDown" ToolTip="Compare with, link or export to Excel">
+          <Button Style="{StaticResource CommandButton}" Click="OnDropDown" ToolTip="Compare with the deliverables list, or export to Excel">
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="&#xE9F9;" Style="{StaticResource Glyph}" />
               <TextBlock Text="Excel" Margin="8,0,0,0" />
@@ -569,9 +568,9 @@
             </StackPanel>
             <Button.ContextMenu>
               <ContextMenu>
-                <MenuItem Header="Update linked workbook" Command="{Binding UpdateExcelCommand}" FontWeight="SemiBold" />
-                <MenuItem Header="Compare with linked workbook…" Command="{Binding CompareExcelCommand}" />
-                <MenuItem Header="Link a workbook…" Command="{Binding LinkExcelCommand}" />
+                <MenuItem Header="Compare with the deliverables list…" Command="{Binding CompareExcelCommand}" FontWeight="SemiBold" />
+                <MenuItem Header="Export to Model Export" Command="{Binding UpdateExcelCommand}" />
+                <MenuItem Header="Choose workbook…" Command="{Binding LinkExcelCommand}" />
                 <Separator />
                 <MenuItem Header="Export this view to Excel…" Command="{Binding ExportExcelCommand}" />
               </ContextMenu>

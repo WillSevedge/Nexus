@@ -97,6 +97,8 @@ public static class ExcelWorkbook
         return Headers(wb.Worksheet(worksheet), headerRow).Select(h => h.Header).ToList();
     }
 
+    internal static ExcelTableInfo TableInfoOf(IXLWorksheet ws, IXLTable t) => TableInfo(ws, t);
+
     private static ExcelTableInfo TableInfo(IXLWorksheet ws, IXLTable t)
     {
         var range = t.RangeAddress;

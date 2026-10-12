@@ -207,9 +207,9 @@ public partial class MainWindow : Window
         Command("Show in model", "\uE8A7", _vm.ShowInModelCommand, "Open or zoom to the selected rows in their program", "zoom select open");
         Command("Reload", "\uE72C", _vm.RefreshCommand, "Read the data again (F5)", "refresh read");
         Action("Choose columns…", "\uE71D", () => OnColumns(this, new RoutedEventArgs()), "", "fields parameters show hide");
-        Command("Update linked workbook", "\uE9F9", _vm.UpdateExcelCommand, "", "excel update push fill budget");
-        Command("Compare with linked workbook", "\uE9F9", _vm.CompareExcelCommand, "", "excel compare");
-        Command("Link a workbook…", "\uE9F9", _vm.LinkExcelCommand, "", "excel link");
+        Command("Export to Model Export", "\uE9F9", _vm.UpdateExcelCommand, "", "excel update push fill budget model export");
+        Command("Compare with the deliverables list", "\uE9F9", _vm.CompareExcelCommand, "", "excel compare deliverables budget");
+        Command("Choose workbook…", "\uE9F9", _vm.LinkExcelCommand, "", "excel link workbook");
         Command("Export this view to Excel…", "\uE9F9", _vm.ExportExcelCommand, "", "excel export xlsx");
         Action("Search the table", "\uE721", () => { SearchBox.Focus(); SearchBox.SelectAll(); }, "Ctrl+F", "filter find");
 

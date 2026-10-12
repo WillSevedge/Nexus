@@ -197,31 +197,6 @@ public sealed class ExcelLiveLinkTests : IDisposable
     }
 
     [Fact]
-    public void Values_typed_in_Excel_are_told_apart_from_model_changes()
-    {
-        var link = new ExcelLink
-        {
-            KeyColumnId = "num",
-            Columns = { new() { Header = "Sheet Number", ColumnId = "num" }, new() { Header = "Rev", ColumnId = "rev" } },
-        };
-        var memory = new ExcelFillMemory();
-        memory.Merge(new[] { ("A.rvt", (IReadOnlyDictionary<string, string>)new Dictionary<string, string> { ["Sheet Number"] = "A-1", ["Rev"] = "2" }) }, new[] { "A.rvt" });
-        var sent = memory.LastSent(link);
-        ExcelDiff Diff(string key, string excel, ExcelDirection direction = ExcelDirection.Both) => new()
-        {
-            Kind = ExcelDiffKind.Different, Key = key, Header = "Rev", ColumnId = "rev", ModelValue = "3", ExcelValue = excel, Direction = direction,
-        };
-        // Excel still has what Nexus sent (2): the model changed, so it is written.
-        Assert.Empty(ExcelFill.ExcelEdits(new[] { Diff("A-1", "2") }, sent));
-        // Someone typed 5 in Excel: kept.
-        Assert.Single(ExcelFill.ExcelEdits(new[] { Diff("A-1", "5") }, sent));
-        // Nothing sent for this key yet: not overwritten blindly.
-        Assert.Single(ExcelFill.ExcelEdits(new[] { Diff("B-1", "2") }, sent));
-        // Nexus → Excel only columns are never Excel edits.
-        Assert.Empty(ExcelFill.ExcelEdits(new[] { Diff("A-1", "5", ExcelDirection.ToExcel) }, sent));
-    }
-
-    [Fact]
     public void Saved_field_maps_get_the_status_field()
     {
         var map = SheetFieldMap.Default();

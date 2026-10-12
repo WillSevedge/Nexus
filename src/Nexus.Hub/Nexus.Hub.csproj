@@ -34,9 +34,6 @@
     <EmbeddedResource Include="Assets\Nexus.ico" LogicalName="Nexus.ico" />
     <EmbeddedResource Include="Assets\Nexus-tray-white.ico" LogicalName="Nexus-tray-white.ico" />
     <EmbeddedResource Include="Assets\Nexus-tray-black.ico" LogicalName="Nexus-tray-black.ico" />
-    <!-- The Budget Tool for Excel › New Budget Tool…. Workbooks are never committed (.gitignore): put your copy at
-         Templates\Budget_Tool.xlsm and it is built in; without it the button explains where to put it. -->
-    <EmbeddedResource Include="Templates\Budget_Tool.xlsm" LogicalName="Budget_Tool.xlsm" Condition="Exists('Templates\Budget_Tool.xlsm')" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Nexus.Hub.Core\Nexus.Hub.Core.csproj" />

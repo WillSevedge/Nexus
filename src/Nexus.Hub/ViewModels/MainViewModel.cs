@@ -49,7 +49,6 @@ public sealed partial class MainViewModel : Observable
     private bool _refreshing;
     private int _loadGeneration;
     private CancellationTokenSource? _reloadDelay;
-    private ExcelLink? _excelLink;
 
     public MainViewModel()
     {
@@ -77,7 +76,6 @@ public sealed partial class MainViewModel : Observable
             return Task.CompletedTask;
         });
 
-        if (_settings.ExcelWorkbook is { } wbPath) _excelLink = ExcelLink.LoadFor(wbPath);
         WatchExcel();
 
         HubLog.Message += line => Application.Current?.Dispatcher.BeginInvoke(() =>
@@ -285,21 +283,6 @@ public sealed partial class MainViewModel : Observable
                 ? string.Join(Environment.NewLine, Runs.Select(r => $"{r.DocumentTitle}: {r.Error!.Message}"))
                 : $"The selected files have no {(_dataset?.Title ?? "data").ToLowerInvariant()}.";
     public string PendingText => _pendingEdits == 1 ? "1 change not yet applied" : $"{_pendingEdits} changes not yet applied";
-
-    public ExcelLink? ExcelLink
-    {
-        get => _excelLink;
-        private set
-        {
-            if (!Set(ref _excelLink, value)) return;
-            Raise(nameof(ExcelLinkTitle));
-            Raise(nameof(HasExcelLink));
-            WatchExcel();
-        }
-    }
-
-    public bool HasExcelLink => _excelLink is not null;
-    public string ExcelLinkTitle => _excelLink is null ? "No workbook linked" : _excelLink.Title;
 
     public bool HasIssues => Runs.Any(r => r.Failed || r.Result?.Warnings.Count > 0);
 
@@ -683,8 +666,6 @@ public sealed partial class MainViewModel : Observable
             Status = Runs.Any(r => r.Failed)
                 ? $"Some files could not be read: {string.Join("; ", Runs.Where(r => r.Failed).Select(r => $"{r.DocumentTitle}: {r.Error!.Message}"))}"
                 : "Double-click a value to edit it. Edited values turn yellow until you apply them.";
-        if (IsSheetsView && _excelLink is { AutoUpdate: true } && Runs.Any(r => !r.Failed))
-            _ = UpdateExcelAsync(auto: true);
     }
 
     // ------------------------------------------------------------------ grid
