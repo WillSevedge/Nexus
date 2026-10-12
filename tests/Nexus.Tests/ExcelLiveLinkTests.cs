@@ -172,7 +172,28 @@ public sealed class ExcelLiveLinkTests : IDisposable
         Assert.Equal("Revit", ExcelSources.ValueFor(map[0], row));
         Assert.Equal("IFC", row.Values[SheetFieldMap.ColumnId("Status")].Value);
         var rows = ExcelFill.Rows(table, new ExcelLink { KeyColumnId = SheetFieldMap.NumberColumnId, Columns = map });
-        Assert.Equal("2", Assert.Single(rows)["Rev"]);
+        Assert.Equal("2", Assert.Single(rows).Values["Rev"]);
+        Assert.Equal("Tower.rvt", rows[0].Document);
+    }
+
+    [Fact]
+    public void Rows_of_files_that_are_not_open_are_kept()
+    {
+        IReadOnlyDictionary<string, string> R(string n) => new Dictionary<string, string> { ["Sheet Number"] = n };
+        var memory = new ExcelFillMemory();
+        var both = memory.Merge(new[] { ("A.rvt", R("A-1")), ("B.dwg", R("C-1")) }, new[] { "A.rvt", "B.dwg" });
+        Assert.Equal(2, both.Count);
+        // Only A open now, with a new sheet: B's rows stay.
+        var onlyA = memory.Merge(new[] { ("A.rvt", R("A-1")), ("A.rvt", R("A-2")) }, new[] { "A.rvt" });
+        Assert.Equal(new[] { "A-1", "A-2", "C-1" }, onlyA.Select(r => r.Values["Sheet Number"]).OrderBy(x => x));
+        Assert.Equal(new[] { "B.dwg" }, memory.Closed(new[] { "A.rvt" }));
+        // A open with no sheets left: its rows go.
+        var aEmpty = memory.Merge(Array.Empty<(string, IReadOnlyDictionary<string, string>)>(), new[] { "A.rvt" });
+        Assert.Equal(new[] { "C-1" }, aEmpty.Select(r => r.Values["Sheet Number"]));
+
+        var link = new ExcelLink { KeyColumnId = "num", Columns = { new() { Header = "Sheet Number", ColumnId = "num" } } };
+        var ordered = ExcelFill.Ordered(new[] { ("x", R("A-10")), ("x", R("A-2")) }, link);
+        Assert.Equal(new[] { "A-2", "A-10" }, ordered.Select(r => r["Sheet Number"]));
     }
 
     [Fact]
