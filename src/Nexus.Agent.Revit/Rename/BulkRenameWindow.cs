@@ -21,6 +21,7 @@ using TextBox = System.Windows.Controls.TextBox;
 using ToggleButton = System.Windows.Controls.Primitives.ToggleButton;
 using MenuItem = System.Windows.Controls.MenuItem;
 using ContextMenu = System.Windows.Controls.ContextMenu;
+using Visibility = System.Windows.Visibility;
 
 namespace Nexus.Agent.Revit.Rename;
 
@@ -107,7 +108,12 @@ internal sealed class BulkRenameWindow
         _view = new ListCollectionView(_rows) { Filter = o => Visible((PreviewRow)o) };
         _grid.ItemsSource = _view;
         _grid.Sorting += (_, _) => _window.Dispatcher.BeginInvoke(new Action(ScheduleRefresh), DispatcherPriority.Background);
-        _search.TextChanged += (_, _) => _view.Refresh();
+        var searchHint = Find<TextBlock>("SearchHint");
+        _search.TextChanged += (_, _) =>
+        {
+            searchHint.Visibility = _search.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+            _view.Refresh();
+        };
         _changesOnly.Checked += (_, _) => _view.Refresh();
         _changesOnly.Unchecked += (_, _) => _view.Refresh();
         Find<Button>("SelectAllButton").Click += (_, _) => SetIncluded(true);
@@ -167,15 +173,19 @@ internal sealed class BulkRenameWindow
         var colors = dark
             ? new Dictionary<string, string>
             {
-                ["WindowBg"] = "#1F1F1F", ["PanelBg"] = "#2B2B2B", ["PanelAlt"] = "#303030", ["HeaderBg"] = "#363636",
-                ["Line"] = "#474747", ["Text"] = "#F2F2F2", ["TextDim"] = "#B0B0B0", ["Accent"] = "#2E7FD3",
-                ["Selection"] = "#264F78", ["Good"] = "#6CCB5F", ["Bad"] = "#FF99A4", ["Warn"] = "#FCE100",
+                ["WindowBg"] = "#1B1B1C", ["PanelBg"] = "#242426", ["PanelAlt"] = "#29292B", ["StepBg"] = "#2A2A2D",
+                ["InputBg"] = "#1E1E20", ["ButtonBg"] = "#2F2F32", ["Hover"] = "#38383C", ["Scroll"] = "#4A4A4F",
+                ["Line"] = "#3A3A3E", ["LineStrong"] = "#55555B", ["Text"] = "#F2F2F2", ["TextDim"] = "#A3A3AA",
+                ["Accent"] = "#3B82F6", ["AccentHover"] = "#5A96F8", ["AccentText"] = "#8AB8FF",
+                ["Selection"] = "#1F3A5F", ["Good"] = "#6CCB5F", ["Bad"] = "#FF8A95", ["Warn"] = "#F5C451",
             }
             : new Dictionary<string, string>
             {
-                ["WindowBg"] = "#F3F3F3", ["PanelBg"] = "#FFFFFF", ["PanelAlt"] = "#F9F9F9", ["HeaderBg"] = "#EEEEEE",
-                ["Line"] = "#D6D6D6", ["Text"] = "#1B1B1B", ["TextDim"] = "#5C5C5C", ["Accent"] = "#0F6CBD",
-                ["Selection"] = "#CCE4F7", ["Good"] = "#107C10", ["Bad"] = "#C42B1C", ["Warn"] = "#9D5D00",
+                ["WindowBg"] = "#F4F5F7", ["PanelBg"] = "#FFFFFF", ["PanelAlt"] = "#FAFAFB", ["StepBg"] = "#F7F8FA",
+                ["InputBg"] = "#FFFFFF", ["ButtonBg"] = "#FFFFFF", ["Hover"] = "#EEF0F3", ["Scroll"] = "#C9CCD2",
+                ["Line"] = "#E1E3E8", ["LineStrong"] = "#C4C8CF", ["Text"] = "#1B1C1F", ["TextDim"] = "#62666D",
+                ["Accent"] = "#2563EB", ["AccentHover"] = "#1D4FD8", ["AccentText"] = "#1D4FD8",
+                ["Selection"] = "#DCE8FD", ["Good"] = "#15803D", ["Bad"] = "#C42B1C", ["Warn"] = "#9D5D00",
             };
         foreach (var (key, hex) in colors)
         {
@@ -282,7 +292,7 @@ internal sealed class BulkRenameWindow
                 $"{rename} of {shown} will be renamed",
                 bad > 0 ? $"{bad} cannot (see Status)" : "",
                 locked > 0 ? $"{locked} locked by other users" : "",
-                _rules.IsEmpty ? "Turn on a panel below to start" : "",
+                _rules.IsEmpty ? "Turn on a step on the right to start" : "",
             }.Where(s => s.Length > 0));
         _summary.SetResourceReference(TextBlock.ForegroundProperty, bad > 0 ? "Bad" : "Text");
         _rename.IsEnabled = rename > 0;
@@ -358,7 +368,7 @@ internal sealed class BulkRenameWindow
         var box = _lastText;
         if (box is null)
         {
-            _summary.Text = "Click in a text box of a panel first (Add › Prefix, Name › Fixed...), then insert the Revit value.";
+            _summary.Text = "Click in a text box of a step first (Add › Prefix, Name › Text…), then insert the Revit value.";
             return;
         }
         int at = Math.Min(box.CaretIndex, box.Text.Length);
