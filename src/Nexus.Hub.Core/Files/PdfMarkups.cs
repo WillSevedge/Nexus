@@ -13,7 +13,10 @@ public sealed class PdfMarkup
     public int Page { get; init; }
     /// <summary>The page's label (the sheet number in sets made by Nexus or most publishers), else "".</summary>
     public string PageLabel { get; init; } = "";
-    /// <summary>The sheet the page is: from the page label, else the page's bookmark ("A101 - Floor Plan" → A101).</summary>
+    /// <summary>
+    /// The sheet the page is: from the page label, else the page's bookmark, else the file name of a one-sheet PDF
+    /// ("A101 - Floor Plan" → A101).
+    /// </summary>
     public string Sheet { get; init; } = "";
     /// <summary>"Cloud", "Callout", "Rectangle"… (the annotation kind).</summary>
     public string Type { get; init; } = "";
@@ -73,6 +76,11 @@ public static class PdfMarkups
 
         var markups = new List<PdfMarkup>();
         string file = Path.GetFileName(path);
+        // One sheet per file ("A101 - Floor Plan.pdf"): the file name says which sheet it is. Used when the page has
+        // no label or bookmark naming it, for a single page, or a file without labels and bookmarks named by number.
+        string named = SheetOf(Path.GetFileNameWithoutExtension(path));
+        string fromFileName = doc.PageCount == 1 || (labels.All(l => SheetOf(l).Length == 0) && bookmarks.Count == 0 && named.Any(char.IsDigit))
+            ? named : "";
         foreach (var (page, a) in all)
         {
             if (a.Elements.ContainsKey("/IRT")) continue; // a reply or a status change, listed with its markup
@@ -86,6 +94,7 @@ public static class PdfMarkups
             string label = labels.Count > page ? labels[page] : "";
             string sheet = SheetOf(label);
             if (sheet.Length == 0 && bookmarks.TryGetValue(page, out var bookmark)) sheet = SheetOf(bookmark);
+            if (sheet.Length == 0) sheet = fromFileName;
             markups.Add(new PdfMarkup
             {
                 File = file,

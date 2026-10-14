@@ -119,6 +119,27 @@ public sealed class BluebeamTests : IDisposable
         Assert.Equal(4, callout.Page);
     }
 
+    [Fact]
+    public void A_single_sheet_pdf_is_matched_by_its_file_name()
+    {
+        string path = MakePdf("A201 - Elevations.pdf", 1);
+        using (var doc = PdfReader.Open(path, PdfDocumentOpenMode.Modify))
+        {
+            var a = new PdfDictionary(doc);
+            a.Elements["/Type"] = new PdfName("/Annot");
+            a.Elements["/Subtype"] = new PdfName("/Square");
+            a.Elements["/Contents"] = new PdfString("Check the grid bubbles");
+            doc.Internals.AddObject(a);
+            var annots = new PdfArray(doc);
+            annots.Elements.Add(a.Reference!);
+            doc.Pages[0].Elements["/Annots"] = annots;
+            doc.Save(path);
+        }
+        var m = Assert.Single(PdfMarkups.Read(path));
+        Assert.Equal("A201", m.Sheet);
+        Assert.Equal("Rectangle", m.Type);
+    }
+
     [Theory]
     [InlineData("A101 - Floor Plan", "A101")]
     [InlineData("A-101: Plan", "A-101")]

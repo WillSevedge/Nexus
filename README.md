@@ -461,7 +461,8 @@ to Excel) use the hub's own dialogs.
 as standard annotations; the PDFs are only read):
 
 - **Add PDFs…**: a set or single sheets. Each page is matched to its sheet by page label, else by bookmark
-  ("A101 - Floor Plan"). Sets made with Print & PDF have both.
+  ("A101 - Floor Plan"), else, for a one-sheet PDF, by its file name (`A101 - Floor Plan.pdf`). Sets made with
+  Print & PDF have labels and bookmarks.
 - Markups are grouped by sheet, with the sheet name from the loaded models: status, page, type (cloud, callout,
   text box, pen…), subject, comment, author, date and replies (hover to read them). *Show* filters open, closed
   or on sheets not in the model; the search box looks through comments, authors and replies.
