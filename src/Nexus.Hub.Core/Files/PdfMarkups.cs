@@ -50,7 +50,7 @@ public static class PdfMarkups
     public static List<PdfMarkup> Read(string path)
     {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        using var doc = PdfReader.Open(stream, PdfDocumentOpenMode.ReadOnly);
+        using var doc = PdfReader.Open(stream, PdfDocumentOpenMode.Import);
         var labels = PageLabels(doc);
         var bookmarks = BookmarkTitles(doc);
 

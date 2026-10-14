@@ -39,7 +39,7 @@ public sealed class BluebeamTests : IDisposable
     [Fact]
     public void Combined_sets_are_labelled_and_bookmarked_by_sheet()
     {
-        using var doc = PdfReader.Open(LabelledSet(), PdfDocumentOpenMode.ReadOnly);
+        using var doc = PdfReader.Open(LabelledSet(), PdfDocumentOpenMode.Import);
         Assert.Equal(4, doc.PageCount);
         Assert.Equal(new[] { "A101", "A102", "A102 (2)", "4" }, PdfMarkups.PageLabels(doc));
         var bookmarks = PdfMarkups.BookmarkTitles(doc);
