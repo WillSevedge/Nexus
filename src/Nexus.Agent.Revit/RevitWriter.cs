@@ -144,7 +144,7 @@ internal sealed class RevitWriter : IHostDataWriter<Document>
             var change = request.Changes[i];
             var r = result.Results[i];
             if (doc.GetElement(change.OwnerId) is not ViewSheet sheet) continue; // Apply reports it
-            if (Editability.Blocker(doc, sheet) is { } blocker)
+            if (Editability.Blocker(doc, sheet, askCentral: true) is { } blocker)
             {
                 r.Message = blocker;
                 skipped.Add(i);
@@ -183,7 +183,7 @@ internal sealed class RevitWriter : IHostDataWriter<Document>
             return null;
         }
 
-        string? blocker = Editability.Blocker(doc, element);
+        string? blocker = Editability.Blocker(doc, element, askCentral: true);
         if (blocker is not null)
         {
             r.Message = blocker;

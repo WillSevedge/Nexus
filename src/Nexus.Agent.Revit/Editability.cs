@@ -6,9 +6,11 @@ internal static class Editability
 {
     /// <summary>
     /// Returns why the element cannot be edited right now, or null if it can.
-    /// Covers read-only/linked documents and worksharing ownership.
+    /// Covers read-only/linked documents and worksharing ownership. <paramref name="askCentral"/> also asks the
+    /// central model whether the element changed there; for cloud models (Autodesk Docs / ACC) that is a round trip
+    /// to the server per element, so reads (hundreds of elements) leave it out and only writes ask.
     /// </summary>
-    public static string? Blocker(Document doc, Element element)
+    public static string? Blocker(Document doc, Element element, bool askCentral = false)
     {
         if (doc.IsLinked) return "Linked document (read-only)";
         // IsReadOnlyFile is the file state; Document.IsReadOnly is a passing state (e.g. while Revit
@@ -22,11 +24,14 @@ internal static class Editability
             if (status == CheckoutStatus.OwnedByOtherUser)
                 return $"Borrowed by {owner}";
 
-            var updates = WorksharingUtils.GetModelUpdatesStatus(doc, element.Id);
-            if (updates == ModelUpdatesStatus.UpdatedInCentral)
-                return "Changed in central: Reload Latest before editing";
-            if (updates == ModelUpdatesStatus.DeletedInCentral)
-                return "Deleted in central";
+            if (askCentral)
+            {
+                var updates = WorksharingUtils.GetModelUpdatesStatus(doc, element.Id);
+                if (updates == ModelUpdatesStatus.UpdatedInCentral)
+                    return "Changed in central: Reload Latest before editing";
+                if (updates == ModelUpdatesStatus.DeletedInCentral)
+                    return "Deleted in central";
+            }
 
             var workset = doc.GetWorksetTable().GetWorkset(element.WorksetId);
             if (workset is not null && !workset.IsEditable && !string.IsNullOrEmpty(workset.Owner)
