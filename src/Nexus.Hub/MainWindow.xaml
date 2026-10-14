@@ -196,7 +196,7 @@
             </Border>
             <TextBlock Text="Excel" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center" />
           </StackPanel>
-          <TextBlock Text="{Binding ExcelLinkTitle}" TextWrapping="Wrap" Margin="0,6,0,2"
+          <TextBlock Text="{Binding ExcelLinkTitle}" TextWrapping="Wrap" Margin="0,6,0,2" ToolTip="{Binding WorkbookPath}"
                      Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" />
           <TextBlock Text="{Binding ExcelState}" TextWrapping="Wrap" Margin="0,0,0,8" FontSize="11"
                      Foreground="{DynamicResource TextFillColorTertiaryBrush}"
@@ -208,7 +208,10 @@
                     ToolTip="Fill the workbook's Model Export tab with the model's sheets. Nothing else in the workbook is written."
                     Visibility="{Binding HasExcelLink, Converter={StaticResource BoolToVis}}" />
             <Button Content="Choose…" Command="{Binding LinkExcelCommand}" Margin="0,0,6,6"
-                    ToolTip="Choose the workbook (e.g. your Budget Tool)." />
+                    ToolTip="Choose the workbook (e.g. your Budget Tool), or switch to another one." />
+            <Button Content="Clear" Command="{Binding ClearWorkbookCommand}" Margin="0,0,6,6"
+                    ToolTip="Stop using this workbook. The file itself is not changed."
+                    Visibility="{Binding HasExcelLink, Converter={StaticResource BoolToVis}}" />
           </WrapPanel>
         </StackPanel>
       </Border>
@@ -571,6 +574,7 @@
                 <MenuItem Header="Compare with the deliverables list…" Command="{Binding CompareExcelCommand}" FontWeight="SemiBold" />
                 <MenuItem Header="Export to Model" Command="{Binding UpdateExcelCommand}" />
                 <MenuItem Header="Choose workbook…" Command="{Binding LinkExcelCommand}" />
+                <MenuItem Header="Clear workbook" Command="{Binding ClearWorkbookCommand}" />
                 <Separator />
                 <MenuItem Header="Export this view to Excel…" Command="{Binding ExportExcelCommand}" />
               </ContextMenu>

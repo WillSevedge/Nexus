@@ -58,7 +58,7 @@ public sealed partial class MainViewModel : Observable
         DiscardChangesCommand = new RelayCommand(() => { DiscardEdits(); return Task.CompletedTask; }, () => _pendingEdits > 0 && !_busy);
         ShowInModelCommand = new RelayCommand(() => ShowInModelAsync(SelectedRowsProvider?.Invoke() ?? Array.Empty<DataRowView>()),
             () => _table is not null);
-        LinkExcelCommand = new RelayCommand(LinkExcelAsync, () => _table is not null);
+        LinkExcelCommand = new RelayCommand(LinkExcelAsync);
         CompareExcelCommand = new RelayCommand(CompareExcelAsync, () => _table is not null);
         ExportExcelCommand = new RelayCommand(ExportExcel, () => _grid is not null);
         ExportCsvCommand = new RelayCommand(() => ExportLegacy("wide"), () => _table is not null);

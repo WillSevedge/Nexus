@@ -52,14 +52,31 @@ public sealed partial class MainViewModel
             FileName = WorkbookPath ?? "",
         };
         if (dialog.ShowDialog() != true) return false;
-        _settings.ExcelWorkbook = dialog.FileName;
+        SetWorkbook(dialog.FileName);
+        return true;
+    }
+
+    private void SetWorkbook(string? path)
+    {
+        _settings.ExcelWorkbook = path;
         _settings.Save();
+        ExcelState = "";
         Raise(nameof(WorkbookPath));
         Raise(nameof(HasExcelLink));
         Raise(nameof(ExcelLinkTitle));
         WatchExcel();
-        return true;
     }
+
+    /// <summary>Forgets the workbook (the file itself is not touched): no comparison, no export, no watching.</summary>
+    public RelayCommand ClearWorkbookCommand => _clearWorkbook ??= new RelayCommand(() =>
+    {
+        string name = ExcelLinkTitle;
+        _deliverables?.Window?.Close();
+        SetWorkbook(null);
+        Status = $"{name} is no longer used. Choose… picks a workbook again.";
+        return Task.CompletedTask;
+    }, () => HasExcelLink);
+    private RelayCommand? _clearWorkbook;
 
     private Task LinkExcelAsync()
     {

@@ -210,6 +210,7 @@ public partial class MainWindow : Window
         Command("Export to Model", "\uE9F9", _vm.UpdateExcelCommand, "", "excel update push fill budget model export");
         Command("Compare with the deliverables list", "\uE9F9", _vm.CompareExcelCommand, "", "excel compare deliverables budget");
         Command("Choose workbook…", "\uE9F9", _vm.LinkExcelCommand, "", "excel link workbook");
+        Command("Clear workbook", "\uE9F9", _vm.ClearWorkbookCommand, "", "excel clear forget remove workbook");
         Command("Export this view to Excel…", "\uE9F9", _vm.ExportExcelCommand, "", "excel export xlsx");
         Action("Search the table", "\uE721", () => { SearchBox.Focus(); SearchBox.SelectAll(); }, "Ctrl+F", "filter find");
 
