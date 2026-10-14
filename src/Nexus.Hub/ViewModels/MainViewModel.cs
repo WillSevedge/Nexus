@@ -531,6 +531,7 @@ public sealed partial class MainViewModel : Observable
         Raise(nameof(IsEmpty));
         Status = $"Reading {dataset.Title.ToLowerInvariant()} from {docs.Count} file(s)…";
         var work = BeginWork($"Reading {dataset.Title.ToLowerInvariant()}", docs.Count);
+        var readTimer = Stopwatch.StartNew();
         try
         {
             var perAgent = docs.GroupBy(d => d.Agent).Select(async group =>
@@ -552,6 +553,8 @@ public sealed partial class MainViewModel : Observable
             var all = (await Task.WhenAll(perAgent)).SelectMany(r => r).ToList();
             if (generation != _loadGeneration) return; // a newer load started meanwhile
             Runs = all;
+            HubLog.Info($"Read {dataset.Title} from {docs.Count} file(s) in {readTimer.ElapsedMilliseconds} ms " +
+                        $"({all.Sum(r => r.Result?.Items.Count ?? 0)} items, {all.Sum(r => r.Result?.Items.Sum(i => i.Groups.Sum(g => g.Properties.Count)) ?? 0)} values)");
         }
         catch (OperationCanceledException) when (work.IsCancellationRequested)
         {
@@ -672,6 +675,7 @@ public sealed partial class MainViewModel : Observable
 
     private void BuildTable(DatasetNode dataset)
     {
+        var timer = Stopwatch.StartNew();
         if (_grid is not null)
         {
             _grid.ColumnChanged -= OnGridValueChanged;
@@ -720,9 +724,14 @@ public sealed partial class MainViewModel : Observable
         PendingEdits = 0;
         _visible = InitialVisibleColumns(dataset, table);
         Health.Reset(dataset.IsSheetIndex);
+        long built = timer.ElapsedMilliseconds;
         TableReady?.Invoke(dt, ColumnSpecs(dataset));
+        long shown = timer.ElapsedMilliseconds - built;
         ApplySearch();
         DataChanged?.Invoke();
+        // Where the time goes after the programs answer (the read itself is logged per file).
+        HubLog.Info($"Table {dataset.Title}: {table.Rows.Count} rows × {table.Columns.Count} columns; built in {built} ms, grid {shown} ms, " +
+                    $"checks {timer.ElapsedMilliseconds - built - shown} ms");
     }
 
     // ------------------------------------------------------------------ for the health checks
