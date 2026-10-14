@@ -27,6 +27,28 @@ public sealed partial class MainViewModel
         return new PrintViewModel(this, _drawingPdfs, sheets, scope, _settings.PdfFolder, _settings.PdfNamePattern);
     }
 
+    /// <summary>Markups: the PDFs last read, kept between sessions.</summary>
+    internal List<string> MarkupPdfs
+    {
+        get => _settings.MarkupPdfs;
+        set
+        {
+            _settings.MarkupPdfs = value;
+            _settings.Save();
+        }
+    }
+
+    /// <summary>The loaded sheets by number (Sheets view), to match markups to sheets; empty otherwise.</summary>
+    internal Dictionary<string, TableRow> SheetsByNumber()
+    {
+        var result = new Dictionary<string, TableRow>(StringComparer.OrdinalIgnoreCase);
+        if (_table is null || !IsSheetsView) return result;
+        foreach (var row in _table.Rows)
+            if (row.Values.TryGetValue(SheetFieldMap.NumberColumnId, out var n) && !string.IsNullOrWhiteSpace(n.Value))
+                result.TryAdd(Nexus.Hub.Core.Excel.ExcelCompare.NormalizeKey(n.Value), row);
+        return result;
+    }
+
     /// <summary>"System", "Light" or "Dark" (⋯ › Theme).</summary>
     public string Theme
     {

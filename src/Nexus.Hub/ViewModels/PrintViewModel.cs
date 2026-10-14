@@ -201,15 +201,17 @@ public sealed class PrintViewModel : Observable
         string summary = $"{made} of {sheets.Count} PDFs made in {_folder}.";
         if (_combine && !onlyMissing)
         {
-            var parts = Included.Where(s => s.HasPdf).Select(s => s.PdfPath!).ToList();
+            // Page labels = sheet numbers and bookmarks = "A101 - Floor Plan": Bluebeam Revu (and other viewers)
+            // navigate, hyperlink and slip-sheet by them.
+            var parts = Included.Where(s => s.HasPdf).Select(s => new PdfPart(s.PdfPath!, s.Number, s.Title)).ToList();
             if (parts.Count > 0)
             {
                 string name = PdfNames.For(_combinedName, "", "", "");
                 string target = Path.Combine(_folder, name + ".pdf");
                 try
                 {
-                    await Task.Run(() => PdfTools.Combine(parts, target));
-                    summary += $" Combined: {name}.pdf ({parts.Count} sheets).";
+                    await Task.Run(() => PdfTools.Combine(parts, target, name));
+                    summary += $" Combined: {name}.pdf ({parts.Count} sheets, bookmarked and labelled by sheet number).";
                 }
                 catch (Exception ex)
                 {

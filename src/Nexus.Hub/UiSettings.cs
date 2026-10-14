@@ -18,6 +18,8 @@ internal sealed class UiSettings
     /// <summary>Print &amp; PDF: last output folder and file name pattern.</summary>
     public string? PdfFolder { get; set; }
     public string? PdfNamePattern { get; set; }
+    /// <summary>Markups: the PDFs (Bluebeam sets) last read.</summary>
+    public List<string> MarkupPdfs { get; set; } = new();
 
     /// <summary>
     /// Version of the default Sheets columns. When the defaults change, the saved column choice for

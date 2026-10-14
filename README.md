@@ -444,7 +444,9 @@ to Excel) use the hub's own dialogs.
   title block size, unsaved changes included) and, for drawings, AutoCAD's *DWG To PDF* with each layout's own
   page setup (plot area, scale, plot style; same paper size, or the closest). Drawings are plotted by AutoCAD's
   Core Console from a copy of the saved drawing, so AutoCAD keeps working meanwhile. Name files with
-  `{Number}`, `{Name}`, `{File}`, and optionally combine everything into one PDF.
+  `{Number}`, `{Name}`, `{File}`, and optionally combine everything into one PDF. A combined set is ready for
+  Bluebeam Revu: each sheet's page is labelled with its sheet number and bookmarked "A101 - Floor Plan", so
+  page navigation, hyperlinks and Batch Slip Sheet work by sheet number.
 - **Preview**: each sheet is shown in the window (Windows' own PDF renderer; no PDF program needed). Click it to
   open the PDF.
 - **Print…**: any printer; each sheet is turned to fit and scaled to the paper picked in the print dialog
@@ -452,6 +454,22 @@ to Excel) use the hub's own dialogs.
   300 dpi image; for full vector plots send the PDFs from your plotter software.
 - If AutoCAD asks whether to load the Nexus add-in (SECURELOAD), add the `Nexus.bundle\Contents\<year>` folder to
   *Options › Files › Trusted Locations*.
+
+### Markups (Bluebeam Revu)
+
+**Markups** on the command bar reads the markups from PDFs reviewed in Bluebeam Revu (Revu keeps them in the PDF
+as standard annotations; the PDFs are only read):
+
+- **Add PDFs…**: a set or single sheets. Each page is matched to its sheet by page label, else by bookmark
+  ("A101 - Floor Plan"). Sets made with Print & PDF have both.
+- Markups are grouped by sheet, with the sheet name from the loaded models: status, page, type (cloud, callout,
+  text box, pen…), subject, comment, author, date and replies (hover to read them). *Show* filters open, closed
+  or on sheets not in the model; the search box looks through comments, authors and replies.
+- **Status**: the review status set in Revu (Accepted, Completed, Rejected, Cancelled… or a custom status). A
+  markup without one, or with a status that doesn't close it, is *Open*.
+- When Revu saves the PDF, the list reads it again by itself.
+- **Show sheet in model** (or double-click) opens the sheet in Revit or AutoCAD; **Open PDF** opens it in your
+  PDF program; **Export to Excel…** saves the markups shown.
 
 ### Deliverables list and Model Export (Excel)
 

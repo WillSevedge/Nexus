@@ -486,6 +486,13 @@
               <TextBlock Text="Print &amp; PDF" Margin="8,0,0,0" />
             </StackPanel>
           </Button>
+          <Button Style="{StaticResource CommandButton}" Click="OnMarkups"
+                  ToolTip="Markups: the comments made in Bluebeam on the PDFs, by sheet (open, closed, replies)">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="&#xE70F;" Style="{StaticResource Glyph}" />
+              <TextBlock Text="Markups" Margin="8,0,0,0" />
+            </StackPanel>
+          </Button>
           <Button Style="{StaticResource CommandButton}" Click="OnRename" ToolTip="Rename &amp; Renumber: sheet numbers and names of the selected sheets (or every sheet shown), with a preview">
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="&#xE8AC;" Style="{StaticResource Glyph}" />

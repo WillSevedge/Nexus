@@ -1105,9 +1105,11 @@ public sealed partial class MainViewModel : Observable
 
     // ------------------------------------------------------------------ show in the program
 
-    public async Task ShowInModelAsync(IReadOnlyList<DataRowView> views)
+    public Task ShowInModelAsync(IReadOnlyList<DataRowView> views) =>
+        ShowInModelAsync(views.Select(RowOf).OfType<TableRow>().Distinct().ToList());
+
+    public async Task ShowInModelAsync(IReadOnlyList<TableRow> rows)
     {
-        var rows = views.Select(RowOf).OfType<TableRow>().Distinct().ToList();
         if (rows.Count == 0)
         {
             Status = "Select one or more rows first.";
