@@ -40,6 +40,12 @@ internal static class McpSetup
                 }
         }
         catch { /* no access */ }
+        if (found.Count == 0)
+        {
+            // Claude Desktop installed but never configured: its standard place.
+            Directory.CreateDirectory(roaming);
+            found.Add(Path.Combine(roaming, "claude_desktop_config.json"));
+        }
         return found;
     }
 

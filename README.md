@@ -478,7 +478,10 @@ Claude (Desktop or Code), or any other MCP client, can work in AutoCAD, Civil 3D
 pyRevit MCP does in Revit. `nexus-mcp.exe` is a small MCP server (stdio) that the assistant starts; it talks to
 the Nexus add-in in each running AutoCAD over the same pipe as the hub. Nothing is opened to the network.
 
-**Set up**
+**Set up** — easiest: close AutoCAD/Revit and double-click **`Setup-Claude.cmd`** in the repository folder. It
+pulls the latest code, builds and installs the add-ins and the hub (with `nexus-mcp.exe`), adds `nexus` to Claude
+Desktop (every config it may read; your other servers are kept, with a backup) and to Claude Code, and offers to
+restart Claude Desktop. By hand:
 1. Install the hub with `Install-Hub.cmd` (it builds and installs `nexus-mcp.exe` next to `Nexus.exe` in
    `%LOCALAPPDATA%\Nexus\Hub`). Build the AutoCAD add-in as usual (AutoCAD closed).
 2. In the hub: **⋯ › Connect Claude (AI assistants)…** adds `nexus` to Claude Desktop's
