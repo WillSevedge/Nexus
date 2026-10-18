@@ -511,6 +511,28 @@ when AutoCAD is open twice):
 | `autocad_zoom` | Frame handles, an area or the extents |
 | `autocad_run_command` | Type a command or AutoLISP on the command line (for anything the tools don't cover) |
 
+**Civil 3D** adds (when Civil 3D is running):
+
+| Tool | What it does |
+|---|---|
+| `autocad_civil3d_overview` | Alignments, profiles, surfaces, pipe networks, corridors, sites, point groups, COGO point count |
+| `autocad_civil3d_alignments` | Alignments (type, length, stations, site, style) and profiles (range, min/max elevation; elevation and grade at a station) |
+| `autocad_civil3d_station_offset` | Points → station/offset along an alignment, or stations (+offsets) → points |
+| `autocad_civil3d_surfaces` / `autocad_civil3d_surface_elevation` | Surface statistics (points, elevations, extents, 2D/3D area, slopes); elevation at many points |
+| `autocad_civil3d_pipe_networks` | Pipes (size, length, slope, cover, structures) and structures (rim, sump, position) |
+| `autocad_civil3d_points` / `autocad_civil3d_add_points` | COGO points by group, description or number (paged); add points with descriptions |
+| `autocad_civil3d_corridors` | Corridors, baselines (alignment, profile, stations), out of date |
+
+**Plant 3D** adds (with a project open):
+
+| Tool | What it does |
+|---|---|
+| `autocad_plant3d_project` | The project, its parts (Piping, P&ID, Ortho, Iso) and their drawings |
+| `autocad_plant3d_objects` | Plant 3D objects with tag, line number, size, spec, service… (by class, tag, line number; all properties on request) |
+| `autocad_plant3d_set_properties` | Change Plant 3D data (as in the Properties palette) |
+
+When AutoCAD, Civil 3D and Plant 3D are open together, each tool goes to the program that has it.
+
 Each drawing or change is one undo step in AutoCAD (U). Coordinates are drawing units (WCS), angles degrees.
 The assistant marks read-only tools as safe; `delete_entities` and `run_command` are flagged destructive, so
 clients ask before using them. Programs can add tools later (Revit, Civil 3D…) without changing the server: it

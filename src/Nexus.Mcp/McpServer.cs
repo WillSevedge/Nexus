@@ -37,7 +37,9 @@ public sealed class McpServer
         "Start with nexus_status to see which programs and drawings are open, then autocad_drawing_info. Find entities with " +
         "autocad_query_entities (paged), read details with autocad_get_entities, and see the drawing with autocad_view_image. " +
         "Drawing and changes are one undo step each in AutoCAD. Coordinates are drawing units, angles degrees. " +
-        "Every tool works on the active drawing unless you pass \"document\" (a drawing's title from nexus_status).";
+        "Every tool works on the active drawing unless you pass \"document\" (a drawing's title from nexus_status). " +
+        "In Civil 3D also use autocad_civil3d_* (alignments, station/offset, surfaces and elevations, pipe networks, COGO points, corridors); " +
+        "in Plant 3D autocad_plant3d_* (project, objects with tag/line number/size/spec, changing their data).";
 
     private readonly IAgentSource _agents;
     private readonly Stream _input;
@@ -47,6 +49,8 @@ public sealed class McpServer
     private readonly SemaphoreSlim _clientsLock = new(1, 1);
     private readonly string? _cacheFile;
     private Dictionary<string, List<ToolDescriptor>> _toolsByKind = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>The tool names each running session offers (Civil 3D's differ from plain AutoCAD's).</summary>
+    private readonly Dictionary<int, HashSet<string>> _toolsBySession = new();
     private bool _initialized;
     private string _lastAnnounced = "";
 
@@ -156,7 +160,7 @@ public sealed class McpServer
         {
             ["protocolVersion"] = SupportedVersions.Contains(asked) ? asked : SupportedVersions[0],
             ["capabilities"] = new JsonObject { ["tools"] = new JsonObject { ["listChanged"] = true } },
-            ["serverInfo"] = new JsonObject { ["name"] = "nexus", ["title"] = "Nexus (AutoCAD)", ["version"] = ServerVersion },
+            ["serverInfo"] = new JsonObject { ["name"] = "nexus", ["title"] = "Nexus (AutoCAD, Civil 3D, Plant 3D)", ["version"] = ServerVersion },
             ["instructions"] = Instructions,
         };
     }
@@ -241,6 +245,17 @@ public sealed class McpServer
             args.Remove("document");
             args.Remove("session");
 
+            // Sessions that offer this tool (Civil 3D tools only in Civil 3D…), when known.
+            if (session is null)
+            {
+                if (_toolsBySession.Count == 0) await RefreshToolsAsync(ct).ConfigureAwait(false);
+                List<AgentRegistration> offering;
+                lock (_toolsBySession)
+                    offering = candidates.Where(a => _toolsBySession.TryGetValue(a.Host.ProcessId, out var names) && names.Contains(tool)).ToList();
+                if (offering.Count > 0) candidates = offering;
+                else if (candidates.All(a => _toolsBySession.ContainsKey(a.Host.ProcessId)))
+                    return Error($"No running program offers '{name}'. It belongs to {(tool.StartsWith("civil3d_", StringComparison.Ordinal) ? "Civil 3D" : tool.StartsWith("plant3d_", StringComparison.Ordinal) ? "Plant 3D" : "a newer Nexus add-in")}: open that program with the drawing, then try again.");
+            }
             var agent = await PickAsync(candidates, session, document, ct).ConfigureAwait(false);
             var client = await ClientAsync(agent, ct).ConfigureAwait(false);
             var result = await client.CallToolAsync(new CallToolRequest
@@ -372,16 +387,34 @@ public sealed class McpServer
     private async Task RefreshToolsAsync(CancellationToken ct)
     {
         var tools = new Dictionary<string, List<ToolDescriptor>>(_toolsByKind, StringComparer.OrdinalIgnoreCase);
-        foreach (var group in _agents.Discover().Where(a => a.Host.Features.Contains(AgentFeatures.Tools)).GroupBy(a => a.Host.HostKind))
+        var running = _agents.Discover().Where(a => a.Host.Features.Contains(AgentFeatures.Tools)).ToList();
+        lock (_toolsBySession)
+            foreach (var pid in _toolsBySession.Keys.Where(pid => running.All(a => a.Host.ProcessId != pid)).ToList())
+                _toolsBySession.Remove(pid);
+        foreach (var group in running.GroupBy(a => a.Host.HostKind))
         {
-            try
+            // Every session of the program: plain AutoCAD, Civil 3D and Plant 3D each add their own tools.
+            var merged = new Dictionary<string, ToolDescriptor>(StringComparer.Ordinal);
+            foreach (var agent in group)
             {
-                var client = await ClientAsync(group.First(), ct).ConfigureAwait(false);
-                tools[group.Key] = await client.ListToolsAsync(ct).ConfigureAwait(false);
+                try
+                {
+                    var client = await ClientAsync(agent, ct).ConfigureAwait(false);
+                    var listed = await client.ListToolsAsync(ct).ConfigureAwait(false);
+                    foreach (var t in listed) merged.TryAdd(t.Name, t);
+                    lock (_toolsBySession) _toolsBySession[agent.Host.ProcessId] = new HashSet<string>(listed.Select(t => t.Name));
+                }
+                catch (Exception ex) when (ex is AgentRequestException or IOException or TimeoutException)
+                {
+                    HubLog.Warn($"MCP: could not list the tools of {agent.Host.Product} ({agent.Host.ProcessId}).", ex);
+                }
             }
-            catch (Exception ex) when (ex is AgentRequestException or IOException or TimeoutException)
+            // Keep the core tools known even when only some sessions answered.
+            if (merged.Count > 0)
             {
-                HubLog.Warn($"MCP: could not list {group.Key}'s tools.", ex);
+                if (group.Key == HostKinds.AutoCAD)
+                    foreach (var t in CadToolCatalog.All) merged.TryAdd(t.Name, t);
+                tools[group.Key] = merged.Values.OrderBy(t => t.Name, StringComparer.Ordinal).ToList();
             }
         }
         _toolsByKind = tools;

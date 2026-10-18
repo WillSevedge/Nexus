@@ -103,6 +103,76 @@ public sealed class McpServerTests
         Assert.NotNull(replies[7]["result"]);
     }
 
+    private sealed class NamedTool : IAgentTool<FakeDoc>
+    {
+        private readonly string _answer;
+        public NamedTool(string name, string answer)
+        {
+            _answer = answer;
+            Descriptor = new ToolDescriptor { Name = name, Title = name, Description = name, ReadOnly = true, InputSchema = Schema.Of("{\"type\":\"object\"}") };
+        }
+        public ToolDescriptor Descriptor { get; }
+        public object? Call(FakeDoc document, ToolArgs args, AgentLog log, CancellationToken ct) => new ToolOutput { Summary = _answer };
+    }
+
+    private sealed class ManyAgents : IAgentSource
+    {
+        private readonly List<AgentRegistration> _regs;
+        public ManyAgents(List<AgentRegistration> regs) => _regs = regs;
+        public IReadOnlyList<AgentRegistration> Discover() => _regs;
+        public Task<AgentClient> ConnectAsync(AgentRegistration agent, CancellationToken ct) => AgentClient.ConnectAsync(agent.PipeName, TimeSpan.FromSeconds(5), ct);
+    }
+
+    [Fact]
+    public async Task Civil_3d_tools_go_to_the_civil_3d_session()
+    {
+        var log = new AgentLog("test");
+        using var host = new FakeHost(log);
+        var servers = new List<AgentServer<FakeDoc>>();
+        var regs = new List<AgentRegistration>();
+        foreach (var (product, tool) in new[] { ("AutoCAD", "drawing_info"), ("Civil 3D", "civil3d_overview") })
+        {
+            var tools = new ToolRegistry<FakeDoc>();
+            tools.Register(new NamedTool(tool, "answered by " + product));
+            tools.Register(new NamedTool("drawing_info", "answered by " + product));
+            var info = HostInfoFactory.Create("AutoCAD", product, "2026", "test", log);
+            info.HostKind = "AutoCAD";
+            info.ProcessId = 1000 + regs.Count; // two sessions
+            var server = new AgentServer<FakeDoc>(info, host.Queue, new FakeDocs(), new ReaderRegistry<FakeDoc>(), log,
+                new AgentServerOptions { WriteRegistration = false }, tools: tools);
+            server.Start();
+            servers.Add(server);
+            var hello = await (await AgentClient.ConnectAsync(server.PipeName, TimeSpan.FromSeconds(5))).HelloAsync();
+            hello.Host.ProcessId = info.ProcessId;
+            regs.Add(new AgentRegistration { PipeName = server.PipeName, Host = hello.Host });
+        }
+        try
+        {
+            string input = string.Join("\n", new[]
+            {
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{}}",
+                "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"autocad_civil3d_overview\",\"arguments\":{}}}",
+                "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"autocad_plant3d_objects\",\"arguments\":{}}}",
+            }) + "\n";
+            var output = new MemoryStream();
+            var mcp = new McpServer(new ManyAgents(regs), new MemoryStream(Encoding.UTF8.GetBytes(input)), output, cacheFile: null);
+            await mcp.RunAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(30));
+            var replies = Encoding.UTF8.GetString(output.ToArray()).Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(l => JsonNode.Parse(l)!.AsObject()).Where(m => m["id"] is not null).ToDictionary(m => m["id"]!.GetValue<int>());
+
+            var names = replies[1]["result"]!["tools"]!.AsArray().Select(t => t!["name"]!.GetValue<string>()).ToList();
+            Assert.Contains("autocad_civil3d_overview", names);
+            Assert.Contains("autocad_query_entities", names); // the core tools stay listed
+            Assert.Equal("answered by Civil 3D", replies[2]["result"]!["content"]![0]!["text"]!.GetValue<string>());
+            Assert.True(replies[3]["result"]!["isError"]!.GetValue<bool>());
+            Assert.Contains("Plant 3D", replies[3]["result"]!["content"]![0]!["text"]!.GetValue<string>());
+        }
+        finally
+        {
+            foreach (var s in servers) s.Dispose();
+        }
+    }
+
     [Fact]
     public void The_cad_tool_catalog_is_complete_and_valid()
     {

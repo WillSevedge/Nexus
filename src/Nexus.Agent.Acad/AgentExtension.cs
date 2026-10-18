@@ -31,6 +31,7 @@ public sealed class AgentExtension : IExtensionApplication
     private AcadRibbon? _ribbon;
     private ReaderRegistry<Document>? _readers;
     private ObjectPropertyReader? _objects;
+    private ToolRegistry<Document>? _tools;
     private readonly List<IAcadPropertyWriter> _moduleWriters = new();
 
     public void Initialize()
@@ -65,9 +66,10 @@ public sealed class AgentExtension : IExtensionApplication
             _readers.Register(new SheetsReader());
             _readers.Register(new LayoutsReader(_objects));
 
+            _tools = Tools.CadTools.Create();
             _dispatcher = new AcadDispatcher(Log);
             Server = new AgentServer<Document>(Host, _dispatcher.Queue, new AcadDocumentProvider(), _readers, Log,
-                writer: new AcadWriter(_moduleWriters), selector: new AcadSelector(), tools: Tools.CadTools.Create());
+                writer: new AcadWriter(_moduleWriters), selector: new AcadSelector(), tools: _tools);
             try
             {
                 _ribbon = new AcadRibbon(Log, () => Server?.Status, () => Host);
@@ -94,9 +96,9 @@ public sealed class AgentExtension : IExtensionApplication
         AcApp.Idle -= OnFirstIdle;
         try
         {
-            if (_readers is null || _objects is null || Host is null || Server is null) return;
+            if (_readers is null || _objects is null || _tools is null || Host is null || Server is null) return;
             string dir = Path.GetDirectoryName(typeof(AgentExtension).Assembly.Location) ?? AppContext.BaseDirectory;
-            var loaded = ModuleLoader.LoadAll(dir, new AcadModuleContext(Log, _readers, _objects, _moduleWriters));
+            var loaded = ModuleLoader.LoadAll(dir, new AcadModuleContext(Log, _readers, _objects, _moduleWriters, _tools));
             if (loaded.Count == 0) return;
 
             Host.Modules = loaded.Select(m => m.Name).ToList();

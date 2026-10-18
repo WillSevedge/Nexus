@@ -33,11 +33,24 @@ public sealed class ToolException : Exception
 
 public sealed class ToolRegistry<TDoc> where TDoc : class
 {
+    // Modules add tools on the host thread after start-up while the pipe thread may be listing them.
     private readonly Dictionary<string, IAgentTool<TDoc>> _tools = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _lock = new();
 
-    public void Register(IAgentTool<TDoc> tool) => _tools[tool.Descriptor.Name] = tool;
-    public IAgentTool<TDoc>? Find(string name) => _tools.TryGetValue(name, out var t) ? t : null;
-    public List<ToolDescriptor> Descriptors() => _tools.Values.Select(t => t.Descriptor).OrderBy(d => d.Name, StringComparer.Ordinal).ToList();
+    public void Register(IAgentTool<TDoc> tool)
+    {
+        lock (_lock) _tools[tool.Descriptor.Name] = tool;
+    }
+
+    public IAgentTool<TDoc>? Find(string name)
+    {
+        lock (_lock) return _tools.TryGetValue(name, out var t) ? t : null;
+    }
+
+    public List<ToolDescriptor> Descriptors()
+    {
+        lock (_lock) return _tools.Values.Select(t => t.Descriptor).OrderBy(d => d.Name, StringComparer.Ordinal).ToList();
+    }
 }
 
 /// <summary>Reads a tool's arguments forgivingly (numbers as strings, missing values) with clear errors.</summary>
@@ -132,4 +145,18 @@ public static class Schema
         using var doc = JsonDocument.Parse(json);
         return doc.RootElement.Clone();
     }
+}
+
+/// <summary>A tool with its descriptor built from a name, description and JSON schema (for add-in modules).</summary>
+public abstract class AgentTool<TDoc> : IAgentTool<TDoc> where TDoc : class
+{
+    protected AgentTool(string name, string title, string description, string schema, bool readOnly, bool destructive = false) =>
+        Descriptor = new ToolDescriptor
+        {
+            Name = name, Title = title, Description = description, InputSchema = Schema.Of(schema),
+            ReadOnly = readOnly, Destructive = destructive,
+        };
+
+    public ToolDescriptor Descriptor { get; }
+    public abstract object? Call(TDoc document, ToolArgs args, AgentLog log, CancellationToken ct);
 }

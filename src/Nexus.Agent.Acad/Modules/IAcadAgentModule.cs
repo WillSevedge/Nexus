@@ -34,12 +34,14 @@ public interface IAcadPropertyWriter
 
 public sealed class AcadModuleContext
 {
-    internal AcadModuleContext(AgentLog log, ReaderRegistry<Document> readers, ObjectPropertyReader objects, List<IAcadPropertyWriter> writers)
+    internal AcadModuleContext(AgentLog log, ReaderRegistry<Document> readers, ObjectPropertyReader objects, List<IAcadPropertyWriter> writers,
+        ToolRegistry<Document> tools)
     {
         Log = log;
         Readers = readers;
         Objects = objects;
         Writers = writers;
+        Tools = tools;
     }
 
     public AgentLog Log { get; }
@@ -47,4 +49,6 @@ public sealed class AcadModuleContext
     public ObjectPropertyReader Objects { get; }
     /// <summary>Add a writer for the properties the module's readers return.</summary>
     public List<IAcadPropertyWriter> Writers { get; }
+    /// <summary>Add tools for AI assistants (Nexus.Mcp offers them as autocad_&lt;name&gt;).</summary>
+    public ToolRegistry<Document> Tools { get; }
 }

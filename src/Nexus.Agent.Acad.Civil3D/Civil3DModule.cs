@@ -11,6 +11,7 @@ public sealed class Civil3DModule : IAcadAgentModule
     {
         context.Readers.Register(new CivilObjectsReader(context.Objects));
         context.Objects.Extenders.Add(new CivilMethodPropertiesExtender(context.Objects));
+        CivilTools.Register(context.Tools);
 
         // Palette-style fallback categories for common Civil 3D properties.
         foreach (var name in new[] { "StyleName", "StyleId", "LabelStyleName", "ProfileStyleName", "SurfaceStyleName" })

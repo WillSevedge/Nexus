@@ -16,8 +16,8 @@ internal sealed class PlantObjectsReader : IHostDataReader<Document>
 {
     public const string IdPrefix = "Plant:";
 
-    private static readonly string[] ConnectionClasses = { "Gasket", "BoltSet", "Buttweld", "Weld", "Connector", "Fastener" };
-    private static readonly string[] NameProperties = { "Tag", "LineNumberTag", "PartFamilyLongDesc", "Description", "ShortDescription" };
+    internal static readonly string[] ConnectionClasses = { "Gasket", "BoltSet", "Buttweld", "Weld", "Connector", "Fastener" };
+    internal static readonly string[] NameProperties = { "Tag", "LineNumberTag", "PartFamilyLongDesc", "Description", "ShortDescription" };
 
     private readonly PlantApi _api;
     private readonly ObjectPropertyReader _objects;

@@ -13,5 +13,6 @@ public sealed class Plant3DModule : IAcadAgentModule
         context.Readers.Register(new PlantObjectsReader(api, context.Objects));
         context.Readers.Register(new PlantProjectReader(api));
         context.Writers.Add(new PlantPropertyWriter(api));
+        PlantTools.Register(context.Tools, api);
     }
 }
