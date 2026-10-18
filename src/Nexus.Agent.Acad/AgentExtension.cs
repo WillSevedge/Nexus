@@ -67,7 +67,7 @@ public sealed class AgentExtension : IExtensionApplication
 
             _dispatcher = new AcadDispatcher(Log);
             Server = new AgentServer<Document>(Host, _dispatcher.Queue, new AcadDocumentProvider(), _readers, Log,
-                writer: new AcadWriter(_moduleWriters), selector: new AcadSelector());
+                writer: new AcadWriter(_moduleWriters), selector: new AcadSelector(), tools: Tools.CadTools.Create());
             try
             {
                 _ribbon = new AcadRibbon(Log, () => Server?.Status, () => Host);

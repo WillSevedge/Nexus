@@ -11,6 +11,8 @@ public static class AgentFeatures
     public const string ExportPdf = "exportPdf";
     /// <summary>The agent accepts <see cref="MessageTypes.CreateSheets"/> requests.</summary>
     public const string CreateSheets = "createSheets";
+    /// <summary>The agent offers tools for AI assistants (<see cref="MessageTypes.ListTools"/>, <see cref="MessageTypes.CallTool"/>).</summary>
+    public const string Tools = "tools";
 }
 
 /// <summary>Show items in the host: open the sheet/layout, or select and zoom to objects.</summary>

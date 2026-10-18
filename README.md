@@ -472,6 +472,50 @@ as standard annotations; the PDFs are only read):
 - **Show sheet in model** (or double-click) opens the sheet in Revit or AutoCAD; **Open PDF** opens it in your
   PDF program; **Export to Excel…** saves the markups shown.
 
+### AI assistants in AutoCAD (MCP)
+
+Claude (Desktop or Code), or any other MCP client, can work in AutoCAD, Civil 3D and Plant 3D through Nexus, like the
+pyRevit MCP does in Revit. `nexus-mcp.exe` is a small MCP server (stdio) that the assistant starts; it talks to
+the Nexus add-in in each running AutoCAD over the same pipe as the hub. Nothing is opened to the network.
+
+**Set up**
+1. Install the hub with `Install-Hub.cmd` (it builds and installs `nexus-mcp.exe` next to `Nexus.exe` in
+   `%LOCALAPPDATA%\Nexus\Hub`). Build the AutoCAD add-in as usual (AutoCAD closed).
+2. In the hub: **⋯ › Connect Claude (AI assistants)…** adds `nexus` to Claude Desktop's
+   `claude_desktop_config.json`. Your other servers (pyRevit…) are kept, and a backup is saved next to it. It
+   also puts the Claude Code command on the clipboard:
+   `claude mcp add nexus --scope user -- "%LOCALAPPDATA%\Nexus\Hub\nexus-mcp.exe"`.
+3. Restart Claude Desktop, open AutoCAD with a drawing, and ask away.
+
+By hand, Claude Desktop's config entry is:
+```json
+{ "mcpServers": { "nexus": { "command": "C:\\Users\\<you>\\AppData\\Local\\Nexus\\Hub\\nexus-mcp.exe" } } }
+```
+
+**Tools** (every one works on the active drawing, or `document`: a drawing's title; `session`: the process id
+when AutoCAD is open twice):
+
+| Tool | What it does |
+|---|---|
+| `nexus_status` | Programs running with Nexus and their open drawings |
+| `autocad_drawing_info` | File, units, extents, layouts, entity counts by type, layers, blocks, xrefs |
+| `autocad_list_layers` / `autocad_list_blocks` | Layers (colour, linetype, states, usage); block definitions (attributes, dynamic, xref, references) |
+| `autocad_query_entities` | Find entities by type, layer, block, text, area; paged, compact geometry |
+| `autocad_get_entities` | Full details by handle: vertices, bulges, attributes, dynamic properties, styles |
+| `autocad_get_selection` | What the user has selected in AutoCAD |
+| `autocad_view_image` | A picture of the drawing area, so the assistant can check its work |
+| `autocad_create_entities` | Draw lines, polylines, rectangles, circles, arcs, points, text, mtext, blocks (with attributes), aligned dimensions |
+| `autocad_modify_entities` | Layer, colour, linetype, move, rotate, scale, text, attribute values |
+| `autocad_delete_entities` | Erase by handle (locked layers are skipped) |
+| `autocad_set_layer` | Create or change a layer; make it current |
+| `autocad_zoom` | Frame handles, an area or the extents |
+| `autocad_run_command` | Type a command or AutoLISP on the command line (for anything the tools don't cover) |
+
+Each drawing or change is one undo step in AutoCAD (U). Coordinates are drawing units (WCS), angles degrees.
+The assistant marks read-only tools as safe; `delete_entities` and `run_command` are flagged destructive, so
+clients ask before using them. Programs can add tools later (Revit, Civil 3D…) without changing the server: it
+lists whatever each running add-in offers.
+
 ### Deliverables list and Model Export (Excel)
 
 The workbook (e.g. the Budget Tool) is the **source of truth**. Nexus reads its deliverables list and writes only

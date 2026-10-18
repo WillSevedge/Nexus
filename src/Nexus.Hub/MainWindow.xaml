@@ -444,6 +444,8 @@
               <ContextMenu>
                 <MenuItem Header="Go to anything…" Click="OnPaletteMenu" InputGestureText="Ctrl+K" />
                 <MenuItem Header="History and snapshots…" Click="OnHistory" />
+                <MenuItem Header="Connect Claude (AI assistants)…" Click="OnConnectClaude"
+                          ToolTip="Let Claude Desktop and Claude Code work in AutoCAD through Nexus (MCP)" />
                 <MenuItem Header="Theme" SubmenuOpened="OnThemeMenuOpened">
                   <MenuItem Header="Use Windows setting" Tag="System" IsCheckable="True" Click="OnTheme" />
                   <MenuItem Header="Light" Tag="Light" IsCheckable="True" Click="OnTheme" />

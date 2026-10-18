@@ -34,6 +34,8 @@ public static class MessageTypes
     /// <summary>Create PDFs of sheets of an open file.</summary>
     public const string ExportPdf = "exportPdf";
     public const string CreateSheets = "createSheets";
+    public const string ListTools = "listTools";
+    public const string CallTool = "callTool";
 
     public const string Result = "result";
     public const string Error = "error";

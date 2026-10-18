@@ -38,6 +38,7 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
     private readonly IHostSelector<TDoc>? _selector;
     private readonly IPdfExporter<TDoc>? _pdf;
     private readonly ISheetCreator<TDoc>? _sheets;
+    private readonly ToolRegistry<TDoc>? _tools;
     private readonly AgentLog _log;
     private readonly AgentServerOptions _options;
     private readonly CancellationTokenSource _stop = new();
@@ -51,8 +52,9 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
     public AgentServer(HostInfo host, IHostDispatcher dispatcher, IDocumentProvider<TDoc> documents,
         ReaderRegistry<TDoc> readers, AgentLog log, AgentServerOptions? options = null,
         IHostDataWriter<TDoc>? writer = null, IHostSelector<TDoc>? selector = null,
-        IPdfExporter<TDoc>? pdf = null, ISheetCreator<TDoc>? sheets = null)
+        IPdfExporter<TDoc>? pdf = null, ISheetCreator<TDoc>? sheets = null, ToolRegistry<TDoc>? tools = null)
     {
+        _tools = tools;
         _writer = writer;
         _selector = selector;
         _pdf = pdf;
@@ -106,6 +108,8 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
             host.Features.Add(AgentFeatures.ExportPdf);
         if (_sheets is not null && !host.Features.Contains(AgentFeatures.CreateSheets))
             host.Features.Add(AgentFeatures.CreateSheets);
+        if (_tools is not null && !host.Features.Contains(AgentFeatures.Tools))
+            host.Features.Add(AgentFeatures.Tools);
         return host;
     }
 
@@ -241,6 +245,8 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
                 MessageTypes.Select => await SelectAsync(request.PayloadAs<SelectRequest>(), ct).ConfigureAwait(false),
                 MessageTypes.ExportPdf => await ExportPdfAsync(request.PayloadAs<ExportPdfRequest>(), ct).ConfigureAwait(false),
                 MessageTypes.CreateSheets => await CreateSheetsAsync(request.PayloadAs<CreateSheetsRequest>(), ct).ConfigureAwait(false),
+                MessageTypes.ListTools => new ListToolsResponse { Tools = _tools?.Descriptors() ?? new List<ToolDescriptor>() },
+                MessageTypes.CallTool => await CallToolAsync(request.PayloadAs<CallToolRequest>(), ct).ConfigureAwait(false),
                 _ => throw new AgentException(ErrorCodes.UnknownMessage, $"Unknown message type '{request.Type}'."),
             };
             return Envelope.Result(request.Id, result);
@@ -313,6 +319,55 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
             _log.Info($"PDF: {result.Sheets.Count(s => s.PdfPath is not null)} of {result.Sheets.Count} sheet(s) in {sw.ElapsedMilliseconds} ms");
             return result;
         }, _options.HostStartTimeout, ct).ConfigureAwait(false);
+    }
+
+    private async Task<CallToolResult> CallToolAsync(CallToolRequest? request, CancellationToken ct)
+    {
+        if (_tools is null)
+            throw new AgentException(ErrorCodes.NotImplemented, $"{_host.Product} offers no tools for assistants.");
+        if (request is null || string.IsNullOrWhiteSpace(request.Tool))
+            throw new AgentException(ErrorCodes.BadRequest, "A tool call needs a tool name.");
+        var tool = _tools.Find(request.Tool)
+                   ?? throw new AgentException(ErrorCodes.BadRequest, $"No tool '{request.Tool}' in {_host.Product}.");
+
+        return await _dispatcher.InvokeAsync(() =>
+        {
+            var doc = FindDocument(request.Document);
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                var output = tool.Call(doc, new ToolArgs(request.Arguments), _log, ct);
+                _log.Info($"Tool {request.Tool}: {sw.ElapsedMilliseconds} ms");
+                return output is ToolOutput o
+                    ? new CallToolResult
+                    {
+                        Data = o.Data is null ? null : System.Text.Json.JsonSerializer.SerializeToElement(o.Data, Json.Options),
+                        Summary = o.Summary,
+                        ImagePng = o.Png is null ? null : Convert.ToBase64String(o.Png),
+                    }
+                    : new CallToolResult { Data = output is null ? null : System.Text.Json.JsonSerializer.SerializeToElement(output, Json.Options) };
+            }
+            catch (ToolException ex)
+            {
+                _log.Info($"Tool {request.Tool}: {ex.Message}");
+                return new CallToolResult { IsError = true, Summary = ex.Message };
+            }
+        }, _options.HostStartTimeout, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>A document by id, by title (with or without extension), or the active one when empty.</summary>
+    private TDoc FindDocument(string? which)
+    {
+        if (string.IsNullOrWhiteSpace(which) || which == "active")
+            return _documents.Find("active") ?? throw new AgentException(ErrorCodes.NoDocument, $"No document is open in {_host.Product}.");
+        if (_documents.Find(which!) is { } byId) return byId;
+        var all = _documents.ListDocuments();
+        var match = all.FirstOrDefault(d => string.Equals(d.Title, which, StringComparison.OrdinalIgnoreCase))
+                    ?? all.FirstOrDefault(d => string.Equals(Path.GetFileNameWithoutExtension(d.Title), which, StringComparison.OrdinalIgnoreCase))
+                    ?? all.FirstOrDefault(d => d.Title.IndexOf(which!, StringComparison.OrdinalIgnoreCase) >= 0);
+        return (match is null ? null : _documents.Find(match.Id))
+               ?? throw new AgentException(ErrorCodes.DocumentNotFound,
+                   $"'{which}' is not open in {_host.Product}. Open: {string.Join(", ", all.Select(d => d.Title))}.");
     }
 
     private async Task<CreateSheetsResult> CreateSheetsAsync(CreateSheetsRequest? request, CancellationToken ct)

@@ -104,8 +104,10 @@ internal sealed class HubInstance : IDisposable
 
             // A published Nexus.exe is one self-contained file; a Visual Studio build is a folder of files.
             bool singleFile = !File.Exists(Path.Combine(sourceDir, "Nexus.dll"));
+            // The MCP server for AI assistants (nexus-mcp.exe) is published next to Nexus.exe and installed with it.
             var files = singleFile
-                ? new[] { Environment.ProcessPath! }
+                ? new[] { Environment.ProcessPath!, Path.Combine(Path.GetDirectoryName(Environment.ProcessPath!)!, "nexus-mcp.exe") }
+                    .Where(File.Exists).ToArray()
                 : Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories).ToArray();
             string root = singleFile ? Path.GetDirectoryName(Environment.ProcessPath!)! : sourceDir;
 

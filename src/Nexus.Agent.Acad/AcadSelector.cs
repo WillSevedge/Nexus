@@ -85,7 +85,7 @@ internal sealed class AcadSelector : IHostSelector<Document>
         return new SelectResult { Shown = entities.Count, Message = $"Selected {entities.Count} object(s) in '{Path.GetFileName(doc.Name)}'." };
     }
 
-    private static void ZoomTo(Autodesk.AutoCAD.EditorInput.Editor ed, Extents3d ext, AgentLog log)
+    internal static void ZoomTo(Autodesk.AutoCAD.EditorInput.Editor ed, Extents3d ext, AgentLog log)
     {
         try
         {

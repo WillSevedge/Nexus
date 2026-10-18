@@ -78,6 +78,15 @@ public sealed class AgentClient : IAsyncDisposable
     public Task<CreateSheetsResult> CreateSheetsAsync(CreateSheetsRequest request, CancellationToken ct = default) =>
         RequestAsync<CreateSheetsResult>(MessageTypes.CreateSheets, request, ReadTimeout, ct);
 
+    public async Task<List<ToolDescriptor>> ListToolsAsync(CancellationToken ct = default) =>
+        (await RequestAsync<ListToolsResponse>(MessageTypes.ListTools, Empty.Instance, DefaultTimeout, ct).ConfigureAwait(false)).Tools;
+
+    /// <summary>Drawing many entities or reading a large drawing can take a while.</summary>
+    public static readonly TimeSpan ToolTimeout = TimeSpan.FromMinutes(5);
+
+    public Task<CallToolResult> CallToolAsync(CallToolRequest request, CancellationToken ct = default) =>
+        RequestAsync<CallToolResult>(MessageTypes.CallTool, request, ToolTimeout, ct);
+
     public Task<SelectResult> SelectAsync(SelectRequest request, CancellationToken ct = default) =>
         RequestAsync<SelectResult>(MessageTypes.Select, request, DefaultTimeout, ct);
 

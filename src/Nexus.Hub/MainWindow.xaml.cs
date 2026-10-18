@@ -182,6 +182,36 @@ public partial class MainWindow : Window
         _markups.Show();
     }
 
+    /// <summary>⋯ › Connect Claude: adds Nexus's MCP server to Claude Desktop and copies the Claude Code command.</summary>
+    private void OnConnectClaude(object sender, RoutedEventArgs e)
+    {
+        string? server = McpSetup.ServerPath();
+        if (server is null)
+        {
+            Dialogs.Message("The MCP server is not installed",
+                "nexus-mcp.exe is built and installed with the hub: double-click Install-Hub.cmd in the Nexus folder " +
+                "(or run build\\Publish-Hub.cmd install), then try again.", NoticeKind.Info, this);
+            return;
+        }
+        string claudeCode = McpSetup.ClaudeCodeCommand(server);
+        try { Clipboard.SetText(claudeCode); } catch { /* clipboard busy */ }
+        try
+        {
+            var changed = McpSetup.ConnectClaudeDesktop(server);
+            Dialogs.Message("Claude can now use AutoCAD through Nexus",
+                (changed.Count > 0
+                    ? $"Added \"nexus\" to Claude Desktop ({string.Join(", ", changed)}); your other MCP servers are unchanged and a backup was saved. Quit and restart Claude Desktop.\n\n"
+                    : "Claude Desktop was not found on this PC.\n\n") +
+                $"For Claude Code, this command is on the clipboard:\n{claudeCode}\n\n" +
+                "Then open AutoCAD with a drawing and ask, for example: \"What layers are in this drawing?\" or \"Draw a 20' x 30' rectangle on A-WALL\".",
+                NoticeKind.Success, this);
+        }
+        catch (Exception ex)
+        {
+            Dialogs.Message("Claude Desktop was not changed", ex.Message + $"\n\nAdd this server by hand: {server}", NoticeKind.Warning, this);
+        }
+    }
+
     /// <summary>⋯ › Theme: tick the current choice when the submenu opens.</summary>
     private void OnThemeMenuOpened(object sender, RoutedEventArgs e)
     {

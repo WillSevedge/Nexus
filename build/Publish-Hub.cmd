@@ -29,6 +29,15 @@ if not exist "%ROOT%\artifacts\Nexus\Nexus.exe" (
   echo Build finished but artifacts\Nexus\Nexus.exe is missing.
   exit /b 1
 )
+echo Building the MCP server for AI assistants (nexus-mcp.exe)...
+dotnet publish "%ROOT%\src\Nexus.Mcp\Nexus.Mcp.csproj" -c Release -r win-x64 --self-contained true ^
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true ^
+  -p:DebugType=embedded -p:AllowedReferenceRelatedFileExtensions=none ^
+  -o "%ROOT%\artifacts\Nexus" -nologo -v:minimal
+if errorlevel 1 (
+  echo.
+  echo The MCP server did not build; the hub is fine without it.
+)
 copy /y "%ROOT%\deploy\hub\Install.cmd" "%ROOT%\artifacts\Nexus\" >nul
 echo.
 echo Built: %ROOT%\artifacts\Nexus\Nexus.exe

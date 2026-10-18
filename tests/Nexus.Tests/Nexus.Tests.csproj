@@ -14,6 +14,7 @@
     <ProjectReference Include="..\..\src\Nexus.Agent.Shared\Nexus.Agent.Shared.csproj" />
     <ProjectReference Include="..\..\src\Nexus.Hub.Core\Nexus.Hub.Core.csproj" />
     <ProjectReference Include="..\..\src\Nexus.Rename\Nexus.Rename.csproj" />
+    <ProjectReference Include="..\..\src\Nexus.Mcp\Nexus.Mcp.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
