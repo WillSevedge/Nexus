@@ -34,6 +34,8 @@ public sealed class McpServer
 
     private const string Instructions =
         "Nexus connects you to AutoCAD (and AutoCAD Civil 3D / Plant 3D) running on this computer through the Nexus add-in. " +
+        "For anything in AutoCAD use these tools only: do not write .lsp or .scr files, run PowerShell or scripts, or automate AutoCAD " +
+        "through COM; the tools draw, change and read the drawing directly, each as one undo step, without prompts in AutoCAD. " +
         "Start with nexus_status to see which programs and drawings are open, then autocad_drawing_info. Find entities with " +
         "autocad_query_entities (paged), read details with autocad_get_entities, and see the drawing with autocad_view_image. " +
         "Drawing and changes are one undo step each in AutoCAD. Coordinates are drawing units, angles degrees. " +

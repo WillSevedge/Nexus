@@ -108,7 +108,7 @@ public static class CadToolCatalog
         "{\"type\": \"object\", \"properties\": {" + HandlesProperty + ", \"window\": {\"type\": \"array\", \"items\": {\"type\": \"number\"}}, \"extents\": {\"type\": \"boolean\"}}}",
         readOnly: true),
         Tool("run_command", "Run a command",
-        "Type a command or AutoLISP expression on AutoCAD's command line, e.g. \"_.REGEN\", \"_.PURGE _A * _N\", \"(command \\\"_.LAYOFF\\\" ...)\". " +
+        "Last resort, only when no other autocad_ tool can do it (never to draw or change entities). Types a command or AutoLISP expression on AutoCAD's command line, e.g. \"_.REGEN\", \"_.PURGE _A * _N\", \"(command \\\"_.LAYOFF\\\" ...)\". " +
         "Use English command names with the _. prefix and give every prompt's answer (a space or newline ends input). It runs after this call " +
         "returns: check the outcome with drawing_info, query_entities or view_image. Prefer the specific tools when one fits.",
         "{\"type\": \"object\", \"properties\": {\"command\": {\"type\": \"string\"}}, \"required\": [\"command\"]}",
