@@ -54,6 +54,100 @@ public partial class MainWindow : Window
         InputBindings.Add(new KeyBinding(new RelayCommand(() => { SearchBox.Focus(); SearchBox.SelectAll(); return Task.CompletedTask; }), Key.F, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(_vm.RefreshCommand, Key.F5, ModifierKeys.None));
         InputBindings.Add(new KeyBinding(new RelayCommand(() => { OpenPalette(); return Task.CompletedTask; }), Key.K, ModifierKeys.Control));
+        InputBindings.Add(new KeyBinding(new RelayCommand(() => { _vm.IsHome = true; return Task.CompletedTask; }), Key.D1, ModifierKeys.Control));
+        InputBindings.Add(new KeyBinding(new RelayCommand(() => { _vm.IsData = true; return Task.CompletedTask; }), Key.D2, ModifierKeys.Control));
+        InputBindings.Add(new KeyBinding(new RelayCommand(() => { _vm.IsConnections = true; return Task.CompletedTask; }), Key.D3, ModifierKeys.Control));
+
+        // The explorer (sources and views) takes no room until a program is connected.
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.HasPrograms)) UpdateExplorer();
+        };
+        UpdateExplorer();
+        ShowLogo();
+        AppTheme.Changed += ShowLogo;
+    }
+
+    // ------------------------------------------------------------------ shell
+
+    public static readonly DependencyProperty CompactCommandsProperty =
+        DependencyProperty.Register(nameof(CompactCommands), typeof(bool), typeof(MainWindow));
+    public static readonly DependencyProperty HideSecondaryProperty =
+        DependencyProperty.Register(nameof(HideSecondary), typeof(bool), typeof(MainWindow));
+
+    /// <summary>The command bar is narrow: icons only (labels stay in the tooltips).</summary>
+    public bool CompactCommands
+    {
+        get => (bool)GetValue(CompactCommandsProperty);
+        set => SetValue(CompactCommandsProperty, value);
+    }
+
+    /// <summary>The command bar is very narrow: the tools move to the overflow menu (⋯).</summary>
+    public bool HideSecondary
+    {
+        get => (bool)GetValue(HideSecondaryProperty);
+        set => SetValue(HideSecondaryProperty, value);
+    }
+
+    private void OnCommandBarSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // Thresholds from the widths of the bar with labels (~1080) and with icons only (~620).
+        double width = e.NewSize.Width;
+        CompactCommands = width < 1120;
+        HideSecondary = width < 640;
+    }
+
+    private GridLength _explorerWidth = new(256);
+
+    private void UpdateExplorer()
+    {
+        if (_vm.HasPrograms)
+        {
+            ExplorerColumn.MinWidth = 200;
+            ExplorerColumn.Width = _explorerWidth;
+        }
+        else
+        {
+            if (ExplorerColumn.Width.Value > 0) _explorerWidth = ExplorerColumn.Width;
+            ExplorerColumn.MinWidth = 0;
+            ExplorerColumn.Width = new GridLength(0);
+        }
+    }
+
+    /// <summary>The Nexus mark in the rail: dark on light themes, light on dark ones.</summary>
+    private void ShowLogo()
+    {
+        try
+        {
+            Logo.Source = new System.Windows.Media.Imaging.BitmapImage(
+                new Uri($"pack://application:,,,/Nexus;component/Assets/Nexus-{(AppTheme.IsDark ? "light" : "dark")}.png"));
+        }
+        catch (Exception ex)
+        {
+            Nexus.Hub.Core.HubLog.Warn("Could not load the Nexus logo.", ex);
+        }
+    }
+
+    private void OnSettingsMenu(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || FindResource("SettingsMenu") is not ContextMenu menu) return;
+        menu.PlacementTarget = button;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Right;
+        menu.DataContext = DataContext;
+        menu.IsOpen = true;
+    }
+
+    private void OnShowConnections(object sender, RoutedEventArgs e) => _vm.IsConnections = true;
+
+    private void OnGoData(object sender, RoutedEventArgs e) => _vm.IsData = true;
+
+    private void OnOpenHealth(object sender, RoutedEventArgs e) => _vm.Health.IsOpen = true;
+
+    /// <summary>Closing the inspector also unpins it (it stays closed next time).</summary>
+    private void OnCloseInspector(object sender, RoutedEventArgs e)
+    {
+        _vm.IsInspectorPinned = false;
+        _vm.ShowDetails = false;
     }
 
     // ------------------------------------------------------------------ columns
@@ -260,6 +354,13 @@ public partial class MainWindow : Window
         Command("Choose workbook…", "\uE9F9", _vm.LinkExcelCommand, "", "excel link workbook");
         Command("Clear workbook", "\uE9F9", _vm.ClearWorkbookCommand, "", "excel clear forget remove workbook");
         Command("Export this view to Excel…", "\uE9F9", _vm.ExportExcelCommand, "", "excel export xlsx");
+        Action("Home", "\uE80F", () => _vm.IsHome = true, "Ctrl+1", "workspace start dashboard");
+        Action("Sheets & data", "\uE80A", () => _vm.IsData = true, "Ctrl+2", "workspace table grid");
+        Action("Connections", "\uE703", () => _vm.IsConnections = true, _vm.ConnectionSummary + "  ·  Ctrl+3", "workspace programs revit autocad excel claude status");
+        Action(_vm.ShowDetails ? "Hide the inspector" : "Show the inspector", "\uE8A0", () => _vm.ShowDetails = !_vm.ShowDetails, "Every property of the selected row", "details properties pane panel");
+        Action(_vm.IsCompact ? "Comfortable rows" : "Compact rows", "\uE8FD", () => _vm.IsCompact = !_vm.IsCompact, "Table density", "density row height dense");
+        Action(_vm.IsRailExpanded ? "Collapse the navigation" : "Expand the navigation", "\uE700", () => _vm.IsRailExpanded = !_vm.IsRailExpanded, "", "rail sidebar menu");
+        Action("Connect Claude (AI assistants)…", "\uE8F2", () => OnConnectClaude(this, new RoutedEventArgs()), "", "mcp ai assistant claude");
         Action("Search the table", "\uE721", () => { SearchBox.Focus(); SearchBox.SelectAll(); }, "Ctrl+F", "filter find");
 
         foreach (var d in _vm.Datasets)
@@ -418,6 +519,7 @@ public partial class MainWindow : Window
         var current = TableGrid.CurrentCell.Item as DataRowView
                       ?? TableGrid.SelectedCells.Select(c => c.Item).OfType<DataRowView>().FirstOrDefault();
         if (current is not null && !ReferenceEquals(current, _vm.SelectedRow)) _vm.SelectedRow = current;
+        _vm.SelectionCount = SelectedRows().Count;
     }
 
     private IReadOnlyList<DataRowView> SelectedRows() =>

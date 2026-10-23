@@ -53,6 +53,8 @@ public sealed partial class MainViewModel : Observable
     public MainViewModel()
     {
         Health = new HealthViewModel(this);
+        _showDetails = _settings.InspectorPinned;
+        _workspace = _settings.Workspace is Workspaces.Home or Workspaces.Connections ? _settings.Workspace : Workspaces.Data;
         RefreshCommand = new RelayCommand(async () => { await RefreshAsync(); await LoadAsync(); });
         ApplyChangesCommand = new RelayCommand(ReviewAndApplyAsync, () => _pendingEdits > 0 && !_busy);
         DiscardChangesCommand = new RelayCommand(() => { DiscardEdits(); return Task.CompletedTask; }, () => _pendingEdits > 0 && !_busy);
@@ -132,6 +134,7 @@ public sealed partial class MainViewModel : Observable
             }
             _dataset = value;
             Raise();
+            Raise(nameof(WorkspaceTitle));
             Raise(nameof(DatasetOptions));
             Raise(nameof(HasOptions));
             if (value is not null)
@@ -370,6 +373,7 @@ public sealed partial class MainViewModel : Observable
         Raise(nameof(HasPrograms));
         Raise(nameof(NoPrograms));
         Raise(nameof(EmptyText));
+        RaiseConnections();
         int docs = Agents.Sum(a => a.Documents.Count);
         if (!_busy)
             Status = found.Count == 0
@@ -448,6 +452,7 @@ public sealed partial class MainViewModel : Observable
 
     private void OnDocumentChecked(DocumentNode doc)
     {
+        Raise(nameof(TickedFileCount));
         // Debounce: ticking several files reloads once.
         _reloadDelay?.Cancel();
         var cts = _reloadDelay = new CancellationTokenSource();
@@ -548,7 +553,7 @@ public sealed partial class MainViewModel : Observable
         }
 
         _busy = true;
-        Raise(nameof(IsEmpty));
+        RaiseEmptyState();
         Status = $"Reading {dataset.Title.ToLowerInvariant()} from {docs.Count} file(s)…";
         var work = BeginWork($"Reading {dataset.Title.ToLowerInvariant()}", docs.Count);
         var readTimer = Stopwatch.StartNew();
@@ -586,7 +591,7 @@ public sealed partial class MainViewModel : Observable
         {
             if (generation == _loadGeneration) _busy = false;
             EndWork(work);
-            Raise(nameof(IsEmpty));
+            RaiseEmptyState();
         }
         ShowResults(dataset);
     }
@@ -675,7 +680,7 @@ public sealed partial class MainViewModel : Observable
     private void ShowResults(DatasetNode dataset)
     {
         BuildTable(dataset);
-        Raise(nameof(IsEmpty));
+        RaiseEmptyState();
         Raise(nameof(EmptyTitle));
         Raise(nameof(HasPrograms));
         Raise(nameof(NoPrograms));

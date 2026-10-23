@@ -88,6 +88,41 @@ public sealed class AgentNode : Observable
     /// <summary>The program is busy (not an error): the note is shown in grey and the hub retries.</summary>
     public bool IsBusy => Connection.IsBusy;
 
+    /// <summary>Busy (opening a model…), connecting (first contact), not reachable, error, or connected.</summary>
+    public ConnectionState State =>
+        Connection.IsBusy ? ConnectionState.Busy
+        : Connection.Client is null ? (_error is null ? ConnectionState.Connecting : ConnectionState.Disconnected)
+        : _error is not null ? ConnectionState.Error
+        : ConnectionState.Connected;
+
+    public string StateText => State switch
+    {
+        ConnectionState.Busy => "Busy",
+        ConnectionState.Connecting => "Connecting",
+        ConnectionState.Disconnected => "Disconnected",
+        ConnectionState.Error => "Error",
+        _ => "Connected",
+    };
+
+    /// <summary>"Version 2026 · process 1234".</summary>
+    public string HostDetails => $"Version {Connection.Host.Version} · process {Connection.Host.ProcessId}";
+
+    /// <summary>What the add-in can do: "Read · Edit · PDF · Show in model · Create sheets".</summary>
+    public string Capabilities
+    {
+        get
+        {
+            var can = new List<string> { "Read" };
+            if (Connection.CanWrite) can.Add("Edit");
+            if (Connection.CanExportPdf) can.Add("PDF");
+            if (Connection.CanSelect) can.Add("Show in model");
+            if (Connection.CanCreateSheets) can.Add("Create sheets");
+            return string.Join(" · ", can);
+        }
+    }
+
+    public int TickedCount => Documents.Count(d => d.IsChecked);
+
     public void Refreshed()
     {
         Raise(nameof(Title));
@@ -99,8 +134,16 @@ public sealed class AgentNode : Observable
         Raise(nameof(ShowBadge));
         Raise(nameof(EditNote));
         Error = Connection.LastError;
+        Raise(nameof(State));
+        Raise(nameof(StateText));
+        Raise(nameof(HostDetails));
+        Raise(nameof(Capabilities));
+        Raise(nameof(TickedCount));
     }
 }
+
+/// <summary>How a program's connection stands (Connections workspace, status bar).</summary>
+public enum ConnectionState { Connected, Connecting, Busy, Disconnected, Error }
 
 /// <summary>An open file; ticked files are loaded into the grid.</summary>
 public sealed class DocumentNode : Observable

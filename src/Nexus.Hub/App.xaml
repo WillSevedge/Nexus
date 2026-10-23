@@ -6,11 +6,16 @@
              Exit="OnExit"
              DispatcherUnhandledException="OnUnhandledException">
   <Application.Resources>
-    <!-- Icons: Segoe Fluent Icons on Windows 11, Segoe MDL2 Assets on Windows 10. -->
-    <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
-    <Style x:Key="Header" TargetType="TextBlock">
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Margin" Value="0,0,0,4" />
-    </Style>
+    <ResourceDictionary>
+      <!-- Design tokens and colours (the palette is swapped for dark mode by AppTheme). -->
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Themes/Palette.Light.xaml" />
+        <ResourceDictionary Source="Themes/Tokens.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+      <Style x:Key="Header" TargetType="TextBlock">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+      </Style>
+    </ResourceDictionary>
   </Application.Resources>
 </Application>

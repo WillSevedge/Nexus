@@ -18,6 +18,13 @@ internal sealed class UiSettings
     /// <summary>Print &amp; PDF: last output folder and file name pattern.</summary>
     public string? PdfFolder { get; set; }
     public string? PdfNamePattern { get; set; }
+    /// <summary>Shell: the workspace last shown (Home, Data, Connections) and the navigation rail state.</summary>
+    public string? Workspace { get; set; }
+    public bool RailExpanded { get; set; }
+    /// <summary>Table rows: "Compact" or "Comfortable" (default).</summary>
+    public string? Density { get; set; }
+    /// <summary>The inspector (details pane) stays open from one session to the next.</summary>
+    public bool InspectorPinned { get; set; }
     /// <summary>Markups: the PDFs (Bluebeam sets) last read.</summary>
     public List<string> MarkupPdfs { get; set; } = new();
 
