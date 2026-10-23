@@ -63,8 +63,13 @@ public sealed class AgentClient : IAsyncDisposable
     public async Task<List<ReaderDescriptor>> ListReadersAsync(CancellationToken ct = default) =>
         (await RequestAsync<ListReadersResponse>(MessageTypes.ListReaders, Empty.Instance, DefaultTimeout, ct).ConfigureAwait(false)).Readers;
 
-    public Task<ReadResult> ReadAsync(ReadRequest request, CancellationToken ct = default) =>
-        RequestAsync<ReadResult>(MessageTypes.Read, request, ReadTimeout, ct);
+    public async Task<ReadResult> ReadAsync(ReadRequest request, CancellationToken ct = default)
+    {
+        request.Compact = true;
+        var result = await RequestAsync<ReadResult>(MessageTypes.Read, request, ReadTimeout, ct).ConfigureAwait(false);
+        Compaction.Expand(result);
+        return result;
+    }
 
     public Task<WriteResult> WriteAsync(WriteRequest request, CancellationToken ct = default) =>
         RequestAsync<WriteResult>(MessageTypes.Write, request, ReadTimeout, ct);

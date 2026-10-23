@@ -274,7 +274,7 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
         string docId = string.IsNullOrWhiteSpace(request.DocumentId) ? "active" : request.DocumentId;
         _log.Info($"Read {reader.Descriptor.Id} on {docId}");
 
-        return await _dispatcher.InvokeAsync(() =>
+        var result = await _dispatcher.InvokeAsync(() =>
         {
             var doc = _documents.Find(docId) ?? throw (docId == "active"
                 ? new AgentException(ErrorCodes.NoDocument, "No document is active.")
@@ -299,6 +299,10 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
                 Truncated = context.Truncated,
             };
         }, _options.HostStartTimeout, ct).ConfigureAwait(false);
+
+        // Off the host thread: trim what the caller can rebuild.
+        if (request.Compact) Compaction.Compact(result);
+        return result;
     }
 
     private async Task<ExportPdfResult> ExportPdfAsync(ExportPdfRequest? request, CancellationToken ct)

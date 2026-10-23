@@ -24,6 +24,7 @@ public sealed class AgentApplication : IExternalApplication
     public Result OnStartup(UIControlledApplication application)
     {
         Instance = this;
+        var startup = System.Diagnostics.Stopwatch.StartNew();
         // 2024 (.NET Framework): load our own copies of the libraries we ship if the program has others.
         Compat.ResolveDependenciesFrom(System.IO.Path.GetDirectoryName(typeof(Compat).Assembly.Location) ?? AppContext.BaseDirectory);
         try
@@ -49,6 +50,8 @@ public sealed class AgentApplication : IExternalApplication
                 pdf: new RevitPdfExporter(), sheets: new RevitSheetCreator());
             if (_ribbon is not null) Server.StatusChanged += _ribbon.OnStatusChanged;
             Server.Start();
+            // What Nexus adds to Revit's start (the ribbon and the pipe server): see the agent log.
+            Log.Info($"Nexus add-in ready in {startup.ElapsedMilliseconds} ms");
             return Result.Succeeded;
         }
         catch (Exception ex)

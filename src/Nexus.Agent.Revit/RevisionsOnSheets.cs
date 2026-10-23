@@ -20,10 +20,11 @@ internal static class RevisionsOnSheets
     /// <summary>"Seq. 3 - Revision 3": the same label Revit uses in the dialog.</summary>
     public static string Label(Revision r) => $"Seq. {r.SequenceNumber} - {r.Description}";
 
-    public static PropertyGroup Group(ViewSheet sheet, IReadOnlyList<Revision> revisions, string? blocker)
+    public static PropertyGroup Group(ViewSheet sheet, IReadOnlyList<Revision> revisions, string? blocker,
+        ICollection<ElementId>? allRevisionIds = null)
     {
         var g = new PropertyGroup(GroupName);
-        var all = sheet.GetAllRevisionIds().ToHashSet();
+        var all = (allRevisionIds ?? sheet.GetAllRevisionIds()).ToHashSet();
         var added = sheet.GetAdditionalRevisionIds().ToHashSet();
         foreach (var r in revisions)
         {

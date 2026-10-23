@@ -41,6 +41,12 @@ public sealed class ReadRequest
     public string DocumentId { get; set; } = "active";
     public string ReaderId { get; set; } = "";
     public Dictionary<string, string> Options { get; set; } = new();
+    /// <summary>
+    /// The caller fills <see cref="PropertyValue.RawValue"/> from <see cref="PropertyValue.Value"/> when it is
+    /// missing, so the agent leaves out raw values that only repeat the value (most text parameters): a smaller
+    /// result to send and parse. Agents that do not know the flag send everything.
+    /// </summary>
+    public bool Compact { get; set; }
 }
 
 public sealed class ReadResult
@@ -50,6 +56,8 @@ public sealed class ReadResult
     public string DocumentTitle { get; set; } = "";
     public DateTime ReadUtc { get; set; }
     public long ElapsedMs { get; set; }
+    /// <summary>Raw values equal to the value were left out (<see cref="ReadRequest.Compact"/>); see <see cref="Compaction"/>.</summary>
+    public bool Compacted { get; set; }
     public List<DataItem> Items { get; set; } = new();
     public List<string> Warnings { get; set; } = new();
     /// <summary>True when a limit (e.g. max objects) cut the result short.</summary>
@@ -126,6 +134,8 @@ public sealed class PropertyValue
     /// <summary>Raw value in host internal units, invariant culture.</summary>
     public string? RawValue { get; set; }
     public bool HasValue { get; set; } = true;
+    /// <summary>Left out of the JSON when false (most values): the reader's default is false too.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool IsReadOnly { get; set; }
     public string? ReadOnlyReason { get; set; }
     /// <summary>
@@ -133,4 +143,41 @@ public sealed class PropertyValue
     /// (e.g. a sheet's title block). Edits are sent to this object.
     /// </summary>
     public string? OwnerId { get; set; }
+}
+
+/// <summary>
+/// Compact reads: raw values equal to the shown value are left out by the agent and put back by the hub.
+/// A value that really has no raw value is sent as <see cref="NoRawValue"/>, so the two cases stay apart
+/// (writers skip the "changed meanwhile" check when there is no raw value).
+/// </summary>
+public static class Compaction
+{
+    public const string NoRawValue = "\u0000";
+
+    /// <summary>Agent side.</summary>
+    public static void Compact(ReadResult result)
+    {
+        foreach (var item in result.Items)
+            foreach (var group in item.Groups)
+                foreach (var p in group.Properties)
+                {
+                    if (p.RawValue is null) { if (p.Value is not null) p.RawValue = NoRawValue; }
+                    else if (string.Equals(p.RawValue, p.Value, StringComparison.Ordinal)) p.RawValue = null;
+                }
+        result.Compacted = true;
+    }
+
+    /// <summary>Hub side: undoes <see cref="Compact"/>.</summary>
+    public static void Expand(ReadResult result)
+    {
+        if (!result.Compacted) return;
+        foreach (var item in result.Items)
+            foreach (var group in item.Groups)
+                foreach (var p in group.Properties)
+                {
+                    if (p.RawValue is null) p.RawValue = p.Value;
+                    else if (p.RawValue == NoRawValue) p.RawValue = null;
+                }
+        result.Compacted = false;
+    }
 }

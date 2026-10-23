@@ -50,6 +50,7 @@ internal sealed class FabricationPartsReader : IHostDataReader<Document>
             parts = parts.Where(p => (p.ServiceName ?? "").Contains(service, StringComparison.OrdinalIgnoreCase));
 
         int count = 0;
+        var cache = new ParameterCache();
         foreach (var part in parts.OrderBy(p => p.ServiceName).ThenBy(p => p.ItemNumber, StringComparer.OrdinalIgnoreCase))
         {
             ctx.Cancellation.ThrowIfCancellationRequested();
@@ -72,7 +73,7 @@ internal sealed class FabricationPartsReader : IHostDataReader<Document>
             };
             item.Groups.AddRange(FabricationParts.Read(part, config, blocker));
             item.Groups.Add(ElementInfo.Group(doc, part, "Element", blocker));
-            if (parameters) item.Groups.AddRange(ParameterReader.ReadGroups(doc, part, "", blocker, hidden));
+            if (parameters) item.Groups.AddRange(ParameterReader.ReadGroups(doc, part, "", blocker, hidden, cache));
             ctx.Items.Add(item);
         }
 

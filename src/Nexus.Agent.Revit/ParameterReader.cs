@@ -4,6 +4,50 @@ using Autodesk.Revit.DB;
 
 namespace Nexus.Agent.Revit;
 
+/// <summary>
+/// What does not change from one element to the next during a read: per parameter its source, id, data type,
+/// units and palette group (label lookups are slow when repeated for every parameter of every sheet), and the
+/// parameter groups of element types shared by many elements (a title block type on every sheet).
+/// </summary>
+internal sealed class ParameterCache
+{
+    internal sealed class Meta
+    {
+        public PropertySource Source;
+        public string? Id;
+        public string? StorageType;
+        public string? DataType;
+        public string? Units;
+        public string Group = "Other";
+    }
+
+    private readonly Dictionary<(long, string), Meta> _meta = new();
+    private readonly Dictionary<(long, string), List<PropertyGroup>> _types = new();
+
+    public Meta Get(Document doc, Parameter p)
+    {
+        var key = (p.Id.Value, p.Definition.Name);
+        if (!_meta.TryGetValue(key, out var meta))
+        {
+            meta = ParameterReader.Describe(doc, p);
+            _meta[key] = meta;
+        }
+        return meta;
+    }
+
+    /// <summary>The groups of a type already read with the same prefix in this read, else reads and keeps them.</summary>
+    public List<PropertyGroup> TypeGroups(ElementId typeId, string prefix, Func<List<PropertyGroup>> read)
+    {
+        var key = (typeId.Value, prefix);
+        if (!_types.TryGetValue(key, out var groups))
+        {
+            groups = read();
+            _types[key] = groups;
+        }
+        return groups;
+    }
+}
+
 /// <summary>Turns Revit parameters into host-neutral property groups.</summary>
 internal static class ParameterReader
 {
@@ -19,7 +63,7 @@ internal static class ParameterReader
     /// ones the palette does not show, in a separate <see cref="HiddenGroup"/> group.
     /// </summary>
     public static List<PropertyGroup> ReadGroups(Document doc, Element element, string groupPrefix,
-        string? editBlocker, bool includeHidden)
+        string? editBlocker, bool includeHidden, ParameterCache? cache = null)
     {
         var groups = new List<PropertyGroup>();
         var byName = new Dictionary<string, PropertyGroup>(StringComparer.Ordinal);
@@ -30,14 +74,15 @@ internal static class ParameterReader
             if (p?.Definition is null) return;
             if (!seen.Add(p.Id.Value)) return;
 
-            string groupName = groupPrefix + (hidden ? HiddenGroup : GroupLabel(p));
+            var meta = cache?.Get(doc, p);
+            string groupName = groupPrefix + (hidden ? HiddenGroup : meta?.Group ?? GroupLabel(p));
             if (!byName.TryGetValue(groupName, out var group))
             {
                 group = new PropertyGroup(groupName);
                 byName[groupName] = group;
                 groups.Add(group);
             }
-            var pv = Read(doc, p, editBlocker);
+            var pv = Read(doc, p, editBlocker, meta);
             pv.OwnerId = element.UniqueId;
             group.Properties.Add(pv);
         }
@@ -54,14 +99,25 @@ internal static class ParameterReader
         return groups;
     }
 
-    public static PropertyValue Read(Document doc, Parameter p, string? editBlocker)
+    public static PropertyValue Read(Document doc, Parameter p, string? editBlocker, ParameterCache.Meta? meta = null)
     {
         var pv = new PropertyValue { Name = p.Definition?.Name ?? "(unnamed)" };
         try
         {
-            FillSource(doc, p, pv);
-            pv.StorageType = p.StorageType.ToString();
-            FillDataType(p, pv);
+            if (meta is null)
+            {
+                FillSource(doc, p, pv);
+                pv.StorageType = p.StorageType.ToString();
+                FillDataType(p, pv);
+            }
+            else
+            {
+                pv.Source = meta.Source;
+                pv.Id = meta.Id;
+                pv.StorageType = meta.StorageType;
+                pv.DataType = meta.DataType;
+                pv.Units = meta.Units;
+            }
             FillValue(doc, p, pv);
 
             // Note: Parameter.UserModifiable is NOT a lock. Revit reports it false for many parameters
@@ -86,6 +142,27 @@ internal static class ParameterReader
             pv.ReadOnlyReason = "Could not read parameter";
         }
         return pv;
+    }
+
+    /// <summary>The per-parameter part of <see cref="Read"/> (for <see cref="ParameterCache"/>).</summary>
+    internal static ParameterCache.Meta Describe(Document doc, Parameter p)
+    {
+        var pv = new PropertyValue();
+        var meta = new ParameterCache.Meta();
+        try
+        {
+            FillSource(doc, p, pv);
+            pv.StorageType = p.StorageType.ToString();
+            FillDataType(p, pv);
+        }
+        catch { /* left partly empty, like Read */ }
+        meta.Source = pv.Source;
+        meta.Id = pv.Id;
+        meta.StorageType = pv.StorageType;
+        meta.DataType = pv.DataType;
+        meta.Units = pv.Units;
+        meta.Group = GroupLabel(p);
+        return meta;
     }
 
     /// <summary>The parameter's current value and raw value, formatted exactly as <see cref="Read"/> does.</summary>
