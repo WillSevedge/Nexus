@@ -14,11 +14,18 @@ public sealed class AgentConnection : IAsyncDisposable
     public List<ReaderDescriptor> Readers { get; private set; } = new();
     public string? LastError { get; private set; }
 
+    /// <summary>
+    /// The program was busy (opening or downloading a model, a dialog, a command) and did not answer in time.
+    /// Not a failure: the hub tries again by itself.
+    /// </summary>
+    public bool IsBusy { get; private set; }
+
     /// <summary>(Re)connects if needed and refreshes host info, documents and readers.</summary>
     public async Task RefreshAsync(AgentRegistration latest, CancellationToken ct = default)
     {
         Registration = latest;
         LastError = null;
+        IsBusy = false;
         try
         {
             var client = await ConnectedAsync(ct).ConfigureAwait(false);
@@ -26,6 +33,13 @@ public sealed class AgentConnection : IAsyncDisposable
             Registration.Host = hello.Host;
             Readers = await client.ListReadersAsync(ct).ConfigureAwait(false);
             Documents = await client.ListDocumentsAsync(ct).ConfigureAwait(false);
+        }
+        catch (AgentRequestException ex) when (ex.Code == ErrorCodes.HostBusy)
+        {
+            // The files known so far are kept.
+            IsBusy = true;
+            LastError = $"{Host.Product} is busy (opening a model, a dialog or a command). Nexus will check again in a few seconds.";
+            HubLog.Info($"{Host.DisplayName}: busy ({ex.Error.Message}); will retry.");
         }
         catch (AgentRequestException ex)
         {

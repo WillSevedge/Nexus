@@ -255,11 +255,16 @@
                       <TextBlock Text="{Binding Subtitle}" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                     </StackPanel>
                   </StackPanel>
-                  <TextBlock Text="{Binding Error}" Foreground="{DynamicResource SystemFillColorCriticalBrush}" TextWrapping="Wrap"
+                  <TextBlock Text="{Binding Error}" TextWrapping="Wrap"
                              FontSize="11" Margin="42,0,6,4">
                     <TextBlock.Style>
                       <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
                         <Style.Triggers>
+                          <!-- Busy (opening a model…) is not an error: grey, and the hub tries again by itself. -->
+                          <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                          </DataTrigger>
                           <Trigger Property="Text" Value="">
                             <Setter Property="Visibility" Value="Collapsed" />
                           </Trigger>

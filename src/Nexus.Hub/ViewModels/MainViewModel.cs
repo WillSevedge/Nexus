@@ -365,6 +365,7 @@ public sealed partial class MainViewModel : Observable
         }
 
         RebuildDatasets();
+        if (Agents.Any(a => a.Connection.IsBusy)) RetryBusySoon();
         Raise(nameof(EmptyTitle));
         Raise(nameof(HasPrograms));
         Raise(nameof(NoPrograms));
@@ -421,6 +422,25 @@ public sealed partial class MainViewModel : Observable
         {
             _refreshing = false;
         }
+    }
+
+    private bool _busyRetryPending;
+
+    /// <summary>A program was busy (e.g. opening a model): ask it again shortly, until it answers.</summary>
+    private void RetryBusySoon()
+    {
+        if (_busyRetryPending) return;
+        _busyRetryPending = true;
+        _ = Task.Delay(TimeSpan.FromSeconds(10)).ContinueWith(_ => Application.Current?.Dispatcher.BeginInvoke(async () =>
+        {
+            _busyRetryPending = false;
+            if (_busy || _refreshing)
+            {
+                RetryBusySoon();
+                return;
+            }
+            await RefreshIfHostsChangedAsync(force: true);
+        }), TaskScheduler.Default);
     }
 
     private HashSet<string> CheckedDocumentKeys() =>

@@ -79,8 +79,14 @@ public sealed class AgentNode : Observable
     public string? Error
     {
         get => _error;
-        set => Set(ref _error, value);
+        set
+        {
+            if (Set(ref _error, value)) Raise(nameof(IsBusy));
+        }
     }
+
+    /// <summary>The program is busy (not an error): the note is shown in grey and the hub retries.</summary>
+    public bool IsBusy => Connection.IsBusy;
 
     public void Refreshed()
     {
