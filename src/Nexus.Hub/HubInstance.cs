@@ -111,16 +111,18 @@ internal sealed class HubInstance : IDisposable
                 : Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories).ToArray();
             string root = singleFile ? Path.GetDirectoryName(Environment.ProcessPath!)! : sourceDir;
 
-            // Start clean so files from an older layout do not linger.
+            // Start clean so files from an older layout do not linger. A file still in use (nexus-mcp.exe while
+            // Claude Desktop is open, or a hub that did not exit) is moved aside instead; it goes next time.
             if (Directory.Exists(target))
                 foreach (var old in Directory.EnumerateFiles(target, "*", SearchOption.AllDirectories))
-                    Retry(() => File.Delete(old));
+                    RemoveOrMoveAside(old);
             Directory.CreateDirectory(target);
 
             foreach (var file in files)
             {
                 string dest = Path.Combine(target, Path.GetRelativePath(root, file));
                 Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+                if (File.Exists(dest)) RemoveOrMoveAside(dest);
                 Retry(() => File.Copy(file, dest, overwrite: true));
             }
             HubLog.Info($"Installed the hub to {target} ({files.Length} file(s)).");
@@ -178,7 +180,27 @@ internal sealed class HubInstance : IDisposable
         a.Length > 0 && b.Length > 0 &&
         Path.GetFullPath(a).TrimEnd('\\', '/').Equals(Path.GetFullPath(b).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
 
-    private static void Retry(Action action)
+    /// <summary>
+    /// Deletes the file; when it stays in use (a running program), renames it to "name.old-…" in the same folder,
+    /// which Windows allows for a running .exe, so the new file can take its place. Leftovers are removed by a later install.
+    /// </summary>
+    private static void RemoveOrMoveAside(string path)
+    {
+        try
+        {
+            Retry(() => File.Delete(path), attempts: 8);
+            return;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            if (path.Contains(".old-", StringComparison.OrdinalIgnoreCase)) return; // an earlier leftover, still in use
+        }
+        string aside = $"{path}.old-{DateTime.Now:yyyyMMddHHmmss}";
+        File.Move(path, aside);
+        HubLog.Info($"{Path.GetFileName(path)} is in use (e.g. by Claude Desktop); moved it aside to install the new one.");
+    }
+
+    private static void Retry(Action action, int attempts = 20)
     {
         for (int attempt = 0; ; attempt++)
         {
@@ -187,7 +209,7 @@ internal sealed class HubInstance : IDisposable
                 action();
                 return;
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < 20)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < attempts)
             {
                 Thread.Sleep(250);
             }

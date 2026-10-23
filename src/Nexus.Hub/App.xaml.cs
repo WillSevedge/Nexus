@@ -37,7 +37,22 @@ public partial class App : Application
 
         if (args.Contains("--install"))
         {
-            Shutdown(HubInstance.Install(background: args.Contains("--background")));
+            int code;
+            try
+            {
+                code = HubInstance.Install(background: args.Contains("--background"));
+            }
+            catch (Exception ex)
+            {
+                // Report and exit with an error code: the install scripts check it (and an exception here would
+                // otherwise leave this process running with no window).
+                HubLog.Error("Install failed.", ex);
+                Console.Error.WriteLine("Install failed: " + ex.Message);
+                MessageBox.Show("Nexus could not be installed:\n\n" + ex.Message + "\n\nDetails are in the log: " + HubLog.FilePath,
+                    "Install Nexus", MessageBoxButton.OK, MessageBoxImage.Error);
+                code = 1;
+            }
+            Shutdown(code);
             return;
         }
         if (args.Contains("--uninstall"))
