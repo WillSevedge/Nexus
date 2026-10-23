@@ -8,7 +8,9 @@
       Set /p:DeployToHost=false to skip.
   -->
   <PropertyGroup>
-    <UseInstalledRevitApi Condition="Exists('$(RevitInstallDir)RevitAPI.dll')">true</UseInstalledRevitApi>
+    <!-- Only a real install (Revit.exe next to the API): a leftover or partly removed Revit folder can hold an API
+         built for another .NET, which does not compile (CS1705). The reference package is used then. -->
+    <UseInstalledRevitApi Condition="Exists('$(RevitInstallDir)RevitAPI.dll') and Exists('$(RevitInstallDir)Revit.exe')">true</UseInstalledRevitApi>
     <RevitAddinsDir>$(UserAppData)\Autodesk\Revit\Addins\$(HostYear)\</RevitAddinsDir>
     <RevitAddinFolder>$(RevitAddinsDir)Nexus\</RevitAddinFolder>
     <!-- Install into this Revit year only when it is on this PC (the build still checks every year compiles). -->

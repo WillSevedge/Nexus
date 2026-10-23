@@ -13,6 +13,14 @@ if errorlevel 1 (
   exit /b 1
 )
 
+rem A Nexus.exe still running from artifacts\Nexus (e.g. an install that did not finish) locks the file the
+rem build has to replace. Stop it (the installed hub runs from %LOCALAPPDATA%\Nexus\Hub and is not touched),
+rem then move aside anything still locked (nexus-mcp.exe in use by an AI assistant) so the build can write.
+set "OUT=%ROOT%\artifacts\Nexus"
+if exist "%OUT%" (
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "$d = [IO.Path]::GetFullPath($env:OUT); Get-Process -Name Nexus -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($d, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Write-Host ('Stopping ' + $_.Path + ' (left running by an earlier install)'); Stop-Process -Id $_.Id -Force; $_.WaitForExit(5000) | Out-Null }; Get-ChildItem -LiteralPath $d -Filter '*.old-*' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue; foreach ($n in 'Nexus.exe','nexus-mcp.exe') { $f = Join-Path $d $n; if (Test-Path -LiteralPath $f) { try { Remove-Item -LiteralPath $f -Force -ErrorAction Stop } catch { $aside = $f + '.old-' + (Get-Date -Format yyyyMMddHHmmss); Rename-Item -LiteralPath $f -NewName (Split-Path $aside -Leaf); Write-Host ($n + ' is in use; moved it aside.') } } }"
+)
+
 echo Building the Nexus hub (the first build downloads packages and takes a minute)...
 rem All publish settings are on the command line (no publish profile needed).
 dotnet publish "%ROOT%\src\Nexus.Hub\Nexus.Hub.csproj" -c Release -r win-x64 --self-contained true ^
