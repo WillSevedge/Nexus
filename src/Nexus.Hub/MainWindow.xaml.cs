@@ -91,10 +91,10 @@ public partial class MainWindow : Window
 
     private void OnCommandBarSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        // Thresholds from the widths of the bar with labels (~1080) and with icons only (~620).
+        // The toolbar row needs ~1100 px with the Show in model label and ~940 px with every tool shown.
         double width = e.NewSize.Width;
-        CompactCommands = width < 1120;
-        HideSecondary = width < 640;
+        CompactCommands = width < 1100;
+        HideSecondary = width < 940;
     }
 
     private GridLength _explorerWidth = new(256);
@@ -163,24 +163,29 @@ public partial class MainWindow : Window
     {
         TableGrid.Columns.Clear();
         var baseCellStyle = TableGrid.TryFindResource(typeof(DataGridCell)) as Style;
+        var editor = TableGrid.TryFindResource("CellEditor") as Style;
         bool health = _vm.Health.IsAvailable && _vm.Health.IsOpen;
         if (health) TableGrid.Columns.Add(HealthColumn(baseCellStyle));
+        // Headers are one line; the group ("Title Block (Type)") is added only where two shown columns share a name.
+        var shared = specs.GroupBy(s => s.Name, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1)
+            .Select(g => g.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var spec in specs)
         {
             var column = new DataGridTextColumn
             {
-                Header = Header(spec),
+                Header = Header(spec, shared.Contains(spec.Name)),
                 Binding = new Binding(spec.Column) { Mode = spec.Editable ? BindingMode.TwoWay : BindingMode.OneWay },
                 SortMemberPath = spec.Column,
-                MaxWidth = 420,
-                MinWidth = 40,
+                MaxWidth = 360,
+                MinWidth = 56,
                 IsReadOnly = !spec.Editable,
+                EditingElementStyle = editor,
             };
             if (spec.Editable) column.CellStyle = CellStyle(spec.Column, baseCellStyle);
             else
             {
                 var style = new Style(typeof(DataGridCell), baseCellStyle);
-                style.Setters.Add(new Setter(ForegroundProperty, new DynamicResourceExtension("TextFillColorSecondaryBrush")));
+                style.Setters.Add(new Setter(ForegroundProperty, new DynamicResourceExtension("Nexus.TextSecondary")));
                 column.CellStyle = style;
             }
             TableGrid.Columns.Add(column);
@@ -203,7 +208,7 @@ public partial class MainWindow : Window
         text.SetBinding(ToolTipProperty, HealthBinding(HealthAspect.ToolTip));
 
         var header = new TextBlock { Text = "\uE95E", FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 13, ToolTip = "Sheet health" };
-        header.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorTertiaryBrush");
+        header.SetResourceReference(TextBlock.ForegroundProperty, "Nexus.TextTertiary");
 
         var cellStyle = new Style(typeof(DataGridCell), baseCellStyle);
         cellStyle.Setters.Add(new EventSetter(MouseLeftButtonUpEvent, new MouseButtonEventHandler((_, _) => _vm.Health.IsOpen = true)));
@@ -444,19 +449,39 @@ public partial class MainWindow : Window
         TableGrid.Focus();
     }
 
-    private static object Header(GridColumnSpec spec)
+    /// <summary>
+    /// One-line header: the name; the group in a lighter tone when another shown column has the same name; a small
+    /// lock on columns that cannot be edited. The full "group › name" is in the tooltip.
+    /// </summary>
+    private object Header(GridColumnSpec spec, bool qualify)
     {
-        var panel = new StackPanel { ToolTip = spec.Group.Length == 0 ? spec.Name : $"{spec.Group} › {spec.Name}" };
-        var group = new TextBlock
+        bool mapped = spec.Group.Length == 0 || spec.Group == Nexus.Hub.Core.SheetFieldMap.Group;
+        var text = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        text.Inlines.Add(new System.Windows.Documents.Run(spec.Name));
+        if (qualify && !mapped)
         {
-            Text = spec.Group.Length == 0 || spec.Group == Nexus.Hub.Core.SheetFieldMap.Group ? " " : spec.Group,
-            FontSize = 10,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            MaxWidth = 220,
+            // "Title Block (Type) · Identity Data" → "Title Block (Type)"
+            string where = spec.Group.Split(new[] { " · " }, 2, StringSplitOptions.None)[0];
+            var run = new System.Windows.Documents.Run("  " + where) { FontWeight = FontWeights.Normal };
+            run.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, "Nexus.TextTertiary");
+            text.Inlines.Add(run);
+        }
+        var panel = new DockPanel
+        {
+            ToolTip = (mapped ? spec.Name : $"{spec.Group} › {spec.Name}") + (spec.Editable ? "" : "\nRead-only"),
         };
-        group.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorTertiaryBrush");
-        panel.Children.Add(group);
-        panel.Children.Add(new TextBlock { Text = spec.Name, FontWeight = FontWeights.SemiBold });
+        if (!spec.Editable)
+        {
+            var lockGlyph = new TextBlock
+            {
+                Text = "\uE72E", FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 10,
+                Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+            };
+            lockGlyph.SetResourceReference(TextBlock.ForegroundProperty, "Nexus.TextTertiary");
+            DockPanel.SetDock(lockGlyph, Dock.Right);
+            panel.Children.Add(lockGlyph);
+        }
+        panel.Children.Add(text);
         return panel;
     }
 

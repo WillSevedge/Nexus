@@ -736,225 +736,214 @@
           <Button Content="View connections" Click="OnShowConnections" Style="{StaticResource Nexus.SecondaryButton}" HorizontalAlignment="Center" Margin="0,16,0,0" />
         </StackPanel>
 
-        <!-- Workspace header: title, summary, search -->
-        <DockPanel Grid.Row="0" Visibility="{Binding HasPrograms, Converter={StaticResource BoolToVis}}">
-          <Grid DockPanel.Dock="Right" Width="300" VerticalAlignment="Center">
-            <TextBox x:Name="SearchBox" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged, Delay=250}" Padding="34,6,8,6"
-                     AutomationProperties.Name="Search the table" />
-            <TextBlock Text="&#xE721;" Style="{StaticResource Glyph}" FontSize="13" Margin="12,0,0,0" HorizontalAlignment="Left"
-                       Foreground="{DynamicResource Nexus.TextTertiary}" IsHitTestVisible="False" />
-            <TextBlock Text="Search  (Ctrl+F)" Margin="35,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"
-                       Foreground="{DynamicResource Nexus.TextTertiary}">
-              <TextBlock.Style>
-                <Style TargetType="TextBlock">
-                  <Setter Property="Visibility" Value="Collapsed" />
-                  <Style.Triggers>
-                    <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
-                      <Setter Property="Visibility" Value="Visible" />
-                    </DataTrigger>
-                  </Style.Triggers>
-                </Style>
-              </TextBlock.Style>
-            </TextBlock>
-          </Grid>
-          <StackPanel Margin="0,0,16,0">
-            <TextBlock Text="{Binding SelectedDataset.Title}" Style="{StaticResource Nexus.Text.Heading}" />
-            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-              <TextBlock Text="{Binding Summary}" Foreground="{DynamicResource Nexus.TextSecondary}" VerticalAlignment="Center" />
-              <Button Style="{StaticResource Nexus.CommandButton}" Click="OnMessages" Padding="6,0" Margin="8,0,0,0" MinHeight="22"
-                      Visibility="{Binding HasIssues, Converter={StaticResource BoolToVis}}">
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="&#xE7BA;" Style="{StaticResource Glyph}" FontSize="12" Foreground="{DynamicResource Nexus.Warning}" />
-                  <TextBlock Text="{Binding IssuesText}" Margin="5,0,0,0" Foreground="{DynamicResource Nexus.Warning}" />
-                </StackPanel>
-              </Button>
-            </StackPanel>
-          </StackPanel>
-        </DockPanel>
-
-        <!-- Command bar: primary | selection | tools  ···  data, view, overflow -->
-        <Border Grid.Row="1" Margin="0,12,0,12" Padding="4" Background="{DynamicResource Nexus.Surface}" BorderBrush="{DynamicResource Nexus.Border}"
-                BorderThickness="1" CornerRadius="{StaticResource Nexus.Radius.Panel}"
-                Visibility="{Binding HasPrograms, Converter={StaticResource BoolToVis}}">
-          <DockPanel x:Name="CommandBar" SizeChanged="OnCommandBarSizeChanged">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-              <Button Style="{StaticResource Nexus.CommandButton}" Click="OnDropDown" ToolTip="Deliverables workbook: compare, Export to Model, choose">
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="&#xE9F9;" Style="{StaticResource Glyph}" />
-                  <TextBlock Text="Excel" Style="{StaticResource CommandLabel}" />
-                  <TextBlock Text="&#xE70D;" Style="{StaticResource Glyph}" FontSize="10" Margin="6,0,0,0" />
-                </StackPanel>
-                <Button.ContextMenu>
-                  <ContextMenu>
-                    <MenuItem Header="Compare with the deliverables list…" Command="{Binding CompareExcelCommand}" FontWeight="SemiBold" />
-                    <MenuItem Header="Export to Model" Command="{Binding UpdateExcelCommand}" />
-                    <MenuItem Header="Choose workbook…" Command="{Binding LinkExcelCommand}" />
-                    <MenuItem Header="Clear workbook" Command="{Binding ClearWorkbookCommand}" />
-                    <Separator />
-                    <MenuItem Header="Export this view to Excel…" Command="{Binding ExportExcelCommand}" />
-                  </ContextMenu>
-                </Button.ContextMenu>
-              </Button>
-              <Rectangle Style="{StaticResource Nexus.Divider}" />
-              <Button Style="{StaticResource Nexus.CommandButton}" Click="OnColumns" ToolTip="Choose the columns">
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="&#xE71D;" Style="{StaticResource Glyph}" />
-                  <TextBlock Text="Columns" Style="{StaticResource CommandLabel}" />
-                </StackPanel>
-              </Button>
-              <ToggleButton x:Name="OptionsToggle" Style="{StaticResource Nexus.CommandToggle}" ToolTip="What this view includes"
-                            Visibility="{Binding HasOptions, Converter={StaticResource BoolToVis}}">
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="&#xE71C;" Style="{StaticResource Glyph}" />
-                  <TextBlock Text="Options" Style="{StaticResource CommandLabel}" />
-                </StackPanel>
-              </ToggleButton>
-              <Popup IsOpen="{Binding IsChecked, ElementName=OptionsToggle}" PlacementTarget="{Binding ElementName=OptionsToggle}"
-                     StaysOpen="False" AllowsTransparency="True">
-                <Border Style="{StaticResource Nexus.Card}" Width="460" Margin="0,6,10,10" Padding="16">
-                  <Border.Effect>
-                    <DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.22" Color="{DynamicResource Nexus.ShadowColor}" />
-                  </Border.Effect>
-                  <StackPanel>
-                    <ItemsControl ItemsSource="{Binding DatasetOptions}">
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type vm:ReaderNode}">
-                          <StackPanel Margin="0,0,0,12">
-                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Margin="0,0,0,6" />
-                            <ItemsControl ItemsSource="{Binding Options}">
-                              <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type vm:OptionNode}">
-                                  <Grid Margin="0,2">
-                                    <CheckBox Content="{Binding Option.DisplayName}" IsChecked="{Binding BoolValue}" ToolTip="{Binding Option.Description}"
-                                              Visibility="{Binding IsBool, Converter={StaticResource BoolToVis}}" />
-                                    <DockPanel Visibility="{Binding IsText, Converter={StaticResource BoolToVis}}">
-                                      <TextBox DockPanel.Dock="Right" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Width="130" />
-                                      <TextBlock Text="{Binding Option.DisplayName}" ToolTip="{Binding Option.Description}" TextWrapping="Wrap"
-                                                 VerticalAlignment="Center" Margin="0,0,8,0" />
-                                    </DockPanel>
-                                  </Grid>
-                                </DataTemplate>
-                              </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                          </StackPanel>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <Button Content="Reload with these options" Command="{Binding RefreshCommand}" Style="{StaticResource Nexus.PrimaryButton}"
-                            HorizontalAlignment="Right" />
-                  </StackPanel>
-                </Border>
-              </Popup>
-              <ToggleButton Style="{StaticResource Nexus.CommandToggle}" IsChecked="{Binding IsCompact}" ToolTip="Compact rows (more on screen)">
-                <TextBlock Text="&#xE8FD;" Style="{StaticResource Glyph}" />
-              </ToggleButton>
-              <ToggleButton Style="{StaticResource Nexus.CommandToggle}" IsChecked="{Binding ShowDetails}" ToolTip="Inspector: every property of the selected row">
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="&#xE8A0;" Style="{StaticResource Glyph}" />
-                  <TextBlock Text="Inspector" Style="{StaticResource CommandLabel}" />
-                </StackPanel>
-              </ToggleButton>
-              <Button Style="{StaticResource Nexus.CommandButton}" Click="OnDropDown" ToolTip="More">
-                <TextBlock Text="&#xE712;" Style="{StaticResource Glyph}" />
-                <Button.ContextMenu>
-                  <ContextMenu>
-                    <MenuItem Header="Print &amp; PDF…" Click="OnPrint" />
-                    <MenuItem Header="Markups…" Click="OnMarkups" />
-                    <MenuItem Header="Rename &amp; Renumber…" Click="OnRename" InputGestureText="Ctrl+R" />
-                    <MenuItem Header="History and snapshots…" Click="OnHistory" />
-                    <MenuItem Header="Sheet health" Click="OnOpenHealth" />
-                    <Separator />
-                    <MenuItem Header="Export this view to Excel…" Command="{Binding ExportExcelCommand}" />
-                    <MenuItem Header="Export CSV (one row per item)…" Command="{Binding ExportCsvCommand}" />
-                    <MenuItem Header="Export JSON…" Command="{Binding ExportJsonCommand}" />
-                    <Separator />
-                    <MenuItem Header="Go to anything…" Click="OnPaletteMenu" InputGestureText="Ctrl+K" />
-                    <MenuItem Header="Messages and log…" Click="OnMessages" />
-                  </ContextMenu>
-                </Button.ContextMenu>
-              </Button>
-            </StackPanel>
-
-            <StackPanel Orientation="Horizontal">
-              <!-- Primary -->
-              <Button Style="{StaticResource Nexus.CommandButton}" Command="{Binding ShowInModelCommand}"
-                      ToolTip="Open the sheet, or select and zoom to the selected rows, in Revit / AutoCAD / Civil 3D / Plant 3D">
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="&#xE8A7;" Style="{StaticResource Glyph}" Foreground="{DynamicResource Nexus.Accent}" />
-                  <TextBlock Text="Show in model" Style="{StaticResource CommandLabel}" />
-                </StackPanel>
-              </Button>
-              <Button Style="{StaticResource Nexus.CommandButton}" Command="{Binding RefreshCommand}" ToolTip="Read the data again (F5)">
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="&#xE72C;" Style="{StaticResource Glyph}" />
-                  <TextBlock Text="Reload" Style="{StaticResource CommandLabel}" />
-                </StackPanel>
-              </Button>
-
-              <!-- Contextual: what the selection-aware tools will act on -->
-              <Border Style="{StaticResource Nexus.Chip}" Background="{DynamicResource Nexus.AccentSubtle}" Margin="6,0"
-                      Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}"
-                      ToolTip="Print, Rename and Show in model act on the selected rows">
-                <TextBlock Text="{Binding SelectionText}" Foreground="{DynamicResource Nexus.Accent}" FontSize="{StaticResource Nexus.FontSize.Small}" FontWeight="SemiBold" />
-              </Border>
-
-              <!-- Secondary: tools (move to ⋯ when the bar is narrow) -->
-              <StackPanel Orientation="Horizontal">
-                <StackPanel.Style>
-                  <Style TargetType="StackPanel">
+        <!--
+          Toolbar: one row. Left: the view, Reload, counts, selection. Right: search, then compact icon tools
+          (tooltips name them); only Show in model keeps a label. Narrow: the label goes, then the tools move to ⋯.
+        -->
+        <DockPanel x:Name="CommandBar" Grid.Row="0" Margin="0,0,0,12" MinHeight="40" SizeChanged="OnCommandBarSizeChanged"
+                   Visibility="{Binding HasPrograms, Converter={StaticResource BoolToVis}}">
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+            <!-- Search -->
+            <Grid Width="240" Height="32" VerticalAlignment="Center" Margin="12,0,8,0">
+              <TextBox x:Name="SearchBox" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged, Delay=250}" Padding="30,5,8,5"
+                       MinHeight="32" VerticalContentAlignment="Center" AutomationProperties.Name="Search the table" />
+              <TextBlock Text="&#xE721;" Style="{StaticResource Glyph}" FontSize="12" Margin="11,0,0,0" HorizontalAlignment="Left"
+                         Foreground="{DynamicResource Nexus.TextTertiary}" IsHitTestVisible="False" />
+              <TextBlock Text="Search" Margin="31,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                         Foreground="{DynamicResource Nexus.TextTertiary}">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed" />
                     <Style.Triggers>
-                      <DataTrigger Binding="{Binding HideSecondary, ElementName=Root}" Value="True">
-                        <Setter Property="Visibility" Value="Collapsed" />
+                      <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                        <Setter Property="Visibility" Value="Visible" />
                       </DataTrigger>
                     </Style.Triggers>
                   </Style>
-                </StackPanel.Style>
-                <Rectangle Style="{StaticResource Nexus.Divider}" />
-                <Button Style="{StaticResource Nexus.CommandButton}" Click="OnPrint"
-                        ToolTip="Print &amp; PDF: PDFs of the selected sheets (or every sheet shown), made by Revit and AutoCAD, with a preview and printing">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="&#xE749;" Style="{StaticResource Glyph}" />
-                    <TextBlock Text="Print &amp; PDF" Style="{StaticResource CommandLabel}" />
-                  </StackPanel>
-                </Button>
-                <Button Style="{StaticResource Nexus.CommandButton}" Click="OnRename" ToolTip="Rename &amp; Renumber: sheet numbers and names of the selected sheets (or every sheet shown), with a preview">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="&#xE8AC;" Style="{StaticResource Glyph}" />
-                    <TextBlock Text="Rename" Style="{StaticResource CommandLabel}" />
-                  </StackPanel>
-                </Button>
-                <Button Style="{StaticResource Nexus.CommandButton}" Click="OnMarkups"
-                        ToolTip="Markups: the comments made in Bluebeam on the PDFs, by sheet (open, closed, replies)">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="&#xE70F;" Style="{StaticResource Glyph}" />
-                    <TextBlock Text="Markups" Style="{StaticResource CommandLabel}" />
-                  </StackPanel>
-                </Button>
-                <Button Style="{StaticResource Nexus.CommandButton}" Click="OnHistory" ToolTip="Snapshots: what changed since an issue, and every change applied with Nexus">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="&#xE81C;" Style="{StaticResource Glyph}" />
-                    <TextBlock Text="History" Style="{StaticResource CommandLabel}" />
-                  </StackPanel>
-                </Button>
+                </TextBlock.Style>
+              </TextBlock>
+              <TextBlock Text="Ctrl+F" Margin="0,0,10,0" HorizontalAlignment="Right" VerticalAlignment="Center" IsHitTestVisible="False"
+                         FontSize="{StaticResource Nexus.FontSize.Caption}" Foreground="{DynamicResource Nexus.TextTertiary}">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                        <Setter Property="Visibility" Value="Visible" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+            </Grid>
+
+            <!-- Primary -->
+            <Button Style="{StaticResource Nexus.SecondaryButton}" Command="{Binding ShowInModelCommand}" Padding="10,0" Height="32" Margin="0,0,4,0"
+                    ToolTip="Show in model: open the sheet, or select and zoom to the selected rows, in Revit / AutoCAD / Civil 3D / Plant 3D">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE8A7;" Style="{StaticResource Glyph}" FontSize="13" Foreground="{DynamicResource Nexus.Accent}" />
+                <TextBlock Text="Show in model" Style="{StaticResource CommandLabel}" />
               </StackPanel>
-              <ToggleButton Style="{StaticResource Nexus.CommandToggle}" IsChecked="{Binding Health.IsOpen}"
+            </Button>
+
+            <!-- Tools (to ⋯ when narrow) -->
+            <StackPanel Orientation="Horizontal">
+              <StackPanel.Style>
+                <Style TargetType="StackPanel">
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding HideSecondary, ElementName=Root}" Value="True">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </StackPanel.Style>
+              <Button Style="{StaticResource Nexus.IconButton}" Click="OnPrint"
+                      ToolTip="Print &amp; PDF: PDFs of the selected sheets (or every sheet shown), with a preview and printing">
+                <TextBlock Text="&#xE749;" Style="{StaticResource Glyph}" />
+              </Button>
+              <Button Style="{StaticResource Nexus.IconButton}" Click="OnRename"
+                      ToolTip="Rename &amp; Renumber the selected sheets (or every sheet shown), with a preview  (Ctrl+R)">
+                <TextBlock Text="&#xE8AC;" Style="{StaticResource Glyph}" />
+              </Button>
+              <Button Style="{StaticResource Nexus.IconButton}" Click="OnMarkups"
+                      ToolTip="Markups: the comments made in Bluebeam on the PDFs, by sheet">
+                <TextBlock Text="&#xE70F;" Style="{StaticResource Glyph}" />
+              </Button>
+              <Button Style="{StaticResource Nexus.IconButton}" Click="OnHistory"
+                      ToolTip="History: what changed since an issue, and every change applied with Nexus">
+                <TextBlock Text="&#xE81C;" Style="{StaticResource Glyph}" />
+              </Button>
+              <ToggleButton Style="{StaticResource Nexus.IconToggle}" IsChecked="{Binding Health.IsOpen}"
                             Visibility="{Binding Health.IsAvailable, Converter={StaticResource BoolToVis}}"
-                            ToolTip="Sheet health: checks every sheet in the open files (duplicate numbers, template placeholders, naming, spaces...)">
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="&#xE95E;" Style="{StaticResource Glyph}" />
-                  <TextBlock Text="Health" Style="{StaticResource CommandLabel}" />
-                  <Border Style="{StaticResource HealthBadge}" Margin="8,0,0,0" Visibility="{Binding Health.HasIssues, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="{Binding Health.BadgeText}" FontSize="11" FontWeight="SemiBold" Foreground="White"
+                            ToolTip="Sheet health: duplicate numbers, template placeholders, naming, spaces…">
+                <Grid Width="32" Height="32">
+                  <TextBlock Text="&#xE95E;" Style="{StaticResource Glyph}" HorizontalAlignment="Center" />
+                  <Border Style="{StaticResource HealthBadge}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,1,0"
+                          MinWidth="14" Height="14" Padding="3,0" CornerRadius="7"
+                          Visibility="{Binding Health.HasIssues, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding Health.BadgeText}" FontSize="9" FontWeight="SemiBold" Foreground="White"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
-                  <TextBlock Text="&#xE73E;" Style="{StaticResource Glyph}" FontSize="12" Margin="8,0,0,0"
-                             Foreground="{DynamicResource Nexus.Success}"
-                             Visibility="{Binding Health.IsHealthy, Converter={StaticResource BoolToVis}}" />
-                </StackPanel>
+                  <Ellipse Width="6" Height="6" Fill="{DynamicResource Nexus.Success}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0"
+                           Visibility="{Binding Health.IsHealthy, Converter={StaticResource BoolToVis}}" />
+                </Grid>
               </ToggleButton>
             </StackPanel>
-          </DockPanel>
-        </Border>
+
+            <Rectangle Style="{StaticResource Nexus.Divider}" />
+
+            <!-- Data and view -->
+            <Button Style="{StaticResource Nexus.IconButton}" Click="OnDropDown" Width="44"
+                    ToolTip="Deliverables workbook (Excel): compare, Export to Model, choose">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE9F9;" Style="{StaticResource Glyph}" />
+                <TextBlock Text="&#xE70D;" Style="{StaticResource Glyph}" FontSize="8" Margin="4,0,0,0" Foreground="{DynamicResource Nexus.TextSecondary}" />
+              </StackPanel>
+              <Button.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="Compare with the deliverables list…" Command="{Binding CompareExcelCommand}" FontWeight="SemiBold" />
+                  <MenuItem Header="Export to Model" Command="{Binding UpdateExcelCommand}" />
+                  <MenuItem Header="Choose workbook…" Command="{Binding LinkExcelCommand}" />
+                  <MenuItem Header="Clear workbook" Command="{Binding ClearWorkbookCommand}" />
+                  <Separator />
+                  <MenuItem Header="Export this view to Excel…" Command="{Binding ExportExcelCommand}" />
+                </ContextMenu>
+              </Button.ContextMenu>
+            </Button>
+            <Button Style="{StaticResource Nexus.IconButton}" Click="OnColumns" ToolTip="Columns: choose which to show">
+              <TextBlock Text="&#xE71D;" Style="{StaticResource Glyph}" />
+            </Button>
+            <ToggleButton x:Name="OptionsToggle" Style="{StaticResource Nexus.IconToggle}" ToolTip="Options: what this view includes"
+                          Visibility="{Binding HasOptions, Converter={StaticResource BoolToVis}}">
+              <TextBlock Text="&#xE71C;" Style="{StaticResource Glyph}" />
+            </ToggleButton>
+            <Popup IsOpen="{Binding IsChecked, ElementName=OptionsToggle}" PlacementTarget="{Binding ElementName=OptionsToggle}"
+                   Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+              <Border Style="{StaticResource Nexus.Card}" Width="420" Margin="0,6,10,10" Padding="16">
+                <Border.Effect>
+                  <DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.22" Color="{DynamicResource Nexus.ShadowColor}" />
+                </Border.Effect>
+                <StackPanel>
+                  <TextBlock Text="View options" Style="{StaticResource Nexus.Text.Section}" Margin="0,0,0,12" />
+                  <ItemsControl ItemsSource="{Binding DatasetOptions}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type vm:ReaderNode}">
+                        <StackPanel Margin="0,0,0,12">
+                          <TextBlock Text="{Binding Title}" Style="{StaticResource Nexus.Text.Overline}" Margin="0,0,0,6" />
+                          <ItemsControl ItemsSource="{Binding Options}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate DataType="{x:Type vm:OptionNode}">
+                                <Grid Margin="0,2">
+                                  <CheckBox Content="{Binding Option.DisplayName}" IsChecked="{Binding BoolValue}" ToolTip="{Binding Option.Description}"
+                                            Visibility="{Binding IsBool, Converter={StaticResource BoolToVis}}" />
+                                  <DockPanel Visibility="{Binding IsText, Converter={StaticResource BoolToVis}}">
+                                    <TextBox DockPanel.Dock="Right" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Width="130" />
+                                    <TextBlock Text="{Binding Option.DisplayName}" ToolTip="{Binding Option.Description}" TextWrapping="Wrap"
+                                               VerticalAlignment="Center" Margin="0,0,8,0" />
+                                  </DockPanel>
+                                </Grid>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <Button Content="Reload with these options" Command="{Binding RefreshCommand}" Style="{StaticResource Nexus.PrimaryButton}"
+                          HorizontalAlignment="Right" />
+                </StackPanel>
+              </Border>
+            </Popup>
+            <ToggleButton Style="{StaticResource Nexus.IconToggle}" IsChecked="{Binding IsCompact}" ToolTip="Compact rows (more on screen)">
+              <TextBlock Text="&#xE8FD;" Style="{StaticResource Glyph}" />
+            </ToggleButton>
+            <ToggleButton Style="{StaticResource Nexus.IconToggle}" IsChecked="{Binding ShowDetails}" ToolTip="Inspector: every property of the selected row">
+              <TextBlock Text="&#xE8A0;" Style="{StaticResource Glyph}" />
+            </ToggleButton>
+            <Button Style="{StaticResource Nexus.IconButton}" Click="OnDropDown" ToolTip="More">
+              <TextBlock Text="&#xE712;" Style="{StaticResource Glyph}" />
+              <Button.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="Print &amp; PDF…" Click="OnPrint" />
+                  <MenuItem Header="Rename &amp; Renumber…" Click="OnRename" InputGestureText="Ctrl+R" />
+                  <MenuItem Header="Markups…" Click="OnMarkups" />
+                  <MenuItem Header="History and snapshots…" Click="OnHistory" />
+                  <MenuItem Header="Sheet health" Click="OnOpenHealth" />
+                  <Separator />
+                  <MenuItem Header="Export this view to Excel…" Command="{Binding ExportExcelCommand}" />
+                  <MenuItem Header="Export CSV (one row per item)…" Command="{Binding ExportCsvCommand}" />
+                  <MenuItem Header="Export JSON…" Command="{Binding ExportJsonCommand}" />
+                  <Separator />
+                  <MenuItem Header="Go to anything…" Click="OnPaletteMenu" InputGestureText="Ctrl+K" />
+                  <MenuItem Header="Messages and log…" Click="OnMessages" />
+                </ContextMenu>
+              </Button.ContextMenu>
+            </Button>
+          </StackPanel>
+
+          <!-- The view: title, Reload, counts, selection, problems -->
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock Text="{Binding SelectedDataset.Title}" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" MaxWidth="320" />
+            <Button Style="{StaticResource Nexus.IconButton}" Command="{Binding RefreshCommand}" Width="28" Height="28" Margin="6,0,10,0"
+                    ToolTip="Reload: read the data again (F5)">
+              <TextBlock Text="&#xE72C;" Style="{StaticResource Glyph}" FontSize="13" Foreground="{DynamicResource Nexus.TextSecondary}" />
+            </Button>
+            <TextBlock Text="{Binding Summary}" Foreground="{DynamicResource Nexus.TextSecondary}" VerticalAlignment="Center" />
+            <Border Style="{StaticResource Nexus.Chip}" Background="{DynamicResource Nexus.AccentSubtle}" Margin="10,0,0,0"
+                    Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}"
+                    ToolTip="Print, Rename and Show in model act on the selected rows">
+              <TextBlock Text="{Binding SelectionText}" Foreground="{DynamicResource Nexus.Accent}" FontSize="{StaticResource Nexus.FontSize.Small}" FontWeight="SemiBold" />
+            </Border>
+            <Button Style="{StaticResource Nexus.CommandButton}" Click="OnMessages" Padding="6,0" Margin="6,0,0,0" MinHeight="24"
+                    Visibility="{Binding HasIssues, Converter={StaticResource BoolToVis}}" ToolTip="Problems while reading: open the messages">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE7BA;" Style="{StaticResource Glyph}" FontSize="12" Foreground="{DynamicResource Nexus.Warning}" />
+                <TextBlock Text="{Binding IssuesText}" Margin="5,0,0,0" Foreground="{DynamicResource Nexus.Warning}" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+        </DockPanel>
 
         <!-- Info bar: problems and results that need no decision (instead of pop-ups) -->
         <Border Grid.Row="2" CornerRadius="{StaticResource Nexus.Radius.Panel}" Padding="14,10" Margin="0,0,0,12" BorderThickness="1"
@@ -1009,7 +998,7 @@
                         CanUserAddRows="False" CanUserDeleteRows="False" CanUserReorderColumns="True" CanUserResizeRows="False"
                         SelectionUnit="CellOrRowHeader" SelectionMode="Extended" ClipboardCopyMode="ExcludeHeader"
                         EnableRowVirtualization="True" EnableColumnVirtualization="True"
-                        HeadersVisibility="All" RowHeaderWidth="10" GridLinesVisibility="Horizontal"
+                        HeadersVisibility="All" RowHeaderWidth="10" GridLinesVisibility="Horizontal" ColumnHeaderHeight="36"
                         HorizontalGridLinesBrush="{DynamicResource Nexus.Border}"
                         BorderThickness="0" Background="Transparent" RowBackground="Transparent"
                         BeginningEdit="OnBeginningEdit" PreviewKeyDown="OnGridKeyDown" SelectedCellsChanged="OnSelectedCellsChanged"
@@ -1028,31 +1017,156 @@
                   </Style>
                 </DataGrid.Style>
                 <DataGrid.Resources>
-                  <!-- Found by the code that builds the columns (cell styles derive from it). -->
-                  <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
-                    <Setter Property="Padding" Value="8,0" />
-                    <Setter Property="VerticalContentAlignment" Value="Center" />
+                  <!--
+                    The table's own templates (not the Windows 11 ones): even padding, centred text, one selection colour,
+                    a clear sort arrow. The code that builds the columns derives each column's cell style from the
+                    DataGridCell style here and uses CellEditor while a cell is edited.
+                  -->
+                  <Style TargetType="DataGridCell">
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="BorderBrush" Value="Transparent" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="Foreground" Value="{DynamicResource Nexus.Text}" />
+                    <Setter Property="Padding" Value="11,0" />
+                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                    <Setter Property="SnapsToDevicePixels" Value="True" />
+                    <Setter Property="Template">
+                      <Setter.Value>
+                        <ControlTemplate TargetType="DataGridCell">
+                          <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                  BorderThickness="{TemplateBinding BorderThickness}" SnapsToDevicePixels="True">
+                            <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center" SnapsToDevicePixels="True" />
+                          </Border>
+                        </ControlTemplate>
+                      </Setter.Value>
+                    </Setter>
                     <Style.Triggers>
                       <Trigger Property="IsSelected" Value="True">
                         <Setter Property="Background" Value="{DynamicResource Nexus.GridSelection}" />
                         <Setter Property="BorderBrush" Value="{DynamicResource Nexus.GridSelection}" />
-                        <Setter Property="Foreground" Value="{DynamicResource Nexus.Text}" />
+                      </Trigger>
+                      <!-- The current cell: an accent outline (keyboard and editing position). -->
+                      <MultiTrigger>
+                        <MultiTrigger.Conditions>
+                          <Condition Property="IsSelected" Value="True" />
+                          <Condition Property="IsKeyboardFocusWithin" Value="True" />
+                        </MultiTrigger.Conditions>
+                        <Setter Property="BorderBrush" Value="{DynamicResource Nexus.Accent}" />
+                      </MultiTrigger>
+                      <Trigger Property="IsEditing" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource Nexus.Surface}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource Nexus.Accent}" />
                       </Trigger>
                     </Style.Triggers>
                   </Style>
-                  <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+
+                  <!-- In-cell editor: flat, same size as the text, so editing does not change the row height. -->
+                  <Style x:Key="CellEditor" TargetType="TextBox">
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Margin" Value="-2,0,0,0" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Foreground" Value="{DynamicResource Nexus.Text}" />
+                    <Setter Property="CaretBrush" Value="{DynamicResource Nexus.Text}" />
+                    <Setter Property="SelectionBrush" Value="{DynamicResource Nexus.Accent}" />
+                    <Setter Property="VerticalContentAlignment" Value="Center" />
+                    <Setter Property="MinHeight" Value="0" />
+                  </Style>
+
+                  <Style TargetType="DataGridRow">
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="SnapsToDevicePixels" Value="True" />
                     <Style.Triggers>
                       <Trigger Property="IsMouseOver" Value="True">
                         <Setter Property="Background" Value="{DynamicResource Nexus.GridRowHover}" />
                       </Trigger>
                     </Style.Triggers>
                   </Style>
-                  <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+
+                  <!-- Row marker on the left: click to select the whole row; an accent bar when it is selected. -->
+                  <Style TargetType="DataGridRowHeader">
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Setter Property="Template">
+                      <Setter.Value>
+                        <ControlTemplate TargetType="DataGridRowHeader">
+                          <Grid Background="{TemplateBinding Background}">
+                            <Border x:Name="Bar" Width="3" CornerRadius="1.5" Margin="3,4,0,4" HorizontalAlignment="Left"
+                                    Background="{DynamicResource Nexus.Accent}" Visibility="Collapsed" />
+                          </Grid>
+                          <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                              <Setter Property="Background" Value="{DynamicResource Nexus.Hover}" />
+                            </Trigger>
+                            <Trigger Property="IsRowSelected" Value="True">
+                              <Setter TargetName="Bar" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                          </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                      </Setter.Value>
+                    </Setter>
+                  </Style>
+
+                  <Style x:Key="HeaderGripper" TargetType="Thumb">
+                    <Setter Property="Width" Value="8" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Cursor" Value="SizeWE" />
+                    <Setter Property="Template">
+                      <Setter.Value>
+                        <ControlTemplate TargetType="Thumb">
+                          <Border Background="{TemplateBinding Background}" />
+                        </ControlTemplate>
+                      </Setter.Value>
+                    </Setter>
+                  </Style>
+
+                  <!-- Column header: one line, sort arrow, a hairline between columns, resize by dragging the edge. -->
+                  <Style TargetType="DataGridColumnHeader">
                     <Setter Property="Background" Value="{DynamicResource Nexus.GridHeader}" />
                     <Setter Property="Foreground" Value="{DynamicResource Nexus.TextSecondary}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource Nexus.Border}" />
                     <Setter Property="FontWeight" Value="SemiBold" />
                     <Setter Property="FontSize" Value="12" />
                     <Setter Property="MinHeight" Value="36" />
+                    <Setter Property="Padding" Value="12,0,8,0" />
+                    <Setter Property="SnapsToDevicePixels" Value="True" />
+                    <Setter Property="Template">
+                      <Setter.Value>
+                        <ControlTemplate TargetType="DataGridColumnHeader">
+                          <Grid>
+                            <Border x:Name="Bg" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="0,0,0,1">
+                              <DockPanel Margin="{TemplateBinding Padding}">
+                                <TextBlock x:Name="SortArrow" DockPanel.Dock="Right" FontFamily="{StaticResource IconFont}" FontSize="10"
+                                           Margin="6,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource Nexus.Accent}" Visibility="Collapsed" />
+                                <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="False" />
+                              </DockPanel>
+                            </Border>
+                            <Rectangle x:Name="Separator" Width="1" HorizontalAlignment="Right" Margin="0,10" Fill="{DynamicResource Nexus.Border}" />
+                            <Thumb x:Name="PART_LeftHeaderGripper" HorizontalAlignment="Left" Style="{StaticResource HeaderGripper}" />
+                            <Thumb x:Name="PART_RightHeaderGripper" HorizontalAlignment="Right" Style="{StaticResource HeaderGripper}" />
+                          </Grid>
+                          <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                              <Setter TargetName="Bg" Property="Background" Value="{DynamicResource Nexus.Hover}" />
+                            </Trigger>
+                            <Trigger Property="SortDirection" Value="Ascending">
+                              <Setter TargetName="SortArrow" Property="Text" Value="&#xE70E;" />
+                              <Setter TargetName="SortArrow" Property="Visibility" Value="Visible" />
+                              <Setter Property="Foreground" Value="{DynamicResource Nexus.Text}" />
+                            </Trigger>
+                            <Trigger Property="SortDirection" Value="Descending">
+                              <Setter TargetName="SortArrow" Property="Text" Value="&#xE70D;" />
+                              <Setter TargetName="SortArrow" Property="Visibility" Value="Visible" />
+                              <Setter Property="Foreground" Value="{DynamicResource Nexus.Text}" />
+                            </Trigger>
+                            <!-- The filler right of the last column: no hairline. -->
+                            <Trigger Property="DisplayIndex" Value="-1">
+                              <Setter TargetName="Separator" Property="Visibility" Value="Collapsed" />
+                            </Trigger>
+                          </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                      </Setter.Value>
+                    </Setter>
                   </Style>
                 </DataGrid.Resources>
                 <DataGrid.ContextMenu>

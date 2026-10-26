@@ -97,6 +97,7 @@
   <!-- ===================== Buttons ===================== -->
   <!-- Flat icon + text button for command bars. -->
   <Style x:Key="Nexus.CommandButton" TargetType="Button">
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="10,6" />
@@ -110,7 +111,7 @@
         <ControlTemplate TargetType="Button">
           <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="{StaticResource Nexus.Radius.Control}"
                   Padding="{TemplateBinding Padding}" BorderThickness="1" BorderBrush="Transparent">
-            <ContentPresenter VerticalAlignment="Center" />
+            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
@@ -132,6 +133,7 @@
   </Style>
 
   <Style x:Key="Nexus.CommandToggle" TargetType="ToggleButton">
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="10,6" />
@@ -145,7 +147,7 @@
         <ControlTemplate TargetType="ToggleButton">
           <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="{StaticResource Nexus.Radius.Control}"
                   Padding="{TemplateBinding Padding}" BorderThickness="1" BorderBrush="Transparent">
-            <ContentPresenter VerticalAlignment="Center" />
+            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
@@ -170,9 +172,20 @@
   <!-- Square icon-only button (close, pin, overflow). -->
   <Style x:Key="Nexus.IconButton" TargetType="Button" BasedOn="{StaticResource Nexus.CommandButton}">
     <Setter Property="Padding" Value="0" />
+    <Setter Property="Margin" Value="1,0" />
     <Setter Property="Width" Value="32" />
     <Setter Property="Height" Value="32" />
     <Setter Property="MinHeight" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- Square icon-only toggle (density, inspector, health). -->
+  <Style x:Key="Nexus.IconToggle" TargetType="ToggleButton" BasedOn="{StaticResource Nexus.CommandToggle}">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Width" Value="32" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Margin" Value="1,0" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
   </Style>
 
