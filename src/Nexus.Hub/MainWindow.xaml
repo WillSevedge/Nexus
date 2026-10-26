@@ -259,17 +259,39 @@
         <Style TargetType="Border">
           <Setter Property="Width" Value="{StaticResource Nexus.Rail.Collapsed}" />
           <Style.Triggers>
+            <!-- Slides open and closed (150 ms). -->
             <DataTrigger Binding="{Binding IsRailExpanded}" Value="True">
-              <Setter Property="Width" Value="{StaticResource Nexus.Rail.Expanded}" />
+              <DataTrigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetProperty="Width" To="{StaticResource Nexus.Rail.Expanded}" Duration="0:0:0.15">
+                      <DoubleAnimation.EasingFunction>
+                        <CubicEase EasingMode="EaseOut" />
+                      </DoubleAnimation.EasingFunction>
+                    </DoubleAnimation>
+                  </Storyboard>
+                </BeginStoryboard>
+              </DataTrigger.EnterActions>
+              <DataTrigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetProperty="Width" To="{StaticResource Nexus.Rail.Collapsed}" Duration="0:0:0.15">
+                      <DoubleAnimation.EasingFunction>
+                        <CubicEase EasingMode="EaseOut" />
+                      </DoubleAnimation.EasingFunction>
+                    </DoubleAnimation>
+                  </Storyboard>
+                </BeginStoryboard>
+              </DataTrigger.ExitActions>
             </DataTrigger>
           </Style.Triggers>
         </Style>
       </Border.Style>
       <DockPanel Margin="0,8,0,8">
-        <!-- Expand / collapse: styled like the items below so its icon lines up with theirs. -->
-        <Button DockPanel.Dock="Top" Style="{StaticResource Nexus.RailButton}" Click="OnToggleRail" Margin="8,0,8,8"
+        <!-- Expand / collapse: a square on the icon column, centred in the collapsed rail; stays there when expanded. -->
+        <Button DockPanel.Dock="Top" Style="{StaticResource Nexus.RailToggle}" Click="OnToggleRail"
                 ToolTip="Expand or collapse the menu" AutomationProperties.Name="Menu">
-          <TextBlock Text="&#xE700;" Style="{StaticResource RailGlyph}" />
+          <TextBlock Text="&#xE700;" Style="{StaticResource Glyph}" FontSize="16" />
         </Button>
 
         <!-- Bottom: search and settings -->
