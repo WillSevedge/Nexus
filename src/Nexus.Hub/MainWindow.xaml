@@ -219,7 +219,7 @@
 
     <!-- The menus shared by the rail's Settings button and the command bar's overflow (⋯). -->
     <ContextMenu x:Key="SettingsMenu">
-      <MenuItem Header="Go to anything…" Click="OnPaletteMenu" InputGestureText="Ctrl+K" />
+      <MenuItem Header="Search/Jump To…" Click="OnPaletteMenu" InputGestureText="Ctrl+K" />
       <MenuItem Header="Connect Claude (AI assistants)…" Click="OnConnectClaude"
                 ToolTip="Let Claude Desktop and Claude Code work in AutoCAD through Nexus (MCP)" />
       <MenuItem Header="Theme" SubmenuOpened="OnThemeMenuOpened">
@@ -266,25 +266,18 @@
         </Style>
       </Border.Style>
       <DockPanel Margin="0,8,0,8">
-        <!-- Expand / collapse + brand -->
-        <DockPanel DockPanel.Dock="Top" Margin="8,0,8,8" Height="40">
-          <ToggleButton DockPanel.Dock="Left" IsChecked="{Binding IsRailExpanded}" Width="40" Height="40" Padding="0" Margin="0"
-                        Style="{StaticResource Nexus.CommandToggle}" Foreground="{DynamicResource Nexus.TextSecondary}"
-                        ToolTip="Expand or collapse the navigation" AutomationProperties.Name="Navigation">
-            <TextBlock Text="&#xE700;" Style="{StaticResource Glyph}" HorizontalAlignment="Center" />
-          </ToggleButton>
-          <StackPanel Orientation="Horizontal" Margin="8,0,0,0" Visibility="{Binding IsRailExpanded, Converter={StaticResource BoolToVis}}">
-            <Image x:Name="Logo" Width="20" Height="20" RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Center" />
-            <TextBlock Text="Nexus" FontSize="{StaticResource Nexus.FontSize.Section}" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center" />
-          </StackPanel>
-        </DockPanel>
+        <!-- Expand / collapse: styled like the items below so its icon lines up with theirs. -->
+        <Button DockPanel.Dock="Top" Style="{StaticResource Nexus.RailButton}" Click="OnToggleRail" Margin="8,0,8,8"
+                ToolTip="Expand or collapse the menu" AutomationProperties.Name="Menu">
+          <TextBlock Text="&#xE700;" Style="{StaticResource RailGlyph}" />
+        </Button>
 
         <!-- Bottom: search and settings -->
         <StackPanel DockPanel.Dock="Bottom">
-          <Button Style="{StaticResource Nexus.RailButton}" Click="OnPaletteMenu" ToolTip="Go to anything (Ctrl+K)">
+          <Button Style="{StaticResource Nexus.RailButton}" Click="OnPaletteMenu" ToolTip="Search/Jump To: any sheet, view or command (Ctrl+K)">
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="&#xE721;" Style="{StaticResource RailGlyph}" />
-              <TextBlock Text="Go to anything" Style="{StaticResource RailLabel}" />
+              <TextBlock Text="Search/Jump To" Style="{StaticResource RailLabel}" />
             </StackPanel>
           </Button>
           <Button Style="{StaticResource Nexus.RailButton}" Click="OnSettingsMenu" ToolTip="Settings: theme, density, Claude, log">
@@ -445,7 +438,7 @@
           <Button Style="{StaticResource Tile}" Click="OnPaletteMenu">
             <StackPanel>
               <TextBlock Text="&#xE721;" Style="{StaticResource Glyph}" FontSize="20" Foreground="{DynamicResource Nexus.Accent}" HorizontalAlignment="Left" />
-              <TextBlock Text="Go to anything" FontWeight="SemiBold" Margin="0,10,0,2" />
+              <TextBlock Text="Search/Jump To" FontWeight="SemiBold" Margin="0,10,0,2" />
               <TextBlock Text="Any sheet, view or command (Ctrl+K)" Style="{StaticResource Nexus.Text.Caption}" TextWrapping="Wrap" />
             </StackPanel>
           </Button>
@@ -914,7 +907,7 @@
                   <MenuItem Header="Export CSV (one row per item)…" Command="{Binding ExportCsvCommand}" />
                   <MenuItem Header="Export JSON…" Command="{Binding ExportJsonCommand}" />
                   <Separator />
-                  <MenuItem Header="Go to anything…" Click="OnPaletteMenu" InputGestureText="Ctrl+K" />
+                  <MenuItem Header="Search/Jump To…" Click="OnPaletteMenu" InputGestureText="Ctrl+K" />
                   <MenuItem Header="Messages and log…" Click="OnMessages" />
                 </ContextMenu>
               </Button.ContextMenu>
@@ -1417,7 +1410,7 @@
           </StackPanel>
         </Button>
 
-        <TextBlock DockPanel.Dock="Right" Text="Ctrl+K  Go to anything" VerticalAlignment="Center" Margin="12,0,0,0"
+        <TextBlock DockPanel.Dock="Right" Text="Ctrl+K  Search/Jump To" VerticalAlignment="Center" Margin="12,0,0,0"
                    FontSize="{StaticResource Nexus.FontSize.Caption}" Foreground="{DynamicResource Nexus.TextTertiary}" />
         <TextBlock DockPanel.Dock="Right" Text="{Binding SelectionText}" VerticalAlignment="Center" Margin="12,0,0,0"
                    FontSize="{StaticResource Nexus.FontSize.Small}" Foreground="{DynamicResource Nexus.TextSecondary}"

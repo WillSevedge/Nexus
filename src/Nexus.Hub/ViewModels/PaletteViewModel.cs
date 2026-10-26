@@ -20,7 +20,7 @@ public sealed class PaletteItem
 
     public string Hint => Category switch
     {
-        "Sheet" => RunAlternate is null ? "Go to" : "Go to  ·  Shift+Enter: show in model",
+        "Sheet" => RunAlternate is null ? "Jump to" : "Jump to  ·  Shift+Enter: show in model",
         "View" => "Open view",
         _ => "",
     };

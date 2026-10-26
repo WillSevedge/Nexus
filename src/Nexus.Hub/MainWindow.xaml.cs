@@ -64,8 +64,6 @@ public partial class MainWindow : Window
             if (e.PropertyName == nameof(MainViewModel.HasPrograms)) UpdateExplorer();
         };
         UpdateExplorer();
-        ShowLogo();
-        AppTheme.Changed += ShowLogo;
     }
 
     // ------------------------------------------------------------------ shell
@@ -114,19 +112,7 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>The Nexus mark in the rail: dark on light themes, light on dark ones.</summary>
-    private void ShowLogo()
-    {
-        try
-        {
-            Logo.Source = new System.Windows.Media.Imaging.BitmapImage(
-                new Uri($"pack://application:,,,/Nexus;component/Assets/Nexus-{(AppTheme.IsDark ? "light" : "dark")}.png"));
-        }
-        catch (Exception ex)
-        {
-            Nexus.Hub.Core.HubLog.Warn("Could not load the Nexus logo.", ex);
-        }
-    }
+    private void OnToggleRail(object sender, RoutedEventArgs e) => _vm.IsRailExpanded = !_vm.IsRailExpanded;
 
     private void OnSettingsMenu(object sender, RoutedEventArgs e)
     {
