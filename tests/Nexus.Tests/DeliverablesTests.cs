@@ -158,4 +158,51 @@ public sealed class DeliverablesTests : IDisposable
         Assert.Equal(new[] { "C-101", "C-102" }, written.Rows.Select(r => r.Key));
         Assert.Equal("SITE PLAN", written.Rows[0].Cells["Drawing Title / Document Description"].Text);
     }
+
+    /// <summary>A one-layout DWG whose title block has a title but no number attribute.</summary>
+    private static ResultSource Dwg(string file, string title) => new()
+    {
+        Host = new HostInfo { HostKind = HostKinds.AutoCAD, Product = "AutoCAD" }, DocumentTitle = file,
+        Result = new ReadResult
+        {
+            ReaderId = "acad.sheets",
+            Items =
+            {
+                new DataItem
+                {
+                    Id = file, ItemType = "Layout", Name = "Layout1",
+                    Groups = { new PropertyGroup("Title Block") { Properties = { new PropertyValue { Name = "TITLE", Id = "TITLE", Value = title } } } },
+                },
+            },
+        },
+    };
+
+    [Fact]
+    public void Drawings_without_a_number_are_matched_by_file_name()
+    {
+        var wb = Deliverables.Read(Workbook()); // the list has C-101, C-102 (GRADING PLAN), S-101
+        var model = ResultTable.Build(new[]
+        {
+            Dwg("C-102 - GRADING PLAN.dwg", "GRADING"),
+            Dwg("C-10 Old.dwg", "OLD"),          // C-10 is not C-101 or C-102: not matched
+        }, sheetFields: SheetFieldMap.Default());
+        var c = DeliverablesCompare.Compare(wb.Items, model);
+
+        var c102 = c.Single(x => x.Number == "C-102");
+        Assert.True(c102.MatchedByFile);
+        Assert.Equal(DeliverableResult.Differs, c102.Result);
+        Assert.True(c102.TitleDiffers);
+        Assert.Equal(DeliverableResult.NotInModel, c.Single(x => x.Number == "C-101").Result);
+        // The unmatched drawing is listed, not dropped.
+        Assert.Contains(c, x => x.Result == DeliverableResult.NotOnList && x.File == "C-10 Old.dwg");
+    }
+
+    [Theory]
+    [InlineData("C-101.dwg", "C-101", true)]
+    [InlineData("C-101 - SITE PLAN.dwg", "C-101", true)]
+    [InlineData("Job 42_C-101_Rev2.dwg", "C-101", true)]
+    [InlineData("C-1010.dwg", "C-101", false)]
+    [InlineData("XC-101.dwg", "C-101", false)]
+    public void File_names_hold_the_number_as_a_whole_token(string file, string number, bool expected) =>
+        Assert.Equal(expected, DeliverablesCompare.FileNameHas(file, number));
 }

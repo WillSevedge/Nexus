@@ -110,93 +110,118 @@ public sealed partial class MainViewModel
         Agents.SelectMany(a => a.Documents).Where(d => d.Agent.Connection.CanCreateSheets).ToList();
 
     /// <summary>
-    /// Makes the model match the list for these drawings: drawings not in the model become new sheets in
-    /// <paramref name="target"/> (number, name, status), and drawings that differ get the list's values as edits in the
-    /// table (written with Review &amp; apply). The workbook is not touched. Returns what happened, for the window.
+    /// Pushes the deliverables list into the models (the workbook is never written): drawings not in the models
+    /// become new sheets in <paramref name="target"/> (number, name, status), and the ticked list values of the others
+    /// are staged as edits and written after the usual review (Review &amp; apply opens straight away).
+    /// Returns what happened, for the deliverables window.
     /// </summary>
-    internal async Task<string> MatchToListAsync(IReadOnlyList<Deliverable> items, DocumentNode? target)
+    internal async Task<string> PushFromListAsync(IReadOnlyList<DeliverablePush> pushes, DocumentNode? target)
     {
-        var table = _table;
-        if (table is null || !IsSheetsView) return "Show Sheets in the main window first.";
-        var before = DeliverablesCompare.Compare(items, table).Where(c => c.List is not null).ToList();
-        var missing = before.Where(c => c.Result == DeliverableResult.NotInModel).ToList();
+        if (_table is null || !IsSheetsView) return "Open Sheets & data › Sheets in the main window first.";
         var parts = new List<string>();
+        var create = pushes.Where(p => p.Create).Select(p => p.Item).ToList();
+        var values = pushes.Where(p => !p.Create && p.ColumnIds.Count > 0).ToList();
+        // Values are staged on the rows as they are after any reload (new sheets): found again by number.
+        if (create.Count > 0 && !ConfirmDiscardEdits()) return "Nothing changed.";
 
-        if (missing.Count > 0)
+        if (create.Count > 0)
         {
             if (target is null)
-                return $"{missing.Count} drawing(s) are not in the model, and no open Revit model can take new sheets. Open the model in Revit (with Nexus) and try again.";
-            if (!Dialogs.Confirm($"Create {missing.Count} sheet(s) in {target.Title}?",
-                    string.Join(", ", missing.Take(12).Select(c => c.Number)) + (missing.Count > 12 ? $" and {missing.Count - 12} more" : "") +
-                    ".\n\nEach gets the number, name and status from the list, and the title block the model's sheets use most. " +
-                    "One Undo in Revit removes them all.", "Create sheets", kind: NoticeKind.Info, owner: _deliverables?.Window))
-                return "Nothing changed.";
-            if (!ConfirmDiscardEdits()) return "Nothing changed.";
-
-            var statusNames = string.Join("|", _sheetFields.Fields.FirstOrDefault(f => f.Name == "Status")?.Rules
-                .Where(r => r.Host == HostKinds.Revit).SelectMany(r => r.Names) ?? new[] { "Sheet Status" });
-            var request = new CreateSheetsRequest
-            {
-                DocumentId = target.Info.Id,
-                Sheets = missing.Select(c => new NewSheet
-                {
-                    Number = c.List!.Number, Name = c.List.Title,
-                    Values = c.List.Status.Length > 0 ? new Dictionary<string, string> { [statusNames] = c.List.Status } : new(),
-                }).ToList(),
-            };
-            CreateSheetsResult result;
-            try
-            {
-                Status = $"Creating {missing.Count} sheet(s) in {target.Title}…";
-                result = await target.Agent.Connection.CreateSheetsAsync(request);
-            }
-            catch (AgentRequestException ex)
-            {
-                HubLog.Warn($"Creating sheets in {target.Title} failed: {ex.Error}");
-                return "No sheets were created: " + ex.Error.Message;
-            }
-            int created = result.Sheets.Count(x => x.Created);
-            HubLog.Info($"{result.DocumentTitle}: created {created} sheet(s) with title block {result.TitleBlock}");
-            parts.Add(created > 0
-                ? $"{created} sheet(s) created in {result.DocumentTitle} (title block {result.TitleBlock}; Undo in Revit: \"{result.UndoName}\")"
-                : "no sheets were created");
-            var problems = result.Sheets.Where(x => x.Message is not null).Select(x => $"{x.Number}: {x.Message}").ToList();
-            if (problems.Count > 0) parts.Add(string.Join("; ", problems.Take(5)) + (problems.Count > 5 ? "…" : ""));
-
-            if (created > 0)
-            {
-                // Read again so the new sheets are in the table (and the values below go on the current rows).
-                if (!target.IsChecked) target.Restore(true);
-                await LoadAsync(confirm: false);
-                table = _table;
-                if (table is null) return string.Join(". ", parts) + ".";
-            }
+                parts.Add($"{create.Count} new sheet(s) skipped: no open Revit model can take new sheets (open it in Revit with Nexus)");
+            else if (!Dialogs.Confirm($"Create {create.Count} sheet(s) in {target.Title}?",
+                         string.Join(", ", create.Take(12).Select(c => c.Number)) + (create.Count > 12 ? $" and {create.Count - 12} more" : "") +
+                         ".\n\nEach gets the number, name and status from the list, and the title block the model's sheets use most. " +
+                         "One Undo in Revit removes them all.", "Create sheets", kind: NoticeKind.Info, owner: _deliverables?.Window))
+                parts.Add("new sheets skipped");
+            else
+                parts.Add(await CreateSheetsAsync(create, target));
         }
 
-        // Drawings on both sides with different values: the list's values become edits in the table.
         int staged = 0;
         var refused = new List<string>();
-        foreach (var c in DeliverablesCompare.Compare(items, table).Where(c => c.Result == DeliverableResult.Differs && c.List is not null))
+        var table = _table;
+        if (values.Count > 0 && table is not null)
         {
-            void Put(bool differs, string columnId, string value, string label)
+            var byNumber = DeliverablesCompare.Compare(values.Select(v => v.Item), table)
+                .Where(c => c.Model is not null && c.List is not null)
+                .ToDictionary(c => ExcelCompare.NormalizeKey(c.Number), StringComparer.OrdinalIgnoreCase);
+            foreach (var push in values)
             {
-                if (!differs || value.Trim().Length == 0) return; // an empty list cell does not clear the model
-                var reason = TrySetValue(c.Model!, columnId, value);
-                if (reason is null) staged++;
-                else refused.Add($"{c.Number} › {label}: {reason}");
+                if (!byNumber.TryGetValue(ExcelCompare.NormalizeKey(push.Item.Number), out var c))
+                {
+                    refused.Add($"{push.Item.Number}: no longer in the loaded sheets");
+                    continue;
+                }
+                foreach (var columnId in push.ColumnIds)
+                {
+                    string value = columnId == DeliverablesCompare.TitleId ? c.List!.Title
+                        : columnId == DeliverablesCompare.RevId ? c.List!.Rev
+                        : columnId == DeliverablesCompare.DateId ? c.List!.Date
+                        : c.List!.Status;
+                    if (value.Trim().Length == 0) continue; // an empty list cell does not clear the model
+                    var reason = TrySetValue(c.Model!, columnId, value);
+                    if (reason is null) staged++;
+                    else refused.Add($"{c.Number}: {reason}");
+                }
             }
-            Put(c.TitleDiffers, DeliverablesCompare.TitleId, c.List!.Title, "Sheet Name");
-            Put(c.StatusDiffers, DeliverablesCompare.StatusId, c.List.Status, "Status");
-            Put(c.RevDiffers, DeliverablesCompare.RevId, c.List.Rev, "Rev");
-            Put(c.DateDiffers, DeliverablesCompare.DateId, c.List.Date, "Date");
         }
-        if (staged > 0) parts.Add($"{staged} value(s) from the list are in the table (yellow): use Review & apply to write them to the model");
         if (refused.Count > 0)
-            parts.Add($"{refused.Count} value(s) can't be set this way (in Revit, Rev and its date come from the sheet's revisions): " +
-                      string.Join("; ", refused.Take(4)) + (refused.Count > 4 ? "…" : ""));
-        if (parts.Count == 0) parts.Add("The model already matches the list for these drawings");
+            parts.Add($"{refused.Count} value(s) not pushed: " + string.Join("; ", refused.Take(4)) + (refused.Count > 4 ? "…" : ""));
+
+        if (staged > 0)
+        {
+            // Write them now, with the usual review (one row per change, untick to leave one out).
+            int before = PendingEdits;
+            await ReviewAndApplyAsync();
+            int left = PendingEdits;
+            parts.Insert(0, left == 0 ? $"{staged} value(s) from the list written to the models"
+                : left < before ? $"{before - left} value(s) written; {left} left pending (Review & apply in the main window)"
+                : $"{staged} value(s) staged, not written yet (Review & apply in the main window writes them)");
+        }
+        if (parts.Count == 0) parts.Add("Nothing to push: the models already match the list for the ticked drawings");
         string message = string.Join(". ", parts) + ".";
         Status = message;
+        return message;
+    }
+
+    /// <summary>Creates sheets for list drawings in <paramref name="target"/>, then reads the sheets again.</summary>
+    private async Task<string> CreateSheetsAsync(IReadOnlyList<Deliverable> items, DocumentNode target)
+    {
+        var statusNames = string.Join("|", _sheetFields.Fields.FirstOrDefault(f => f.Name == "Status")?.Rules
+            .Where(r => r.Host == HostKinds.Revit).SelectMany(r => r.Names) ?? new[] { "Sheet Status" });
+        var request = new CreateSheetsRequest
+        {
+            DocumentId = target.Info.Id,
+            Sheets = items.Select(c => new NewSheet
+            {
+                Number = c.Number, Name = c.Title,
+                Values = c.Status.Length > 0 ? new Dictionary<string, string> { [statusNames] = c.Status } : new(),
+            }).ToList(),
+        };
+        CreateSheetsResult result;
+        try
+        {
+            Status = $"Creating {items.Count} sheet(s) in {target.Title}…";
+            result = await target.Agent.Connection.CreateSheetsAsync(request);
+        }
+        catch (AgentRequestException ex)
+        {
+            HubLog.Warn($"Creating sheets in {target.Title} failed: {ex.Error}");
+            return "No sheets were created: " + ex.Error.Message;
+        }
+        int created = result.Sheets.Count(x => x.Created);
+        HubLog.Info($"{result.DocumentTitle}: created {created} sheet(s) with title block {result.TitleBlock}");
+        string message = created > 0
+            ? $"{created} sheet(s) created in {result.DocumentTitle} (title block {result.TitleBlock}; Undo in Revit: \"{result.UndoName}\")"
+            : "no sheets were created";
+        var problems = result.Sheets.Where(x => x.Message is not null).Select(x => $"{x.Number}: {x.Message}").ToList();
+        if (problems.Count > 0) message += ". " + string.Join("; ", problems.Take(5)) + (problems.Count > 5 ? "…" : "");
+        if (created > 0)
+        {
+            // Read again so the new sheets are in the table.
+            if (!target.IsChecked) target.Restore(true);
+            await LoadAsync(confirm: false);
+        }
         return message;
     }
 

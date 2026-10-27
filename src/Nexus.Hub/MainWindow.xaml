@@ -1032,49 +1032,12 @@
                   </Style>
                 </DataGrid.Style>
                 <DataGrid.Resources>
-                  <!--
-                    The table's own templates (not the Windows 11 ones): even padding, centred text, one selection colour,
-                    a clear sort arrow. The code that builds the columns derives each column's cell style from the
-                    DataGridCell style here and uses CellEditor while a cell is edited.
-                  -->
-                  <Style TargetType="DataGridCell">
-                    <Setter Property="Background" Value="Transparent" />
-                    <Setter Property="BorderBrush" Value="Transparent" />
-                    <Setter Property="BorderThickness" Value="1" />
-                    <Setter Property="Foreground" Value="{DynamicResource Nexus.Text}" />
-                    <Setter Property="Padding" Value="11,0" />
-                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-                    <Setter Property="SnapsToDevicePixels" Value="True" />
-                    <Setter Property="Template">
-                      <Setter.Value>
-                        <ControlTemplate TargetType="DataGridCell">
-                          <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                                  BorderThickness="{TemplateBinding BorderThickness}" SnapsToDevicePixels="True">
-                            <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center" SnapsToDevicePixels="True" />
-                          </Border>
-                        </ControlTemplate>
-                      </Setter.Value>
-                    </Setter>
-                    <Style.Triggers>
-                      <Trigger Property="IsSelected" Value="True">
-                        <Setter Property="Background" Value="{DynamicResource Nexus.GridSelection}" />
-                        <Setter Property="BorderBrush" Value="{DynamicResource Nexus.GridSelection}" />
-                      </Trigger>
-                      <!-- The current cell: an accent outline (keyboard and editing position). -->
-                      <MultiTrigger>
-                        <MultiTrigger.Conditions>
-                          <Condition Property="IsSelected" Value="True" />
-                          <Condition Property="IsKeyboardFocusWithin" Value="True" />
-                        </MultiTrigger.Conditions>
-                        <Setter Property="BorderBrush" Value="{DynamicResource Nexus.Accent}" />
-                      </MultiTrigger>
-                      <Trigger Property="IsEditing" Value="True">
-                        <Setter Property="Background" Value="{DynamicResource Nexus.Surface}" />
-                        <Setter Property="BorderBrush" Value="{DynamicResource Nexus.Accent}" />
-                      </Trigger>
-                    </Style.Triggers>
-                  </Style>
-
+                  <!-- The table look lives in Themes/Tokens.xaml (shared with the deliverables window). The code that builds
+                       the columns derives each column's cell style from the DataGridCell style here. -->
+                  <Style TargetType="DataGridCell" BasedOn="{StaticResource Nexus.GridCell}" />
+                  <Style TargetType="DataGridRow" BasedOn="{StaticResource Nexus.GridRow}" />
+                  <Style TargetType="DataGridRowHeader" BasedOn="{StaticResource Nexus.GridRowHeader}" />
+                  <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource Nexus.GridColumnHeader}" />
                   <!-- In-cell editor: flat, same size as the text, so editing does not change the row height. -->
                   <Style x:Key="CellEditor" TargetType="TextBox">
                     <Setter Property="Padding" Value="0" />
@@ -1086,102 +1049,6 @@
                     <Setter Property="SelectionBrush" Value="{DynamicResource Nexus.Accent}" />
                     <Setter Property="VerticalContentAlignment" Value="Center" />
                     <Setter Property="MinHeight" Value="0" />
-                  </Style>
-
-                  <Style TargetType="DataGridRow">
-                    <Setter Property="Background" Value="Transparent" />
-                    <Setter Property="SnapsToDevicePixels" Value="True" />
-                    <Style.Triggers>
-                      <Trigger Property="IsMouseOver" Value="True">
-                        <Setter Property="Background" Value="{DynamicResource Nexus.GridRowHover}" />
-                      </Trigger>
-                    </Style.Triggers>
-                  </Style>
-
-                  <!-- Row marker on the left: click to select the whole row; an accent bar when it is selected. -->
-                  <Style TargetType="DataGridRowHeader">
-                    <Setter Property="Background" Value="Transparent" />
-                    <Setter Property="Cursor" Value="Hand" />
-                    <Setter Property="Template">
-                      <Setter.Value>
-                        <ControlTemplate TargetType="DataGridRowHeader">
-                          <Grid Background="{TemplateBinding Background}">
-                            <Border x:Name="Bar" Width="3" CornerRadius="1.5" Margin="3,4,0,4" HorizontalAlignment="Left"
-                                    Background="{DynamicResource Nexus.Accent}" Visibility="Collapsed" />
-                          </Grid>
-                          <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                              <Setter Property="Background" Value="{DynamicResource Nexus.Hover}" />
-                            </Trigger>
-                            <Trigger Property="IsRowSelected" Value="True">
-                              <Setter TargetName="Bar" Property="Visibility" Value="Visible" />
-                            </Trigger>
-                          </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                      </Setter.Value>
-                    </Setter>
-                  </Style>
-
-                  <Style x:Key="HeaderGripper" TargetType="Thumb">
-                    <Setter Property="Width" Value="8" />
-                    <Setter Property="Background" Value="Transparent" />
-                    <Setter Property="Cursor" Value="SizeWE" />
-                    <Setter Property="Template">
-                      <Setter.Value>
-                        <ControlTemplate TargetType="Thumb">
-                          <Border Background="{TemplateBinding Background}" />
-                        </ControlTemplate>
-                      </Setter.Value>
-                    </Setter>
-                  </Style>
-
-                  <!-- Column header: one line, sort arrow, a hairline between columns, resize by dragging the edge. -->
-                  <Style TargetType="DataGridColumnHeader">
-                    <Setter Property="Background" Value="{DynamicResource Nexus.GridHeader}" />
-                    <Setter Property="Foreground" Value="{DynamicResource Nexus.TextSecondary}" />
-                    <Setter Property="BorderBrush" Value="{DynamicResource Nexus.Border}" />
-                    <Setter Property="FontWeight" Value="SemiBold" />
-                    <Setter Property="FontSize" Value="12" />
-                    <Setter Property="MinHeight" Value="36" />
-                    <Setter Property="Padding" Value="12,0,8,0" />
-                    <Setter Property="SnapsToDevicePixels" Value="True" />
-                    <Setter Property="Template">
-                      <Setter.Value>
-                        <ControlTemplate TargetType="DataGridColumnHeader">
-                          <Grid>
-                            <Border x:Name="Bg" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="0,0,0,1">
-                              <DockPanel Margin="{TemplateBinding Padding}">
-                                <TextBlock x:Name="SortArrow" DockPanel.Dock="Right" FontFamily="{StaticResource IconFont}" FontSize="10"
-                                           Margin="6,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource Nexus.Accent}" Visibility="Collapsed" />
-                                <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="False" />
-                              </DockPanel>
-                            </Border>
-                            <Rectangle x:Name="Separator" Width="1" HorizontalAlignment="Right" Margin="0,10" Fill="{DynamicResource Nexus.Border}" />
-                            <Thumb x:Name="PART_LeftHeaderGripper" HorizontalAlignment="Left" Style="{StaticResource HeaderGripper}" />
-                            <Thumb x:Name="PART_RightHeaderGripper" HorizontalAlignment="Right" Style="{StaticResource HeaderGripper}" />
-                          </Grid>
-                          <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                              <Setter TargetName="Bg" Property="Background" Value="{DynamicResource Nexus.Hover}" />
-                            </Trigger>
-                            <Trigger Property="SortDirection" Value="Ascending">
-                              <Setter TargetName="SortArrow" Property="Text" Value="&#xE70E;" />
-                              <Setter TargetName="SortArrow" Property="Visibility" Value="Visible" />
-                              <Setter Property="Foreground" Value="{DynamicResource Nexus.Text}" />
-                            </Trigger>
-                            <Trigger Property="SortDirection" Value="Descending">
-                              <Setter TargetName="SortArrow" Property="Text" Value="&#xE70D;" />
-                              <Setter TargetName="SortArrow" Property="Visibility" Value="Visible" />
-                              <Setter Property="Foreground" Value="{DynamicResource Nexus.Text}" />
-                            </Trigger>
-                            <!-- The filler right of the last column: no hairline. -->
-                            <Trigger Property="DisplayIndex" Value="-1">
-                              <Setter TargetName="Separator" Property="Visibility" Value="Collapsed" />
-                            </Trigger>
-                          </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                      </Setter.Value>
-                    </Setter>
                   </Style>
                 </DataGrid.Resources>
                 <DataGrid.ContextMenu>

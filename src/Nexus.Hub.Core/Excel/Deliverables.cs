@@ -219,6 +219,8 @@ public sealed class DeliverableComparison
     public bool RevDiffers { get; init; }
     public bool DateDiffers { get; init; }
     public bool StatusDiffers { get; init; }
+    /// <summary>The model sheet has no number: it was matched by its file name (one-sheet DWGs named after the sheet).</summary>
+    public bool MatchedByFile { get; init; }
     public DeliverableResult Result { get; init; }
 }
 
@@ -236,9 +238,25 @@ public static class DeliverablesCompare
     public static List<DeliverableComparison> Compare(IEnumerable<Deliverable> list, ResultTable model)
     {
         var byNumber = new Dictionary<string, TableRow>(StringComparer.OrdinalIgnoreCase);
+        var unnumbered = new List<TableRow>();
         foreach (var row in model.Rows)
             if (row.Values.TryGetValue(SheetFieldMap.NumberColumnId, out var n) && !string.IsNullOrWhiteSpace(n.Value))
                 byNumber.TryAdd(ExcelCompare.NormalizeKey(n.Value), row);
+            else
+                unnumbered.Add(row);
+        // Sheets without a number (a DWG whose title block has no number attribute) are matched by file name when the
+        // file holds that one sheet: "C-101.dwg", "C-101 - SITE PLAN.dwg".
+        var singleSheetFiles = unnumbered.GroupBy(r => r.Document, StringComparer.OrdinalIgnoreCase)
+            .Where(g => model.Rows.Count(r => string.Equals(r.Document, g.Key, StringComparison.OrdinalIgnoreCase)) == 1)
+            .Select(g => g.First()).ToList();
+        var byFile = new Dictionary<string, TableRow>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in list.OrderByDescending(i => i.Number.Length)) // longest numbers first: C-101A before C-101
+        {
+            string key = ExcelCompare.NormalizeKey(item.Number);
+            if (key.Length == 0 || byNumber.ContainsKey(key) || byFile.ContainsKey(key)) continue;
+            var found = singleSheetFiles.Where(r => !byFile.ContainsValue(r) && FileNameHas(r.Document, key)).ToList();
+            if (found.Count == 1) byFile[key] = found[0];
+        }
 
         string Value(TableRow? row, string id) => row is not null && row.Values.TryGetValue(id, out var v) ? v.Value ?? "" : "";
         bool Differs(string listValue, string modelValue, bool modelHasField) =>
@@ -250,7 +268,8 @@ public static class DeliverablesCompare
         {
             string key = ExcelCompare.NormalizeKey(item.Number);
             if (!seen.Add(key)) continue;
-            byNumber.TryGetValue(key, out var row);
+            bool byName = false;
+            if (!byNumber.TryGetValue(key, out var row) && byFile.TryGetValue(key, out row)) byName = true;
             if (row is null)
             {
                 result.Add(new DeliverableComparison { Number = item.Number, List = item, Result = DeliverableResult.NotInModel });
@@ -266,6 +285,7 @@ public static class DeliverablesCompare
                 RevDiffers = Differs(item.Rev, Value(row, RevId), Has(RevId)),
                 DateDiffers = item.Date.Length > 0 && Differs(item.Date, Value(row, DateId), Has(DateId)),
                 StatusDiffers = item.Status.Length > 0 && Differs(item.Status, Value(row, StatusId), Has(StatusId)),
+                MatchedByFile = byName,
             };
             result.Add(Copy(c, c.TitleDiffers || c.RevDiffers || c.DateDiffers || c.StatusDiffers ? DeliverableResult.Differs : DeliverableResult.Match));
         }
@@ -279,13 +299,39 @@ public static class DeliverablesCompare
                 Program = ExcelSources.ProgramOf(row), File = row.Document, Result = DeliverableResult.NotOnList,
             });
         }
+        // Sheets without a number that no list drawing matched: shown, so they are not silently left out.
+        foreach (var row in unnumbered)
+        {
+            if (byFile.ContainsValue(row)) continue;
+            result.Add(new DeliverableComparison
+            {
+                Number = $"({Path.GetFileNameWithoutExtension(row.Document)})", Model = row,
+                ModelTitle = Value(row, TitleId), ModelRev = Value(row, RevId), ModelDate = Value(row, DateId), ModelStatus = Value(row, StatusId),
+                Program = ExcelSources.ProgramOf(row), File = row.Document, Result = DeliverableResult.NotOnList,
+            });
+        }
         return result;
+    }
+
+    /// <summary>The file name holds the drawing number as a whole token ("C-101 - Site.dwg" has C-101, not C-10).</summary>
+    public static bool FileNameHas(string document, string number)
+    {
+        string name = Path.GetFileNameWithoutExtension(document);
+        for (int i = name.IndexOf(number, StringComparison.OrdinalIgnoreCase); i >= 0;
+             i = name.IndexOf(number, i + 1, StringComparison.OrdinalIgnoreCase))
+        {
+            bool startOk = i == 0 || !char.IsLetterOrDigit(name[i - 1]);
+            int end = i + number.Length;
+            bool endOk = end == name.Length || !char.IsLetterOrDigit(name[end]);
+            if (startOk && endOk) return true;
+        }
+        return false;
     }
 
     private static DeliverableComparison Copy(DeliverableComparison c, DeliverableResult r) => new()
     {
         Number = c.Number, List = c.List, Model = c.Model, ModelTitle = c.ModelTitle, ModelRev = c.ModelRev, ModelDate = c.ModelDate,
         ModelStatus = c.ModelStatus, Program = c.Program, File = c.File, TitleDiffers = c.TitleDiffers, RevDiffers = c.RevDiffers,
-        DateDiffers = c.DateDiffers, StatusDiffers = c.StatusDiffers, Result = r,
+        DateDiffers = c.DateDiffers, StatusDiffers = c.StatusDiffers, MatchedByFile = c.MatchedByFile, Result = r,
     };
 }
