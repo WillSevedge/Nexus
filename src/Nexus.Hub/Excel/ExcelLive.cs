@@ -20,6 +20,12 @@ internal static class ExcelLive
     [DllImport("ole32.dll")]
     private static extern int CreateBindCtx(int reserved, out IBindCtx ctx);
 
+    [DllImport("ole32.dll", CharSet = CharSet.Unicode)]
+    private static extern int CLSIDFromProgID(string progId, out Guid clsid);
+
+    [DllImport("oleaut32.dll")]
+    private static extern int GetActiveObject(ref Guid clsid, IntPtr reserved, [MarshalAs(UnmanagedType.IUnknown)] out object obj);
+
     /// <summary>The workbook object when <paramref name="path"/> is open in a running Excel; otherwise null.</summary>
     public static object? FindOpenWorkbook(string path)
     {
@@ -65,6 +71,8 @@ internal static class ExcelLive
             }
             if (byName.Count == 1) return byName[0];
             foreach (var other in byName) Marshal.ReleaseComObject(other);
+            // Not registered under a name we know (some synced or cloud-opened workbooks): ask Excel itself.
+            if (FromExcelApplication(full) is { } fromExcel) return fromExcel;
         }
         catch (Exception ex)
         {
@@ -74,6 +82,83 @@ internal static class ExcelLive
         {
             if (monikers is not null) Marshal.ReleaseComObject(monikers);
             if (rot is not null) Marshal.ReleaseComObject(rot);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The running Excel's open workbook with this path, or with this file name when its path is a web address
+    /// (OneDrive, SharePoint, Teams) and only one open workbook has that name. Null when Excel is not running.
+    /// </summary>
+    private static object? FromExcelApplication(string full)
+    {
+        object? app = null;
+        try
+        {
+            if (CLSIDFromProgID("Excel.Application", out var clsid) != 0 || GetActiveObject(ref clsid, IntPtr.Zero, out app) != 0 || app is null)
+                return null;
+            dynamic excel = app;
+            dynamic books = excel.Workbooks;
+            int count = (int)books.Count;
+            string fileName = Path.GetFileName(full);
+            object? byName = null;
+            int sameName = 0;
+            for (int i = 1; i <= count; i++)
+            {
+                object book = books.Item(i);
+                dynamic wb = book;
+                string fullName = (string)wb.FullName;
+                if (string.Equals(fullName, full, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (byName is not null) Marshal.ReleaseComObject(byName);
+                    return book;
+                }
+                if (string.Equals((string)wb.Name, fileName, StringComparison.OrdinalIgnoreCase) && fullName.Contains("://", StringComparison.Ordinal))
+                {
+                    sameName++;
+                    if (byName is null) { byName = book; continue; }
+                }
+                Marshal.ReleaseComObject(book);
+            }
+            if (sameName == 1) return byName;
+            if (byName is not null) Marshal.ReleaseComObject(byName);
+        }
+        catch (Exception ex)
+        {
+            HubLog.Info("Asking Excel for its open workbooks failed: " + ex.Message);
+        }
+        finally
+        {
+            if (app is not null) Marshal.ReleaseComObject(app);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Signs that Excel has the workbook open even though <see cref="FindOpenWorkbook"/> could not reach it: Excel's
+    /// owner file (~$name) next to it, or an Excel window titled with its name. Writing the file then would be
+    /// overwritten by Excel's copy (AutoSave, or the next save), so the export stops and says so.
+    /// </summary>
+    public static string? OpenElsewhereReason(string path)
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+        try
+        {
+            string name = Path.GetFileName(path);
+            string folder = Path.GetDirectoryName(Path.GetFullPath(path)) ?? "";
+            // Excel's owner file: "~$" + the name (long names lose their first two characters).
+            foreach (var owner in new[] { "~$" + name, name.Length > 2 ? "~$" + name[2..] : null })
+                if (owner is not null && File.Exists(Path.Combine(folder, owner)))
+                    return "Excel has it open (its lock file is next to it)";
+            string stem = Path.GetFileNameWithoutExtension(name);
+            foreach (var p in System.Diagnostics.Process.GetProcessesByName("EXCEL"))
+                using (p)
+                    if (p.MainWindowTitle.Contains(stem, StringComparison.OrdinalIgnoreCase))
+                        return "it is open in an Excel window Nexus cannot reach";
+        }
+        catch (Exception ex)
+        {
+            HubLog.Info("Checking whether Excel has the workbook open failed: " + ex.Message);
         }
         return null;
     }

@@ -238,6 +238,17 @@ public sealed partial class MainViewModel
                 return false;
             }
             var link = Deliverables.ModelExportLink(path, me, table, _sheetFields);
+            var writable = link.Columns.Where(c => ExcelSources.WritesExcel(c)).Select(c => c.Header).ToList();
+            HubLog.Info($"Export to {file} › {me.Worksheet}: columns written: {(writable.Count == 0 ? "none" : string.Join(", ", writable))}; " +
+                        $"not matched: {string.Join(", ", link.Columns.Where(c => c.ColumnId.Length == 0 && !c.IsFormula).Select(c => c.Header))}");
+            if (writable.Count == 0)
+            {
+                ExcelState = "";
+                Notify(NoticeKind.Warning, $"No Model Export column matches the sheet data",
+                    $"The headers on '{me.Worksheet}' are: {string.Join(", ", me.Headers.Where(h => h.Length > 0))}. Nexus fills columns named like " +
+                    "Sheet Number, Sheet Name, Rev, Rev Date, Status, Source or File. Nothing was written.");
+                return false;
+            }
             var memory = ExcelFillMemory.Load(path);
             bool firstTime = memory.Files.Count == 0;
             var open = Runs.Where(r => !r.Failed).Select(r => r.DocumentTitle).ToList();
@@ -259,6 +270,14 @@ public sealed partial class MainViewModel
 
             memory.Save(path);
             var plan = push.Plan;
+            HubLog.Info($"Export to {file}: {rows.Count} sheet(s), {(push.Live ? "into the open workbook in Excel" : "into the file")}: {plan.Summary}");
+            if (!push.Live && push.Written && await Task.Run(() => MissingAfterWrite(link, rows)) is { } missing)
+            {
+                ExcelState = "Last export did not stick";
+                Notify(NoticeKind.Warning, $"Model Export in {file} does not show the sheets after writing", missing,
+                    "Try again", () => ExportModelAsync());
+                return false;
+            }
             string time = DateTime.Now.ToString("t");
             ExcelState = plan.IsEmpty ? $"Model Export up to date · {time}" : $"Exported {time}{(push.Live ? " (in Excel: save it there)" : "")}";
             Status = plan.IsEmpty
@@ -283,6 +302,19 @@ public sealed partial class MainViewModel
         }
     }
 
+    /// <summary>Reads the file back: null when every exported sheet number is in Model Export, else what is missing.</summary>
+    private static string? MissingAfterWrite(ExcelLink link, List<IReadOnlyDictionary<string, string>> rows)
+    {
+        if (link.KeyHeader is not { } keyHeader) return null;
+        var expected = rows.Select(r => r.TryGetValue(keyHeader, out var k) ? ExcelCompare.NormalizeKey(k) : "").Where(k => k.Length > 0).ToList();
+        if (expected.Count == 0) return null;
+        var found = ExcelWorkbook.Read(link).Rows.Select(r => ExcelCompare.NormalizeKey(r.Key)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var lost = expected.Where(k => !found.Contains(k)).ToList();
+        return lost.Count == 0 ? null
+            : $"{lost.Count} of {expected.Count} sheet number(s) are not in the file after writing (e.g. {string.Join(", ", lost.Take(5))}). " +
+              "If the workbook is open in Excel or syncing (OneDrive/SharePoint), close it there and export again.";
+    }
+
     /// <summary>
     /// On an Excel thread: reads Model Export (as Excel shows it now when the workbook is open), plans the fill and
     /// writes it into Excel or the file, unless rows would be cleared without leave.
@@ -292,6 +324,16 @@ public sealed partial class MainViewModel
         {
             var data = ExcelWorkbook.Read(link);
             object? workbook = ExcelLive.FindOpenWorkbook(link.WorkbookPath);
+            // Open in Excel but out of reach: writing the file would be undone by Excel's copy (AutoSave or its next save).
+            if (workbook is null && ExcelLive.OpenElsewhereReason(link.WorkbookPath) is { } reason)
+            {
+                string name = Path.GetFileName(link.WorkbookPath);
+                throw new InvalidOperationException(
+                    $"{name} looks open in Excel ({reason}), but Nexus cannot reach that Excel window, so nothing was written " +
+                    "(Excel would put its own copy back). Open the workbook from its synced folder in File Explorer (not from Teams, " +
+                    "SharePoint or a browser) and export again, or close it in Excel and export again. If Excel is closed, delete the " +
+                    $"'~${name}' file next to it.");
+            }
             try
             {
                 if (workbook is not null) ExcelLive.Refresh(workbook, link, data);

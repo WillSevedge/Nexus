@@ -116,6 +116,10 @@ public static class ExcelCompare
                      ("Rev", "Revision"), ("Rev No", "Revision"), ("Current Revision", "Revision"), ("Date", "Issue Date"),
                      ("Rev Date", "Revision Date"), ("Revision Date", "Revision Date"), ("Rev Description", "Revision Description"),
                      ("Sheet Status", "Status"), ("Dwg Status", "Status"), ("Drawing Status", "Status"),
+                     // The deliverables list's own headings, often repeated on its Model Export tab.
+                     ("Dwg/Doc No", "Number"), ("Doc No", "Number"), ("Document No", "Number"), ("Drawing Number", "Number"),
+                     ("Dwg Number", "Number"), ("Document Number", "Number"),
+                     ("Drawing Title / Document Description", "Title"), ("Document Description", "Title"), ("Document Title", "Title"),
                  })
         {
             string id = SheetFieldMap.ColumnId(field);

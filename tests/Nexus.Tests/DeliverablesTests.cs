@@ -131,4 +131,31 @@ public sealed class DeliverablesTests : IDisposable
         Assert.Equal(new[] { "C-101", "C-102", "C-900" }, written.Rows.Select(r => r.Key));
         Assert.Equal("Revit", written.Rows[0].Cells["Source"].Text);
     }
+
+    [Fact]
+    public void Model_export_with_the_lists_own_headings_is_filled()
+    {
+        // Model Export laid out with the deliverables list's headings ("Dwg/Doc No." did not match before).
+        string path = Path.Combine(_dir, "Headings.xlsx");
+        using (var book = new XLWorkbook())
+        {
+            book.AddWorksheet("Deliverables List").Cell(9, 1).Value = "Dwg/Doc No.";
+            var me = book.AddWorksheet("Model Export");
+            string[] mh = { "Dwg/Doc No.", "Drawing Title / Document Description", "Rev.", "Status" };
+            for (int c = 0; c < mh.Length; c++) me.Cell(1, c + 1).Value = mh[c];
+            me.Range(1, 1, 2, mh.Length).CreateTable("ModelExport");
+            book.SaveAs(path);
+        }
+        var wb = Deliverables.Read(path);
+        var model = Model(("C-101", "SITE PLAN", "1", "IFC"), ("C-102", "GRADING", "1", "IFR"));
+        var link = Deliverables.ModelExportLink(path, wb.ModelExport!, model, SheetFieldMap.Default());
+        Assert.Equal("Dwg/Doc No.", link.KeyHeader);
+        Assert.True(ExcelSources.WritesExcel(link.Columns.Single(c => c.Header == "Drawing Title / Document Description")));
+
+        var plan = ExcelWorkbook.PlanFill(link, ExcelWorkbook.Read(link), ExcelFill.Ordered(ExcelFill.Rows(model, link), link));
+        ExcelWorkbook.WriteFill(link, plan);
+        var written = ExcelWorkbook.Read(link);
+        Assert.Equal(new[] { "C-101", "C-102" }, written.Rows.Select(r => r.Key));
+        Assert.Equal("SITE PLAN", written.Rows[0].Cells["Drawing Title / Document Description"].Text);
+    }
 }
