@@ -351,7 +351,12 @@ public sealed class DeliverablesViewModel : Observable
                       $"{files} open file{(files == 1 ? "" : "s")}";
             ReadAt = info.ListSheet.Length > 0 ? $"List read from '{info.ListSheet}' as last saved · {DateTime.Now:t}" : $"Read {DateTime.Now:t}";
             var notes = new List<string>(info.Warnings);
-            if (info.Unnumbered > 0) notes.Add($"{info.Unnumbered} item(s) on the list have no drawing number yet and are not compared.");
+            if (info.Items.Count == 0)
+                // Nothing numbered: say where the numbers come from rather than showing every sheet as "not on list".
+                notes.Add($"The list has no drawing numbers yet{(info.Unnumbered > 0 ? $" ({info.Unnumbered} item(s) without one)" : "")}, so nothing can be " +
+                          "matched. Enter the drawings (Dwg. No. and Drawing Title) in the discipline tabs' Drawings section, save the " +
+                          "workbook, then Refresh. Drawings are matched by number.");
+            else if (info.Unnumbered > 0) notes.Add($"{info.Unnumbered} item(s) on the list have no drawing number yet and are not compared.");
             int locked = Rows.Sum(r => r.Fields.Count(f => f.IsLocked));
             if (locked > 0) notes.Add($"{locked} difference(s) can't be pushed (marked with a lock: hover for why).");
             Message = string.Join(" ", notes);
