@@ -188,7 +188,7 @@
         </Setter.Value>
       </Setter>
     </Style>
-    <Style x:Key="Accent" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+    <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
       <Setter Property="Background" Value="{DynamicResource Accent}" />
       <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
       <Setter Property="Foreground" Value="White" />
@@ -751,7 +751,7 @@
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
           <Button x:Name="ResetButton" Content="Reset" Style="{StaticResource Quiet}" ToolTip="Untick every panel and clear them" Margin="0,0,8,0" />
           <Button x:Name="CloseButton" Content="Close" IsCancel="True" MinWidth="84" Margin="0,0,8,0" />
-          <Button x:Name="RenameButton" Content="Rename" Style="{StaticResource Accent}" MinWidth="130" />
+          <Button x:Name="RenameButton" Content="Rename" Style="{StaticResource AccentButton}" MinWidth="130" />
         </StackPanel>
         <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
           <TextBlock Text="Preset" Style="{StaticResource Label}" Margin="0,0,8,0" />
