@@ -135,6 +135,20 @@ internal sealed class BulkRenameWindow
         {
             if (e.NewFocus is TextBox box) _lastText = box;
         }));
+        // Like Bulk Rename Utility: typing in a panel, changing one of its choices or ticking one of its options turns the
+        // panel on (only what the user does: values set by presets or Reset do not).
+        _rulesPanel.AddHandler(TextBoxBase.TextChangedEvent, new TextChangedEventHandler((_, e) =>
+        {
+            if (e.OriginalSource is TextBox { IsKeyboardFocused: true } box) TurnPanelOn(box);
+        }));
+        _rulesPanel.AddHandler(Selector.SelectionChangedEvent, new SelectionChangedEventHandler((_, e) =>
+        {
+            if (e.OriginalSource is ComboBox combo && (combo.IsKeyboardFocusWithin || combo.IsDropDownOpen)) TurnPanelOn(combo);
+        }));
+        _rulesPanel.AddHandler(ButtonBase.ClickEvent, new RoutedEventHandler((_, e) =>
+        {
+            if (e.OriginalSource is CheckBox option && !Equals(option.Tag, "On")) TurnPanelOn(option);
+        }));
 
         _token.Click += (_, _) => ShowTokens();
         Find<Button>("ResetButton").Click += (_, _) => UseRules(new RenameRules());
@@ -192,6 +206,27 @@ internal sealed class BulkRenameWindow
             var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
             brush.Freeze();
             window.Resources[key] = brush;
+        }
+    }
+
+    /// <summary>Ticks the rule panel <paramref name="field"/> is in (its header tick has Tag "On").</summary>
+    private void TurnPanelOn(DependencyObject field)
+    {
+        var rule = _window.TryFindResource("Rule") as Style;
+        DependencyObject? d = field;
+        while (d is not null && !(d is Border b && ReferenceEquals(b.Style, rule)))
+            d = d is Visual ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d);
+        if (d is not Border panel) return;
+        var on = Descendants(panel).OfType<CheckBox>().FirstOrDefault(c => Equals(c.Tag, "On"));
+        if (on is not null && on.IsChecked != true) on.IsChecked = true;
+    }
+
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            yield return child;
+            foreach (var deeper in Descendants(child)) yield return deeper;
         }
     }
 
