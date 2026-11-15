@@ -15,6 +15,7 @@ using Nexus.Fab;
 using ComboBox = System.Windows.Controls.ComboBox;
 using TextBox = System.Windows.Controls.TextBox;
 using Grid = System.Windows.Controls.Grid;
+using ParameterMap = Nexus.Fab.ParameterMap;
 
 namespace Nexus.Agent.Revit.Fab;
 
@@ -54,6 +55,7 @@ internal sealed class FabWindow
     private readonly ObservableCollection<FabStatus> _steps = new();
     private readonly ObservableCollection<StockLength> _stock = new();
     private readonly ObservableCollection<HangerRule> _hangers = new();
+    private readonly ObservableCollection<ParameterMap> _maps = new();
     private CutPlan? _cuts;
     private List<BomLine> _bom = new();
 
@@ -126,6 +128,22 @@ internal sealed class FabWindow
         };
         Click("HistoryButton", () => SaveCsv("Fabrication history", FabCsv.Write(new[] { "When", "Who", "What", "Changed", "From", "To" },
             _session.Project.History.Select(h => new[] { h.When, h.Who, h.What, h.Field, h.From, h.To }))));
+
+        Find<DataGrid>("MapGrid").ItemsSource = _maps;
+        var values = Find<ListBox>("ValuesList");
+        values.MouseDoubleClick += (_, _) =>
+        {
+            // A new line for the value, to a parameter of the same name: the name on the right is changed as needed.
+            if (values.SelectedItem is string name && !_maps.Any(m => m.From.Trim().Equals(name, StringComparison.OrdinalIgnoreCase)))
+                _maps.Add(new ParameterMap { From = name, To = name });
+        };
+        Click("SaveMapButton", () =>
+        {
+            SaveRules();
+            Fill(_maps, _session.Project.Mappings);
+            Say($"{_session.Project.Mappings.Count} mapping line(s) saved in the model.");
+        });
+        Click("WriteMapButton", WriteMapping);
 
         Find<DataGrid>("StockGrid").ItemsSource = _stock;
         Click("CutButton", MakeCutList);
@@ -244,6 +262,8 @@ internal sealed class FabWindow
         Fill(_steps, p.Statuses);
         Fill(_stock, p.Stock);
         Fill(_hangers, p.Hangers);
+        Fill(_maps, p.Mappings);
+        Find<CheckBox>("AddParamsBox").IsChecked = p.AddMissingParameters;
         ShowLists();
     }
 
@@ -293,6 +313,9 @@ internal sealed class FabWindow
         p.Stock = _stock.Where(s => s.LengthFt > 0).ToList();
         if (p.Stock.Count == 0) p.Stock.Add(new StockLength());
         p.Hangers = _hangers.Where(h => h.SpacingFt > 0).ToList();
+        Find<DataGrid>("MapGrid").CommitEdit(DataGridEditingUnit.Row, true);
+        p.Mappings = ParameterMapper.Clean(_maps);
+        p.AddMissingParameters = Find<CheckBox>("AddParamsBox").IsChecked == true;
         p.Sleeves.ClearanceIn = Math.Max(0, Number(Find<TextBox>("ClearanceBox"), 1));
         p.Sleeves.ExtendIn = Math.Max(0, Number(Find<TextBox>("ExtendBox")));
         p.Sleeves.Walls = Find<CheckBox>("WallsBox").IsChecked == true;
@@ -330,6 +353,7 @@ internal sealed class FabWindow
             : $"{items.Count} piece(s): {fabricated} Fabrication part(s), {items.Count - fabricated} Revit pipe, duct and fittings · " +
               $"{items.Where(i => i.Spool.Length > 0).Select(i => i.Spool).Distinct(StringComparer.OrdinalIgnoreCase).Count()} spool(s) in the model";
         ShowSpools();
+        Find<ListBox>("ValuesList").ItemsSource = FabMapping.ValueNames(_session.Document, items);
         Say(items.Count == 0 ? "Select runs in Revit or open a view that shows them, then Read again." : "Set the rules on the left, then Preview spools.");
     }
 
@@ -461,6 +485,30 @@ internal sealed class FabWindow
         SaveRules();
         ShowLists();
         Say($"{steps.Count} step(s) saved in the model.");
+    }
+
+    // ------------------------------------------------------------------ parameter mapping
+
+    private void WriteMapping()
+    {
+        SaveRules();
+        Fill(_maps, _session.Project.Mappings);
+        if (!_session.Project.Mappings.Any(m => m.Enabled))
+        {
+            Say("Add a mapping line first: double-click a value on the left, then name the Revit parameter it goes to.");
+            return;
+        }
+        var items = Chosen(out string what);
+        // The spool totals need every piece of each spool, not only the pieces picked.
+        var result = FabMapping.Write(_session, items);
+        var notes = new List<string>();
+        if (result.AddedParameters.Count > 0) notes.Add($"added to the model: {string.Join(", ", result.AddedParameters)}");
+        if (result.Refused > 0) notes.Add($"{result.Refused} value(s) Revit would not take (read-only parameters, text in a number parameter, worksets owned by others)");
+        foreach (var (parameter, count) in result.NoParameter.Take(3)) notes.Add($"{count} piece(s) have no parameter \"{parameter}\"");
+        if (result.NoValue.Count > 0) notes.Add($"no value named {string.Join(", ", result.NoValue.Take(4))} on some pieces (left blank)");
+        Say($"Wrote {result.Written} value(s) to {what}; {result.Unchanged} were already right." + (notes.Count > 0 ? "  " + string.Join("; ", notes) + "." : "") +
+            " One undo in Revit puts them back.", bad: result.Written + result.Unchanged == 0);
+        Read();
     }
 
     // ------------------------------------------------------------------ cut list, materials, labels

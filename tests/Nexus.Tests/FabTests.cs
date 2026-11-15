@@ -236,6 +236,41 @@ public sealed class FabTests
     }
 
     [Fact]
+    public void A_mapping_line_writes_one_value_or_text_built_from_several()
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["Spool"] = "CHWS-001", ["Service"] = "CHWS", ["Size"] = "4\"" };
+        string? Value(string name) => values.TryGetValue(name, out var v) ? v : null;
+
+        Assert.Equal("CHWS-001", ParameterMapper.Resolve("Spool", Value));
+        Assert.Equal("CHWS-001", ParameterMapper.Resolve(" {spool} ", Value));
+        Assert.Equal("CHWS / 4\"", ParameterMapper.Resolve("{Service} / {Size}", Value));
+
+        var missing = new List<string>();
+        Assert.Equal("CHWS-", ParameterMapper.Resolve("{Service}-{Item Number}", Value, missing)); // no value: left blank, and said
+        Assert.Equal(new[] { "Item Number" }, missing);
+
+        Assert.Equal(new[] { "Service", "Size" }, ParameterMapper.Names("{Service} / {Size} ({service})"));
+        Assert.Equal(new[] { "Item Number" }, ParameterMapper.Names("Item Number"));
+        Assert.Equal("Length", ParameterMapper.SingleName("{Length}"));
+        Assert.Equal("Length", ParameterMapper.SingleName("Length"));
+        Assert.Null(ParameterMapper.SingleName("{Length} long"));
+    }
+
+    [Fact]
+    public void A_saved_mapping_has_one_line_per_parameter_and_no_empty_lines()
+    {
+        var maps = ParameterMapper.Clean(new[]
+        {
+            new ParameterMap { From = "Spool", To = "Mark" }, new ParameterMap { From = "Package", To = "mark" },
+            new ParameterMap { From = "", To = "Comments" }, new ParameterMap { From = " {Service} ", To = " System Tag " },
+        });
+        Assert.Equal(new[] { ("Spool", "Mark"), ("{Service}", "System Tag") }, maps.Select(m => (m.From, m.To)));
+
+        var project = new FabProject { Mappings = maps };
+        Assert.Equal(2, FabProject.FromJson(project.ToJson()).Mappings.Count);
+    }
+
+    [Fact]
     public void Csv_is_quoted_where_needed_and_never_runs_as_a_formula()
     {
         string csv = FabCsv.Write(new[] { "Spool", "Note" }, new[] { new[] { "CHWS-001", "6\" pipe, welded" }, new[] { "=cmd", "-5" } });
