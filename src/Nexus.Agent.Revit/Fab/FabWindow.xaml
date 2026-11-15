@@ -1,0 +1,474 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Nexus - Fabrication" Width="1380" Height="860" MinWidth="1040" MinHeight="620"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" UseLayoutRounding="True"
+        Background="#F4F5F7" FontFamily="Segoe UI" FontSize="12.5">
+  <Window.Resources>
+    <Style TargetType="Button">
+      <Setter Property="Padding" Value="12,5" />
+      <Setter Property="Margin" Value="0,0,8,0" />
+      <Setter Property="MinHeight" Value="28" />
+    </Style>
+    <Style x:Key="Primary" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Background" Value="#2563EB" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="#1D4FD8" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style TargetType="TextBox">
+      <Setter Property="Padding" Value="4,3" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="MinHeight" Value="26" />
+    </Style>
+    <Style TargetType="ComboBox">
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style TargetType="CheckBox">
+      <Setter Property="Margin" Value="0,5,0,0" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style x:Key="Label" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="#62666D" />
+      <Setter Property="Margin" Value="0,9,0,3" />
+    </Style>
+    <Style x:Key="Head" TargetType="TextBlock">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="FontSize" Value="13.5" />
+      <Setter Property="Margin" Value="0,0,0,2" />
+    </Style>
+    <Style x:Key="Hint" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="#62666D" />
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="Card" TargetType="Border">
+      <Setter Property="Background" Value="White" />
+      <Setter Property="BorderBrush" Value="#E1E3E8" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="14,12" />
+    </Style>
+    <Style TargetType="DataGrid">
+      <Setter Property="AutoGenerateColumns" Value="False" />
+      <Setter Property="HeadersVisibility" Value="Column" />
+      <Setter Property="GridLinesVisibility" Value="Horizontal" />
+      <Setter Property="HorizontalGridLinesBrush" Value="#ECEEF1" />
+      <Setter Property="BorderBrush" Value="#E1E3E8" />
+      <Setter Property="Background" Value="White" />
+      <Setter Property="RowHeight" Value="26" />
+      <Setter Property="CanUserResizeRows" Value="False" />
+    </Style>
+  </Window.Resources>
+
+  <DockPanel Margin="14,12">
+    <!-- What is read -->
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+        <TextBlock Text="Read" Foreground="#62666D" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <ComboBox x:Name="ScopeCombo" Width="190" Margin="0,0,8,0" />
+        <Button x:Name="ReadButton" Content="Read again" Margin="0" ToolTip="Read the pieces again after changing the model's selection or view." />
+      </StackPanel>
+      <StackPanel Orientation="Horizontal">
+        <TextBlock Text="Fabrication" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <TextBlock x:Name="SummaryText" Foreground="#62666D" VerticalAlignment="Center" Margin="14,2,0,0" />
+      </StackPanel>
+    </DockPanel>
+
+    <!-- Message and close -->
+    <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+      <Button x:Name="CloseButton" DockPanel.Dock="Right" Content="Close" IsCancel="True" MinWidth="84" Margin="8,0,0,0" />
+      <TextBlock x:Name="MessageText" VerticalAlignment="Center" TextWrapping="Wrap" />
+    </DockPanel>
+
+    <TabControl x:Name="Tabs" Padding="12">
+      <!-- ===== Spools ===== -->
+      <TabItem Header="Spools">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Border Style="{StaticResource Card}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <StackPanel Margin="0,0,6,0">
+                <TextBlock Text="Where spools end" Style="{StaticResource Head}" />
+                <TextBlock Style="{StaticResource Hint}" Text="Pieces joined in the shop stay in one spool. Tick the joints made in the field: a spool ends there." />
+                <TextBlock Text="Field joints found in what was read" Style="{StaticResource Label}" />
+                <ListBox x:Name="JointsList" MaxHeight="150" MinHeight="46">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" Margin="0">
+                        <TextBlock><Run Text="{Binding Name, Mode=OneWay}" /><Run Text="{Binding CountText, Mode=OneWay}" Foreground="#8A8F98" /></TextBlock>
+                      </CheckBox>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+                <TextBlock Text="Other field joints (names, comma separated)" Style="{StaticResource Label}" />
+                <TextBox x:Name="OtherJointsBox" ToolTip="A joint counts when its name contains one of these: Flange covers 150# Flange." />
+                <CheckBox x:Name="LooseBox" Content="Valves and in-line items are installed in the field" ToolTip="They end a spool and are not part of one." />
+                <CheckBox x:Name="ServicesBox" Content="Never mix services in a spool" />
+                <CheckBox x:Name="LevelsBox" Content="Never cross levels in a spool" />
+                <CheckBox x:Name="HangersBox" Content="Hangers travel with their spool" />
+
+                <TextBlock Text="Limits (0 = none)" Style="{StaticResource Head}" Margin="0,14,0,0" />
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel>
+                    <TextBlock Text="Longest side, ft" Style="{StaticResource Label}" />
+                    <TextBox x:Name="MaxLengthBox" ToolTip="The longest side of the box around a spool: what ships and fits through the door." />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2">
+                    <TextBlock Text="Weight, lb" Style="{StaticResource Label}" />
+                    <TextBox x:Name="MaxWeightBox" ToolTip="Counts the pieces whose weight the model knows (Fabrication parts)." />
+                  </StackPanel>
+                  <StackPanel Grid.Column="4">
+                    <TextBlock Text="Pieces" Style="{StaticResource Label}" />
+                    <TextBox x:Name="MaxPartsBox" />
+                  </StackPanel>
+                </Grid>
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="2*" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel>
+                    <TextBlock Text="Smallest spool" Style="{StaticResource Label}" />
+                    <TextBox x:Name="MinPartsBox" ToolTip="A group with fewer pieces is left loose (no spool)." />
+                  </StackPanel>
+                </Grid>
+
+                <TextBlock Text="Names" Style="{StaticResource Head}" Margin="0,14,0,0" />
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel>
+                    <TextBlock Text="Pattern" Style="{StaticResource Label}" />
+                    <TextBox x:Name="NameBox" ToolTip="{}{Service} and {Level} are the spool's own; # is the counter, padded to the number of #. Each service counts from the start." />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2">
+                    <TextBlock Text="Start at" Style="{StaticResource Label}" />
+                    <TextBox x:Name="StartBox" />
+                  </StackPanel>
+                </Grid>
+                <CheckBox x:Name="KeepBox" Content="Keep the spools already in the model" ToolTip="Only pieces without a spool are spooled. Spools released to the shop are always kept." />
+                <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                  <Button x:Name="PreviewButton" Content="Preview spools" />
+                  <Button x:Name="ApplyButton" Content="Apply to model" Style="{StaticResource Primary}" />
+                </StackPanel>
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+          <DockPanel Grid.Column="2">
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+              <Button x:Name="SelectButton" Content="Select in Revit" ToolTip="Select the pieces of the selected spools in the model." />
+              <Button x:Name="ClearButton" Content="Clear spools" ToolTip="Take the selected spools' pieces out of their spool, package and step." />
+              <TextBlock Text="Package" Foreground="#62666D" VerticalAlignment="Center" Margin="10,0,6,0" />
+              <ComboBox x:Name="PackageCombo" Width="170" IsEditable="True" Margin="0,0,6,0" ToolTip="Pick a package or type a new name." />
+              <Button x:Name="AssignButton" Content="Put in package" />
+              <TextBlock Text="Step" Foreground="#62666D" VerticalAlignment="Center" Margin="10,0,6,0" />
+              <ComboBox x:Name="StepCombo" Width="130" Margin="0,0,6,0" />
+              <Button x:Name="StepButton" Content="Set step" />
+            </StackPanel>
+            <DataGrid x:Name="SpoolsGrid" IsReadOnly="True" SelectionMode="Extended" CanUserAddRows="False">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Spool" Binding="{Binding Name}" Width="140" />
+                <DataGridTextColumn Header="State" Binding="{Binding State}" Width="110" />
+                <DataGridTextColumn Header="Service" Binding="{Binding Service}" Width="*" />
+                <DataGridTextColumn Header="Level" Binding="{Binding Level}" Width="90" />
+                <DataGridTextColumn Header="Pieces" Binding="{Binding Parts}" Width="60" />
+                <DataGridTextColumn Header="Straights" Binding="{Binding Pipe}" Width="90" />
+                <DataGridTextColumn Header="Longest side" Binding="{Binding Longest}" Width="95" />
+                <DataGridTextColumn Header="Weight" Binding="{Binding Weight}" Width="75" />
+                <DataGridTextColumn Header="Package" Binding="{Binding Package}" Width="110" />
+                <DataGridTextColumn Header="Step" Binding="{Binding Status}" Width="95" />
+              </DataGrid.Columns>
+            </DataGrid>
+          </DockPanel>
+        </Grid>
+      </TabItem>
+
+      <!-- ===== Packages ===== -->
+      <TabItem Header="Packages">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                     Text="A package is a group of spools ordered, made, shipped or installed together (a shop ticket, a delivery). Add a line to make one, then put spools in it on the Spools tab. Due dates are yyyy-mm-dd." />
+          <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+            <Button x:Name="SavePackagesButton" Content="Save packages" Style="{StaticResource Primary}" />
+            <Button x:Name="PackageStepButton" Content="Move the package's spools to its step" ToolTip="Sets every spool in the selected package to the step in the package's Step column." />
+            <Button x:Name="PackageSelectButton" Content="Select in Revit" />
+          </StackPanel>
+          <DataGrid x:Name="PackagesGrid" CanUserAddRows="True" CanUserDeleteRows="True" SelectionMode="Single">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Package" Binding="{Binding Name}" Width="160" />
+              <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="2*" />
+              <DataGridTextColumn Header="Goes to" Binding="{Binding Destination}" Width="*" />
+              <DataGridTextColumn Header="Due" Binding="{Binding Due}" Width="100" />
+              <DataGridTextColumn Header="Step" Binding="{Binding Status}" Width="110" />
+              <DataGridTextColumn Header="Made by" Binding="{Binding CreatedBy}" Width="110" IsReadOnly="True" />
+              <DataGridTextColumn Header="Made" Binding="{Binding Created}" Width="120" IsReadOnly="True" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+      </TabItem>
+
+      <!-- ===== Tracking ===== -->
+      <TabItem Header="Tracking">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="380" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <StackPanel>
+            <Border Style="{StaticResource Card}">
+              <StackPanel>
+                <TextBlock Text="Steps" Style="{StaticResource Head}" />
+                <TextBlock Style="{StaticResource Hint}" Text="The steps a spool goes through, in order. Colour is #RRGGBB. From a step marked Released on, re-spooling leaves the spool alone." />
+                <DataGrid x:Name="StepsGrid" CanUserAddRows="True" CanUserDeleteRows="True" Height="210" Margin="0,8,0,8">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="Step" Binding="{Binding Name}" Width="*" />
+                    <DataGridTextColumn Header="Colour" Binding="{Binding Colour}" Width="85" />
+                    <DataGridCheckBoxColumn Header="Released" Binding="{Binding Locks}" Width="70" />
+                  </DataGrid.Columns>
+                </DataGrid>
+                <Button x:Name="SaveStepsButton" Content="Save steps" HorizontalAlignment="Left" />
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}" Margin="0,10,0,0">
+              <StackPanel>
+                <TextBlock Text="Colour the active view" Style="{StaticResource Head}" />
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                  <ComboBox x:Name="ColourCombo" Width="120" Margin="0,0,8,0" />
+                  <Button x:Name="ColourButton" Content="Colour" />
+                  <Button x:Name="ClearColourButton" Content="Clear colours" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}" Margin="0,10,0,0">
+              <StackPanel>
+                <TextBlock Text="Scan or type a spool" Style="{StaticResource Head}" />
+                <TextBlock Style="{StaticResource Hint}" Text="Click in the box and scan a label (or type a spool name and press Enter): the spool moves to the step chosen here." />
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                  <ComboBox x:Name="ScanStepCombo" Width="130" Margin="0,0,8,0" />
+                  <TextBox x:Name="ScanBox" Width="210" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+          <DockPanel Grid.Column="2">
+            <TextBlock DockPanel.Dock="Top" Text="History" Style="{StaticResource Head}" Margin="0,0,0,6" />
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+              <Button x:Name="HistoryButton" Content="Save history as CSV…" />
+            </StackPanel>
+            <DataGrid x:Name="HistoryGrid" IsReadOnly="True" CanUserAddRows="False">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="When" Binding="{Binding When}" Width="125" />
+                <DataGridTextColumn Header="Who" Binding="{Binding Who}" Width="110" />
+                <DataGridTextColumn Header="What" Binding="{Binding What}" Width="*" />
+                <DataGridTextColumn Header="Changed" Binding="{Binding Field}" Width="80" />
+                <DataGridTextColumn Header="From" Binding="{Binding From}" Width="110" />
+                <DataGridTextColumn Header="To" Binding="{Binding To}" Width="110" />
+              </DataGrid.Columns>
+            </DataGrid>
+          </DockPanel>
+        </Grid>
+      </TabItem>
+
+      <!-- ===== Cut list ===== -->
+      <TabItem Header="Cut list">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Border Style="{StaticResource Card}">
+            <StackPanel>
+              <TextBlock Text="Stock lengths" Style="{StaticResource Head}" />
+              <TextBlock Style="{StaticResource Hint}" Text="The length straights are cut from, by material and size (a name containing the text matches). A line with both blank is used for everything else." />
+              <DataGrid x:Name="StockGrid" CanUserAddRows="True" CanUserDeleteRows="True" Height="170" Margin="0,8,0,0">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="Material" Binding="{Binding Material}" Width="*" />
+                  <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="70" />
+                  <DataGridTextColumn Header="Length, ft" Binding="{Binding LengthFt}" Width="75" />
+                </DataGrid.Columns>
+              </DataGrid>
+              <TextBlock Text="Lost to each cut, inches" Style="{StaticResource Label}" />
+              <TextBox x:Name="KerfBox" Width="90" HorizontalAlignment="Left" />
+              <TextBlock Style="{StaticResource Hint}" Margin="0,10,0,0" Text="The list covers the spools selected on the Spools tab, or everything read when none is selected." />
+              <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                <Button x:Name="CutButton" Content="Make cut list" Style="{StaticResource Primary}" />
+                <Button x:Name="CutExportButton" Content="Save as CSV…" />
+              </StackPanel>
+              <TextBlock x:Name="CutSummary" TextWrapping="Wrap" Margin="0,12,0,0" />
+            </StackPanel>
+          </Border>
+          <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <TextBlock Text="Cuts" Style="{StaticResource Head}" Margin="0,0,0,6" />
+            <DataGrid x:Name="CutsGrid" Grid.Row="1" IsReadOnly="True" CanUserAddRows="False">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Service" Binding="{Binding Service}" Width="100" />
+                <DataGridTextColumn Header="Material" Binding="{Binding Material}" Width="*" />
+                <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="90" />
+                <DataGridTextColumn Header="Length" Binding="{Binding Length}" Width="100" />
+                <DataGridTextColumn Header="Qty" Binding="{Binding Quantity}" Width="50" />
+                <DataGridTextColumn Header="Spools" Binding="{Binding Spools}" Width="2*" />
+              </DataGrid.Columns>
+            </DataGrid>
+            <TextBlock Grid.Row="2" Text="How to cut the stock" Style="{StaticResource Head}" Margin="0,12,0,6" />
+            <DataGrid x:Name="BarsGrid" Grid.Row="3" IsReadOnly="True" CanUserAddRows="False">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Bar" Binding="{Binding Number}" Width="45" />
+                <DataGridTextColumn Header="Material" Binding="{Binding Material}" Width="130" />
+                <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="80" />
+                <DataGridTextColumn Header="Stock" Binding="{Binding Stock}" Width="80" />
+                <DataGridTextColumn Header="Cuts" Binding="{Binding Cuts}" Width="*" />
+                <DataGridTextColumn Header="Left over" Binding="{Binding Drop}" Width="90" />
+              </DataGrid.Columns>
+            </DataGrid>
+          </Grid>
+        </Grid>
+      </TabItem>
+
+      <!-- ===== Materials ===== -->
+      <TabItem Header="Materials">
+        <DockPanel>
+          <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+              <Button x:Name="BomButton" Content="Make list" Style="{StaticResource Primary}" />
+              <Button x:Name="BomExportButton" Content="Save as CSV…" Margin="0" />
+            </StackPanel>
+            <TextBlock Style="{StaticResource Hint}" VerticalAlignment="Center"
+                       Text="The bill of material of the spools selected on the Spools tab, or of everything read when none is selected: like items on one line, straights totalled by length." />
+          </DockPanel>
+          <DataGrid x:Name="BomGrid" IsReadOnly="True" CanUserAddRows="False">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="170" />
+              <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="2*" />
+              <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="110" />
+              <DataGridTextColumn Header="Material" Binding="{Binding Material}" Width="*" />
+              <DataGridTextColumn Header="Qty" Binding="{Binding Quantity}" Width="55" />
+              <DataGridTextColumn Header="Length" Binding="{Binding Length}" Width="100" />
+              <DataGridTextColumn Header="Weight, lb" Binding="{Binding Weight}" Width="85" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+      </TabItem>
+
+      <!-- ===== Labels and sheets ===== -->
+      <TabItem Header="Labels &amp; sheets">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Border Style="{StaticResource Card}" VerticalAlignment="Top">
+            <StackPanel>
+              <TextBlock Text="Spool labels" Style="{StaticResource Head}" />
+              <TextBlock Style="{StaticResource Hint}" Text="One label for each spool selected on the Spools tab (or every spool in the model that was read): its name, package, service, size and weight, with a QR code a scanner reads on the Tracking tab." />
+              <RadioButton x:Name="LabelRollRadio" Content="Label printer: 4 × 2 in, one a page" IsChecked="True" Margin="0,10,0,0" />
+              <RadioButton x:Name="LabelSheetRadio" Content="Sheet of labels: 4 × 2 in, ten to a Letter sheet" Margin="0,5,0,0" />
+              <Button x:Name="LabelsButton" Content="Print labels…" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,12,0,0" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="2" Style="{StaticResource Card}" VerticalAlignment="Top">
+            <StackPanel>
+              <TextBlock Text="Spool sheets" Style="{StaticResource Head}" />
+              <TextBlock Style="{StaticResource Hint}" Text="One sheet for each spool selected on the Spools tab: the spool becomes a Revit assembly with a 3D view, a front and a top view scaled to fit, and a parts list. Tags use the tag families loaded in the model." />
+              <TextBlock Text="Title block" Style="{StaticResource Label}" />
+              <ComboBox x:Name="TitleBlockCombo" DisplayMemberPath="Name" />
+              <TextBlock Text="View template for the front and top views (optional)" Style="{StaticResource Label}" />
+              <ComboBox x:Name="TemplateCombo" DisplayMemberPath="Name" />
+              <WrapPanel Margin="0,6,0,0">
+                <CheckBox x:Name="Sheet3DBox" Content="3D view" IsChecked="True" Margin="0,5,16,0" />
+                <CheckBox x:Name="SheetFrontBox" Content="Front view" IsChecked="True" Margin="0,5,16,0" />
+                <CheckBox x:Name="SheetTopBox" Content="Top view" IsChecked="True" Margin="0,5,16,0" />
+                <CheckBox x:Name="SheetListBox" Content="Parts list" IsChecked="True" Margin="0,5,16,0" />
+                <CheckBox x:Name="SheetTagsBox" Content="Tags" IsChecked="True" Margin="0,5,16,0" />
+                <CheckBox x:Name="SheetDimsBox" Content="Dimensions" IsChecked="True" Margin="0,5,16,0" />
+              </WrapPanel>
+              <TextBlock Text="Width kept clear on the right for the title block, %" Style="{StaticResource Label}" />
+              <TextBox x:Name="StripBox" Width="90" HorizontalAlignment="Left" Text="18" />
+              <Button x:Name="SheetsButton" Content="Make sheets" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,12,0,0" />
+            </StackPanel>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <!-- ===== Hangers and sleeves ===== -->
+      <TabItem Header="Hangers &amp; sleeves">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="3*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="2*" />
+          </Grid.ColumnDefinitions>
+          <Border Style="{StaticResource Card}">
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Top">
+                <TextBlock Text="Hangers" Style="{StaticResource Head}" />
+                <TextBlock Style="{StaticResource Hint}" Text="Each straight that was read gets hangers by the first rule that fits it: service (blank = any), size up to (inches, 0 = any), then the spacing. Fabrication parts get the hanger of their own service (Hanger narrows it by name); Revit pipe and duct need a hanger family type. Risers are left out. Running it again adds only what is missing." />
+              </StackPanel>
+              <StackPanel DockPanel.Dock="Bottom">
+                <TextBlock Text="Hanger family types in this model (copy a name into the Hanger column)" Style="{StaticResource Label}" />
+                <ListBox x:Name="HangerTypesList" Height="74" />
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                  <Button x:Name="SaveHangersButton" Content="Save rules" />
+                  <Button x:Name="HangersButton" Content="Place hangers" Style="{StaticResource Primary}" />
+                </StackPanel>
+              </StackPanel>
+              <DataGrid x:Name="HangersGrid" CanUserAddRows="True" CanUserDeleteRows="True" Margin="0,8,0,0">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="Service contains" Binding="{Binding Service}" Width="*" />
+                  <DataGridTextColumn Header="Size up to, in" Binding="{Binding UpToSizeIn}" Width="90" />
+                  <DataGridTextColumn Header="Spacing, ft" Binding="{Binding SpacingFt}" Width="80" />
+                  <DataGridTextColumn Header="From end, ft" Binding="{Binding FromEndFt}" Width="85" />
+                  <DataGridTextColumn Header="Hanger" Binding="{Binding Hanger}" Width="2*" />
+                </DataGrid.Columns>
+              </DataGrid>
+            </DockPanel>
+          </Border>
+          <StackPanel Grid.Column="2">
+            <Border Style="{StaticResource Card}">
+              <StackPanel>
+                <TextBlock Text="Sleeves" Style="{StaticResource Head}" />
+                <TextBlock Style="{StaticResource Hint}" Text="A sleeve is placed wherever a straight that was read passes through a wall or floor, in this model or a linked one: round for round runs, a box for rectangular duct. Running it again adds only what is missing." />
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel>
+                    <TextBlock Text="Clear space each side, in" Style="{StaticResource Label}" />
+                    <TextBox x:Name="ClearanceBox" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2">
+                    <TextBlock Text="Stands out past each face, in" Style="{StaticResource Label}" />
+                    <TextBox x:Name="ExtendBox" />
+                  </StackPanel>
+                </Grid>
+                <TextBlock Text="Round sleeve sizes, inches (rounded up to the next)" Style="{StaticResource Label}" />
+                <TextBox x:Name="SleeveSizesBox" />
+                <StackPanel Orientation="Horizontal">
+                  <CheckBox x:Name="WallsBox" Content="Walls" Margin="0,8,16,0" />
+                  <CheckBox x:Name="FloorsBox" Content="Floors" Margin="0,8,0,0" />
+                </StackPanel>
+                <Button x:Name="SleevesButton" Content="Place sleeves" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,12,0,0" />
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}" Margin="0,10,0,0">
+              <StackPanel>
+                <TextBlock Text="Layout points" Style="{StaticResource Head}" />
+                <TextBlock Style="{StaticResource Hint}" Text="Every hanger and sleeve in the model as a point (northing, easting, elevation in the model's shared coordinates, feet), for a total station." />
+                <Button x:Name="PointsButton" Content="Save points as CSV…" HorizontalAlignment="Left" Margin="0,10,0,0" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Grid>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>
