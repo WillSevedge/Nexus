@@ -1,16 +1,17 @@
 <Project>
   <!--
     Imported by the Revit agent project.
-    - References RevitAPI/RevitAPIUI from the default install path with Private=false.
-      If Revit is not installed on the build machine (e.g. CI), falls back to the
-      compile-only Nice3point reference package. Neither is ever copied to the output.
+    - Compiles against the compile-only Nice3point reference package for the year, on every PC, so the
+      build never depends on which Revit update is installed. (An installed Revit's own RevitAPI.dll
+      can be built for a newer .NET than the add-in targets: Revit 2025.5 is, and that does not
+      compile: CS1705.) Pass /p:UseInstalledRevitApi=true to compile against the installed API
+      instead. Neither is ever copied to the output.
     - After Build on Windows, deploys to %APPDATA%\Autodesk\Revit\Addins\{year}\.
       Set /p:DeployToHost=false to skip.
   -->
   <PropertyGroup>
-    <!-- Only a real install (Revit.exe next to the API): a leftover or partly removed Revit folder can hold an API
-         built for another .NET, which does not compile (CS1705). The reference package is used then. -->
-    <UseInstalledRevitApi Condition="Exists('$(RevitInstallDir)RevitAPI.dll') and Exists('$(RevitInstallDir)Revit.exe')">true</UseInstalledRevitApi>
+    <!-- Only when asked for, and only when it is there. -->
+    <UseInstalledRevitApi Condition="'$(UseInstalledRevitApi)' == 'true' and !Exists('$(RevitInstallDir)RevitAPI.dll')">false</UseInstalledRevitApi>
     <RevitAddinsDir>$(UserAppData)\Autodesk\Revit\Addins\$(HostYear)\</RevitAddinsDir>
     <RevitAddinFolder>$(RevitAddinsDir)Nexus\</RevitAddinFolder>
     <!-- Install into this Revit year only when it is on this PC (the build still checks every year compiles). -->
@@ -35,8 +36,8 @@
 
   <Target Name="NexusRevitApiNotice" BeforeTargets="Build">
     <Message Importance="high" Condition="'$(UseInstalledRevitApi)' == 'true'" Text="Nexus: Revit $(HostYear) API from $(RevitInstallDir)" />
-    <Warning Condition="'$(UseInstalledRevitApi)' != 'true' and '$(OS)' == 'Windows_NT'"
-             Text="Nexus: Revit $(HostYear) not found at '$(RevitInstallDir)'. Compiling against the reference package instead. Set RevitInstallDir if Revit is installed elsewhere." />
+    <Message Importance="high" Condition="'$(UseInstalledRevitApi)' != 'true' and '$(OS)' == 'Windows_NT'"
+             Text="Nexus: Revit $(HostYear) API from the reference package $(RevitApiPackageVersion)." />
   </Target>
 
   <Import Project="HostLock.targets" />
