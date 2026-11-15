@@ -140,10 +140,33 @@ public sealed class BluebeamTests : IDisposable
         Assert.Equal("Rectangle", m.Type);
     }
 
+    [Fact]
+    public void A_drawing_numbered_with_digits_only_is_matched_by_its_file_name()
+    {
+        string path = MakePdf("320310.pdf", 1);
+        using (var doc = PdfReader.Open(path, PdfDocumentOpenMode.Modify))
+        {
+            var a = new PdfDictionary(doc);
+            a.Elements["/Type"] = new PdfName("/Annot");
+            a.Elements["/Subtype"] = new PdfName("/FreeText");
+            a.Elements["/Contents"] = new PdfString("Check pile spacing");
+            doc.Internals.AddObject(a);
+            var annots = new PdfArray(doc);
+            annots.Elements.Add(a.Reference!);
+            doc.Pages[0].Elements["/Annots"] = annots;
+            doc.Save(path);
+        }
+        Assert.Equal("320310", Assert.Single(PdfMarkups.Read(path)).Sheet);
+    }
+
     [Theory]
     [InlineData("A101 - Floor Plan", "A101")]
     [InlineData("A-101: Plan", "A-101")]
     [InlineData("A101", "A101")]
     [InlineData("12", "")]
+    [InlineData("[1] Layout1", "")]
+    [InlineData("Layout1", "")]
+    [InlineData("Model", "")]
+    [InlineData("[2] A-101", "A-101")]
     public void Sheet_numbers_come_from_labels_and_titles(string text, string sheet) => Assert.Equal(sheet, PdfMarkups.SheetOf(text));
 }

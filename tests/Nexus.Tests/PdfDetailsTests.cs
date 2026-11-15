@@ -115,6 +115,11 @@ public sealed class PdfDetailsTests : IDisposable
             measure.Elements["/R"] = new PdfString("1 in = 8 ft");
             a.Elements["/Measure"] = measure;
         });
+        Annot("/Square", a =>
+        {
+            a.Elements["/T"] = new PdfString("AutoCAD SHX Text"); // the drawing's own text, as AutoCAD writes it
+            a.Elements["/Contents"] = new PdfString("%%USECTION A-A");
+        });
         doc.Save(path);
         return path;
     }
@@ -123,6 +128,9 @@ public sealed class PdfDetailsTests : IDisposable
     public void Grouped_markups_nested_replies_and_status_history_are_kept()
     {
         var markups = PdfMarkups.Read(ReviewedSheet());
+        var drawingText = Assert.Single(markups, m => m.IsDrawingText);
+        Assert.Equal(("Drawing text", "SECTION A-A"), (drawingText.Type, drawingText.Comment));
+        markups = markups.Where(m => !m.IsDrawingText).ToList();
         Assert.Equal(3, markups.Count); // the cloud, the text grouped with it, the length
         var cloud = markups.Single(m => m.Type == "Cloud");
         Assert.Equal(("ABCDEFGH", "Structural review", "#FF0000", true), (cloud.Id, cloud.Layer, cloud.Colour, cloud.Locked));
@@ -166,6 +174,7 @@ public sealed class PdfDetailsTests : IDisposable
         Assert.Equal("1: Structural review", Value("Structure", "Layers"));
         Assert.Equal("1", Value("Structure", "Pages"));
         Assert.Equal("3", Value("Structure", "Markups"));
+        Assert.Equal("1 piece(s) of text", Value("Structure", "Drawing text (AutoCAD SHX)"));
         Assert.Contains(details.Document, p => p.Group == "XMP" && p.Name == "xmp:CreatorTool");
         Assert.Equal("Discipline", Value("Bluebeam", "BSIColumns 1 › Name"));
 

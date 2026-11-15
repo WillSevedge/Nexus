@@ -45,6 +45,12 @@ public sealed class PdfMarkup
     /// <summary>Every value stored on the markup, named; values without a known name keep the PDF's name.</summary>
     public List<PdfProperty> Properties { get; init; } = new();
 
+    /// <summary>
+    /// Text of the drawing itself, not a review comment: AutoCAD writes the text of SHX fonts into its PDFs as hidden
+    /// comments (author "AutoCAD SHX Text") so the drawing can be searched.
+    /// </summary>
+    public bool IsDrawingText { get; init; }
+
     /// <summary>Still to do: no status, or a status that does not close it.</summary>
     public bool IsOpen => !PdfMarkups.ClosedStatuses.Contains(Status);
 }
@@ -131,16 +137,18 @@ public static class PdfMarkups
             string group = groups.TryGetValue(a, out var g) ? g
                 : IsGrouped(a) && Deref(a.Elements["/IRT"]) is PdfDictionary first && groups.TryGetValue(first, out var fg) ? fg : "";
             status = status == "None" ? "" : status;
+            bool drawingText = Text(a, "/T") == "AutoCAD SHX Text";
             var markup = new PdfMarkup
             {
                 File = file,
                 Page = page + 1,
                 PageLabel = label,
                 Sheet = sheet,
-                Type = TypeOf(a),
+                Type = drawingText ? "Drawing text" : TypeOf(a),
                 Subject = Text(a, "/Subj"),
-                Comment = CommentOf(a),
+                Comment = drawingText ? DrawingText(CommentOf(a)) : CommentOf(a),
                 Author = Text(a, "/T"),
+                IsDrawingText = drawingText,
                 Date = DateOf(a),
                 Created = PdfInspector.ParseDate(Raw(a, "/CreationDate")),
                 Status = status,
@@ -159,6 +167,12 @@ public static class PdfMarkups
         return markups;
     }
 
+    /// <summary>AutoCAD's text codes taken out: %%U underline, %%O overline, %%D degrees, %%P plus-minus, %%C diameter.</summary>
+    private static string DrawingText(string text) => text
+        .Replace("%%U", "", StringComparison.OrdinalIgnoreCase).Replace("%%O", "", StringComparison.OrdinalIgnoreCase)
+        .Replace("%%D", "°", StringComparison.OrdinalIgnoreCase).Replace("%%P", "±", StringComparison.OrdinalIgnoreCase)
+        .Replace("%%C", "Ø", StringComparison.OrdinalIgnoreCase).Trim();
+
     /// <summary>The comment: /Contents, else the rich text as plain text.</summary>
     private static string CommentOf(PdfDictionary a)
     {
@@ -172,7 +186,10 @@ public static class PdfMarkups
     /// </summary>
     internal static string SheetFromFileName(string path, int pageCount, List<string> labels, Dictionary<int, string> bookmarks)
     {
-        string named = SheetOf(Path.GetFileNameWithoutExtension(path));
+        string name = Path.GetFileNameWithoutExtension(path).Trim();
+        string named = SheetOf(name);
+        // A drawing numbered with digits only ("320310.pdf") is still named by its number.
+        if (named.Length == 0 && name.Length > 0 && name.All(char.IsDigit)) named = name;
         return pageCount == 1 || (labels.All(l => SheetOf(l).Length == 0) && bookmarks.Count == 0 && named.Any(char.IsDigit)) ? named : "";
     }
 
@@ -183,7 +200,7 @@ public static class PdfMarkups
     {
         "/Type", "/Subtype", "/IT", "/Subj", "/Contents", "/T", "/M", "/CreationDate", "/NM", "/State", "/StateModel", "/IRT", "/RT",
         "/Popup", "/P", "/AP", "/AS", "/Rect", "/C", "/IC", "/CA", "/F", "/BS", "/Border", "/OC", "/RC", "/LE", "/Vertices", "/InkList",
-        "/QuadPoints", "/L", "/Measure", "/Name", "/FS", "/A", "/Rotate", "/StructParent", "/BSIColumnData",
+        "/QuadPoints", "/L", "/Measure", "/Name", "/FS", "/A", "/Rotate", "/Rotation", "/DS", "/DA", "/StructParent", "/BSIColumnData",
     };
 
     private static List<PdfProperty> Properties(PdfDictionary a, PdfMarkup m, IReadOnlyList<string> columns)
@@ -231,7 +248,8 @@ public static class PdfMarkups
         if (Deref(a.Elements["/BS"]) is PdfDictionary style)
             Add("Appearance", "Line style", style.Elements.GetName("/S") switch { "/D" => "Dashed", "/B" => "Bevelled", "/I" => "Inset", "/U" => "Underline", "/S" => "Solid", _ => "" });
         Add("Appearance", "Line ends", PdfInspector.Show(a.Elements["/LE"]));
-        if (PdfInspector.Number(a.Elements["/Rotate"]) is { } rotate && rotate != 0) Add("Appearance", "Rotation", string.Create(CultureInfo.InvariantCulture, $"{rotate:0.#}°"));
+        Add("Appearance", "Text style", Text(a, "/DS") is { Length: > 0 } ds ? ds : Text(a, "/DA"));
+        if ((PdfInspector.Number(a.Elements["/Rotate"]) ?? PdfInspector.Number(a.Elements["/Rotation"])) is { } rotate && rotate != 0) Add("Appearance", "Rotation", string.Create(CultureInfo.InvariantCulture, $"{rotate:0.#}°"));
 
         if (PdfInspector.Box(a.Elements["/Rect"]) is { } v)
         {
@@ -281,11 +299,15 @@ public static class PdfMarkups
         return new List<string>();
     }
 
-    /// <summary>"A101 - Floor Plan" or "A101 Floor Plan" → "A101"; a label that is only a page number gives "".</summary>
+    /// <summary>
+    /// "A101 - Floor Plan" → "A101". A label that is only a page number gives "", and so does an AutoCAD layout name
+    /// that names no sheet ("[1] Layout1", "Model"); "[2] A-101" gives "A-101".
+    /// </summary>
     public static string SheetOf(string labelOrTitle)
     {
-        string t = labelOrTitle.Trim();
+        string t = System.Text.RegularExpressions.Regex.Replace(labelOrTitle.Trim(), @"^\[\d+\]\s*", "");
         if (t.Length == 0 || t.All(char.IsDigit)) return "";
+        if (System.Text.RegularExpressions.Regex.IsMatch(t, @"^(Model|Layout\s*\d*)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) return "";
         foreach (var sep in new[] { " - ", " – ", " — ", ": " })
         {
             int i = t.IndexOf(sep, StringComparison.Ordinal);
@@ -408,6 +430,8 @@ public static class PdfMarkups
             return intent.StartsWith("PolyLine", StringComparison.Ordinal) ? "Perimeter"
                 : intent.StartsWith("Polygon", StringComparison.Ordinal) ? "Area" : "Length";
         if (intent == "LineArrow") return "Arrow";
+        if (intent == "StampSnapshot") return "Snapshot";
+        if (intent == "StampImage") return "Image";
         return subtype switch
         {
             "FreeText" => "Text Box",

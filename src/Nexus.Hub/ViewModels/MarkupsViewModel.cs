@@ -92,7 +92,8 @@ public sealed record DocumentRow(string File, string Group, string Name, string 
 /// </summary>
 public sealed class MarkupsViewModel : Observable, IDisposable
 {
-    public static readonly string[] Filters = { "Open", "Everything", "Closed", "On sheets not in the model" };
+    public static readonly string[] Filters = { "Open", "Everything", "Closed", "On sheets not in the model", DrawingTextFilter };
+    private const string DrawingTextFilter = "Drawing text (AutoCAD)";
 
     private readonly MainViewModel _main;
     private readonly List<FileSystemWatcher> _watchers = new();
@@ -224,8 +225,11 @@ public sealed class MarkupsViewModel : Observable, IDisposable
 
     private bool Shows(MarkupRow r)
     {
+        // The drawing's own text (AutoCAD SHX) is not a review comment: listed only when asked for.
+        if (r.M.IsDrawingText != (_filter == DrawingTextFilter)) return false;
         bool kind = _filter switch
         {
+            DrawingTextFilter => true,
             "Everything" => true,
             "Closed" => !r.IsOpen,
             "On sheets not in the model" => !r.InModel,
@@ -337,13 +341,16 @@ public sealed class MarkupsViewModel : Observable, IDisposable
             }
             ShowDetails("Select a markup or a page to see everything stored on it.", Array.Empty<PdfProperty>());
 
-            int open = Rows.Count(r => r.IsOpen);
-            int onSheets = Rows.Select(r => r.Sheet).Distinct(StringComparer.OrdinalIgnoreCase).Count();
-            int notInModel = Rows.Count(r => !r.InModel);
-            Summary = Rows.Count == 0
+            var review = Rows.Where(r => !r.M.IsDrawingText).ToList();
+            int drawingText = Rows.Count - review.Count;
+            int open = review.Count(r => r.IsOpen);
+            int onSheets = review.Select(r => r.Sheet).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+            int notInModel = review.Count(r => !r.InModel);
+            Summary = (review.Count == 0
                 ? (Files.Count == 0 ? "Add PDFs to read them." : $"{Files.Count} file(s) · {Pages.Count} page(s) · no markups")
-                : $"{Files.Count} file(s) · {Pages.Count} page(s) · {Rows.Count} markup(s) on {onSheets} sheet(s) · {open} open · {Rows.Count - open} closed" +
-                  (notInModel > 0 ? $" · {notInModel} on sheets not in the loaded models" : "");
+                : $"{Files.Count} file(s) · {Pages.Count} page(s) · {review.Count} markup(s) on {onSheets} sheet(s) · {open} open · {review.Count - open} closed" +
+                  (notInModel > 0 ? $" · {notInModel} on sheets not in the loaded models" : ""))
+                + (drawingText > 0 ? $" · {drawingText} piece(s) of drawing text" : "");
             var errors = results.Where(r => r.Error is not null).Select(r => $"{Path.GetFileName(r.Path)}: {r.Error}").ToList();
             Message = errors.Count > 0
                 ? "Could not read " + string.Join("; ", errors)

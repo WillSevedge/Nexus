@@ -61,14 +61,14 @@ public static class PdfInspector
         var bookmarks = PdfMarkups.BookmarkTitles(doc);
         var markups = PdfMarkups.Read(doc, path, labels, bookmarks);
         var pages = Pages(doc, path, labels, bookmarks);
-        foreach (var group in markups.GroupBy(m => m.Page))
+        foreach (var group in markups.Where(m => !m.IsDrawingText).GroupBy(m => m.Page))
             if (group.Key >= 1 && group.Key <= pages.Count) pages[group.Key - 1].Markups = group.Count();
-        return new PdfDetails { Path = path, Document = Document(doc, path, markups.Count), Pages = pages, Markups = markups };
+        return new PdfDetails { Path = path, Document = Document(doc, path, markups), Pages = pages, Markups = markups };
     }
 
     // ------------------------------------------------------------------ document
 
-    private static List<PdfProperty> Document(PdfDocument doc, string path, int markups)
+    private static List<PdfProperty> Document(PdfDocument doc, string path, List<PdfMarkup> markups)
     {
         var list = new List<PdfProperty>();
         void Add(string group, string name, string? value)
@@ -98,7 +98,9 @@ public static class PdfInspector
         var catalog = doc.Internals.Catalog;
         Add("Structure", "PDF version", string.Create(CultureInfo.InvariantCulture, $"{doc.Version / 10}.{doc.Version % 10}"));
         Add("Structure", "Pages", doc.PageCount.ToString(CultureInfo.InvariantCulture));
-        Add("Structure", "Markups", markups.ToString(CultureInfo.InvariantCulture));
+        int text = markups.Count(m => m.IsDrawingText);
+        Add("Structure", "Markups", (markups.Count - text).ToString(CultureInfo.InvariantCulture));
+        Add("Structure", "Drawing text (AutoCAD SHX)", text == 0 ? "" : $"{text} piece(s) of text");
         Add("Structure", "Language", PdfMarkups.Text(catalog, "/Lang"));
         Add("Structure", "Page layout", PdfMarkups.Text(catalog, "/PageLayout"));
         Add("Structure", "Opens showing", PdfMarkups.Text(catalog, "/PageMode") switch
