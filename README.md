@@ -460,17 +460,27 @@ to Excel) use the hub's own dialogs.
 **Markups** on the command bar reads PDFs: the markups made in Bluebeam Revu (Revu keeps them in the PDF as
 standard annotations), each page, and what the file says about itself. The files are only read.
 
-- **Add files…**: PDFs (a set or single sheets). **Add folder…** adds every PDF in a folder and its subfolders.
+- **Add files…**: PDFs (a set or single sheets). **Watch folder…** reads every PDF in a folder and its subfolders
+  (up to 2000), now and whenever one is added, saved or removed there: point it at an issue or review folder.
+  Files and folders can also be dropped on the window. A file is read again only when it has changed.
   Each page is matched to its sheet by page label, else by bookmark ("A101 - Floor Plan"), else, for a one-sheet
-  PDF, by its file name (`A101 - Floor Plan.pdf`). Sets made with Print & PDF have labels and bookmarks.
+  PDF, by its file name (`A101 - Floor Plan.pdf`, `320310.pdf`). AutoCAD layout names ("Layout1") name no sheet.
+  Sets made with Print & PDF have labels and bookmarks.
 - **Markups** tab: grouped by sheet, with the sheet name from the loaded models: status, page, type (cloud,
   callout, text box, length, area, count…), subject, comment, author, date, replies and layer. Markups grouped in
   Revu are each listed; replies to replies are kept. *Show* filters open, closed or on sheets not in the model.
 - **All values** (right): select a markup to see everything stored on it: created and modified dates, status
   history, replies, layer, lock, colours, line, position and size, measurement scale, custom columns, and any
   value Bluebeam or another program added, under the name the PDF gives it (Bluebeam's start with `BSI`).
-- **Pages** tab: sheet, label, bookmark, size and paper (ARCH D, ANSI B, A1…), rotation, the scale set in Revu and
-  the number of markups. Select a page for its other values.
+- **Pages** tab: sheet, label, bookmark, size and paper (ARCH D, ANSI B, A1…), rotation, the scale set in Revu, the
+  number of markups, and whether the page has text or is a scan. Select a page for its other values.
+- **Text** tab: the text printed on each page, as the PDF stores it, with where it is on the page (inches from the
+  left and bottom): title block values, notes, drawing references. It is read without recognition or guessing, so
+  it is the same every time; text turned sideways or upside down reads the right way round. Text AutoCAD keeps
+  for SHX fonts (hidden comments by "AutoCAD SHX Text") is listed here, not as markups.
+- **Scanned pages**: a page that is only a picture has no text to read. **Read N scanned pages** reads them with
+  the text recognition built into Windows (nothing leaves the PC, a few seconds a page, kept for next time).
+  Recognised text can have mistakes: its Source says "Recognised".
 - **Document** tab: file facts, the document information (title, author, producer, dates and custom entries),
   XMP, PDF version, layers, bookmarks, attachments, form fields, signatures, password protection, and Bluebeam's
   own document values.

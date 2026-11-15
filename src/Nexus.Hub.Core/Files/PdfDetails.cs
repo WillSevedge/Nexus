@@ -29,6 +29,10 @@ public sealed class PdfPageDetails
     /// <summary>The drawing scale(s) set on the page ("1 in = 8 ft"), joined by "; " when viewports differ.</summary>
     public string Scale { get; init; } = "";
     public int Markups { get; set; }
+    /// <summary>How many pieces of text the page has.</summary>
+    public int TextPieces { get; set; }
+    /// <summary>"Text", "AutoCAD text", "Scan (no text)", "Scan (text recognised)" or "No text".</summary>
+    public string Content { get; set; } = "";
     public List<PdfProperty> Properties { get; init; } = new();
 
     public string Size => WidthIn <= 0 ? "" : string.Create(CultureInfo.InvariantCulture, $"{WidthIn:0.##} × {HeightIn:0.##} in");
@@ -42,7 +46,13 @@ public sealed class PdfDetails
     /// <summary>File facts, the document information, XMP, structure, security and Bluebeam's own values.</summary>
     public List<PdfProperty> Document { get; init; } = new();
     public List<PdfPageDetails> Pages { get; init; } = new();
+    /// <summary>Review markups (the drawing's own text is in <see cref="Text"/>).</summary>
     public List<PdfMarkup> Markups { get; init; } = new();
+    /// <summary>The text on the pages, top to bottom.</summary>
+    public List<PdfTextPiece> Text { get; init; } = new();
+
+    /// <summary>Pages that are only a picture: their text can be recognised (1-based page numbers).</summary>
+    public List<int> ScannedPages => Pages.Where(p => p.Content == PdfInspector.Scan).Select(p => p.Page).ToList();
 }
 
 /// <summary>
@@ -53,17 +63,63 @@ public sealed class PdfDetails
 /// </summary>
 public static class PdfInspector
 {
+    public const string Scan = "Scan (no text)";
+    public const string ScanRecognised = "Scan (text recognised)";
+    public const string ScanUnreadable = "Scan (nothing readable)";
+
     public static PdfDetails Read(string path)
     {
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        using var doc = PdfReader.Open(stream, PdfDocumentOpenMode.Import);
-        var labels = PdfMarkups.PageLabels(doc);
-        var bookmarks = PdfMarkups.BookmarkTitles(doc);
-        var markups = PdfMarkups.Read(doc, path, labels, bookmarks);
-        var pages = Pages(doc, path, labels, bookmarks);
-        foreach (var group in markups.Where(m => !m.IsDrawingText).GroupBy(m => m.Page))
+        List<PdfMarkup> all;
+        List<PdfPageDetails> pages;
+        List<PdfProperty> document;
+        using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+        using (var doc = PdfReader.Open(stream, PdfDocumentOpenMode.Import))
+        {
+            var labels = PdfMarkups.PageLabels(doc);
+            var bookmarks = PdfMarkups.BookmarkTitles(doc);
+            all = PdfMarkups.Read(doc, path, labels, bookmarks);
+            pages = Pages(doc, path, labels, bookmarks);
+            document = Document(doc, path, all);
+        }
+        var markups = all.Where(m => !m.IsDrawingText).ToList();
+        foreach (var group in markups.GroupBy(m => m.Page))
             if (group.Key >= 1 && group.Key <= pages.Count) pages[group.Key - 1].Markups = group.Count();
-        return new PdfDetails { Path = path, Document = Document(doc, path, markups), Pages = pages, Markups = markups };
+
+        // The text on the pages: what the PDF stores, plus the text AutoCAD keeps as hidden comments (SHX fonts).
+        List<PdfPageText> stored;
+        try { stored = PdfText.Read(path); }
+        catch { stored = new List<PdfPageText>(); }
+        var text = new List<PdfTextPiece>();
+        for (int i = 0; i < pages.Count; i++)
+        {
+            var page = pages[i];
+            var onPage = i < stored.Count ? stored[i].Pieces.ToList() : new List<PdfTextPiece>();
+            int printed = onPage.Count;
+            foreach (var m in all.Where(m => m.IsDrawingText && m.Page == page.Page && m.Comment.Length > 0))
+            {
+                double Inches(string name) => m.Properties.FirstOrDefault(p => p.Group == "Position" && p.Name == name) is { } p
+                    && double.TryParse(p.Value.Replace(" in", ""), NumberStyles.Float, CultureInfo.InvariantCulture, out double v) ? v : 0;
+                onPage.Add(new PdfTextPiece
+                {
+                    Page = page.Page, Text = m.Comment.Replace('\n', ' '), Source = PdfText.AutoCadText,
+                    FromLeftIn = Inches("From left"), FromBottomIn = Inches("From bottom"), HeightIn = Inches("Height"),
+                });
+            }
+            foreach (var piece in onPage)
+            {
+                piece.File = page.File;
+                piece.Sheet = page.Sheet;
+            }
+            text.AddRange(onPage.OrderByDescending(p => p.FromBottomIn).ThenBy(p => p.FromLeftIn));
+            page.TextPieces = onPage.Count;
+            page.Content = printed > 0 ? "Text" : onPage.Count > 0 ? "AutoCAD text"
+                : i < stored.Count && stored[i].HasImages ? Scan : "No text";
+        }
+        document.Insert(document.FindLastIndex(p => p.Group == "Structure") + 1,
+            new PdfProperty("Structure", "Text", text.Count == 0
+                ? (pages.Any(p => p.Content == Scan) ? "None: the pages are scans" : "None")
+                : $"{text.Count} piece(s) of text on {pages.Count(p => p.TextPieces > 0)} page(s)"));
+        return new PdfDetails { Path = path, Document = document, Pages = pages, Markups = markups, Text = text };
     }
 
     // ------------------------------------------------------------------ document
@@ -98,9 +154,7 @@ public static class PdfInspector
         var catalog = doc.Internals.Catalog;
         Add("Structure", "PDF version", string.Create(CultureInfo.InvariantCulture, $"{doc.Version / 10}.{doc.Version % 10}"));
         Add("Structure", "Pages", doc.PageCount.ToString(CultureInfo.InvariantCulture));
-        int text = markups.Count(m => m.IsDrawingText);
-        Add("Structure", "Markups", (markups.Count - text).ToString(CultureInfo.InvariantCulture));
-        Add("Structure", "Drawing text (AutoCAD SHX)", text == 0 ? "" : $"{text} piece(s) of text");
+        Add("Structure", "Markups", markups.Count(m => !m.IsDrawingText).ToString(CultureInfo.InvariantCulture));
         Add("Structure", "Language", PdfMarkups.Text(catalog, "/Lang"));
         Add("Structure", "Page layout", PdfMarkups.Text(catalog, "/PageLayout"));
         Add("Structure", "Opens showing", PdfMarkups.Text(catalog, "/PageMode") switch

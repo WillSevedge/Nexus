@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:Nexus.Hub.ViewModels"
         Title="Nexus - PDFs &amp; markups" Height="820" Width="1520" MinWidth="980" MinHeight="520" WindowStartupLocation="CenterOwner"
-        ShowInTaskbar="False" Icon="Assets/Nexus.ico">
+        ShowInTaskbar="False" Icon="Assets/Nexus.ico" AllowDrop="True" DragOver="OnDragOver" Drop="OnDrop">
   <Window.Resources>
     <BooleanToVisibilityConverter x:Key="BoolToVis" />
   </Window.Resources>
@@ -13,15 +13,15 @@
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
         <Button Content="Add files…" Command="{Binding AddCommand}" Style="{DynamicResource AccentButtonStyle}"
                 ToolTip="PDFs (a set or single sheets), or a markup list exported from Bluebeam as CSV. They are only read." />
-        <Button Content="Add folder…" Command="{Binding AddFolderCommand}" Margin="8,0,0,0"
-                ToolTip="Every PDF in a folder and its subfolders." />
-        <Button Content="Remove" Command="{Binding RemoveCommand}" Margin="8,0,0,0" ToolTip="Stop reading the selected file (the file is not changed)." />
-        <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="8,0,0,0" />
+        <Button Content="Watch folder…" Command="{Binding AddFolderCommand}" Margin="8,0,0,0"
+                ToolTip="Every PDF in a folder and its subfolders, now and whenever one is added or saved there." />
+        <Button Content="Remove" Command="{Binding RemoveCommand}" Margin="8,0,0,0" ToolTip="Stop reading the selected file or folder (nothing is changed or deleted)." />
+        <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="8,0,0,0" ToolTip="Read every file again." />
       </StackPanel>
       <StackPanel>
         <TextBlock Text="PDFs &amp; markups" FontSize="16" FontWeight="SemiBold" />
         <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,8"
-                   Text="Everything in the PDFs: each markup with every value stored on it, each page (sheet, size, scale) and what the file says about itself. For a Studio Session that is still running, add its markup list exported from Bluebeam as CSV." />
+                   Text="Everything in the PDFs: markups with every value stored on them, pages (sheet, size, scale), the text printed on the pages, and what each file says about itself. Add files, watch a folder, or drop either here. For a Studio Session that is still running, add its markup list exported from Bluebeam as CSV." />
         <ListBox ItemsSource="{Binding Files}" SelectedItem="{Binding SelectedFile}" MaxHeight="76" BorderThickness="0"
                  Visibility="{Binding HasFiles, Converter={StaticResource BoolToVis}}" />
       </StackPanel>
@@ -29,8 +29,11 @@
 
     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-        <TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" Width="220" Margin="0,0,12,0"
-                 ToolTip="Search every list: sheets, comments, authors, replies and any other value" />
+        <Button Content="{Binding ScansText}" Command="{Binding ReadScansCommand}" Margin="0,0,12,0"
+                Visibility="{Binding HasScans, Converter={StaticResource BoolToVis}}"
+                ToolTip="Some pages are only a picture (scans). This reads their text with the text recognition built into Windows: nothing leaves this PC. It takes a few seconds a page and is kept for next time." />
+        <TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged, Delay=250}" Width="220" Margin="0,0,12,0"
+                 ToolTip="Search every list: sheets, comments, authors, replies, the text on the pages and any other value" />
         <StackPanel Orientation="Horizontal" Visibility="{Binding IsMarkupsTab, Converter={StaticResource BoolToVis}}">
           <TextBlock Text="Show" VerticalAlignment="Center" Margin="0,0,8,0" />
           <ComboBox ItemsSource="{x:Static vm:MarkupsViewModel.Filters}" SelectedItem="{Binding Filter}" Width="200" />
@@ -45,7 +48,7 @@
         <Button Content="Show sheet in model" Command="{Binding ShowInModelCommand}"
                 ToolTip="Open the sheets of the selected markups in Revit or AutoCAD." />
         <Button Content="Open PDF" Command="{Binding OpenPdfCommand}" Margin="8,0,0,0" ToolTip="Open the PDF in Bluebeam (your default PDF program)." />
-        <Button Content="Export to Excel…" Command="{Binding ExportCommand}" Margin="8,0,0,0" ToolTip="The list shown (Markups, Pages or Document) as a workbook, with every value as a column." />
+        <Button Content="Export to Excel…" Command="{Binding ExportCommand}" Margin="8,0,0,0" ToolTip="The list shown (Markups, Pages, Text or Document) as a workbook, with every value as a column." />
         <Button Content="Close" IsCancel="True" Click="OnClose" Margin="8,0,0,0" />
       </StackPanel>
     </StackPanel>
@@ -131,6 +134,29 @@
               <DataGridTextColumn Header="Rotation" Binding="{Binding Rotation}" Width="70" />
               <DataGridTextColumn Header="Scale" Binding="{Binding Scale}" Width="130" />
               <DataGridTextColumn Header="Markups" Binding="{Binding Markups}" Width="70" />
+              <DataGridTextColumn Header="Content" Binding="{Binding Content}" Width="150" />
+              <DataGridTextColumn Header="Text" Binding="{Binding Text}" Width="60" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </TabItem>
+        <TabItem Header="Text">
+          <DataGrid ItemsSource="{Binding TextView}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                    HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                    SelectionMode="Extended" SelectionUnit="FullRow" EnableRowVirtualization="True">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Sheet" Binding="{Binding Sheet}" Width="90" />
+              <DataGridTextColumn Header="Page" Binding="{Binding Page}" Width="55" />
+              <DataGridTextColumn Header="Text" Binding="{Binding Text}" Width="3*">
+                <DataGridTextColumn.ElementStyle>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                    <Setter Property="ToolTip" Value="{Binding Text}" />
+                  </Style>
+                </DataGridTextColumn.ElementStyle>
+              </DataGridTextColumn>
+              <DataGridTextColumn Header="Position" Binding="{Binding Position}" Width="120" SortMemberPath="FromLeft" />
+              <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="110" />
+              <DataGridTextColumn Header="File" Binding="{Binding File}" Width="*" />
             </DataGrid.Columns>
           </DataGrid>
         </TabItem>

@@ -37,5 +37,17 @@ public partial class MarkupsWindow : Window
         if (PagesGrid.SelectedItem is PageRow row) _vm.ShowDetails(row.Title, row.Properties);
     }
 
+    /// <summary>Files and folders dropped on the window are added like Add files and Watch folder.</summary>
+    private void OnDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private async void OnDrop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } paths) await _vm.AddPathsAsync(paths);
+    }
+
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 }

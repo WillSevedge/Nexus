@@ -174,13 +174,88 @@ public sealed class PdfDetailsTests : IDisposable
         Assert.Equal("1: Structural review", Value("Structure", "Layers"));
         Assert.Equal("1", Value("Structure", "Pages"));
         Assert.Equal("3", Value("Structure", "Markups"));
-        Assert.Equal("1 piece(s) of text", Value("Structure", "Drawing text (AutoCAD SHX)"));
+        Assert.Equal("SECTION A-A", Assert.Single(details.Text).Text);
+        Assert.Equal("AutoCAD text", Assert.Single(details.Pages).Content);
         Assert.Contains(details.Document, p => p.Group == "XMP" && p.Name == "xmp:CreatorTool");
         Assert.Equal("Discipline", Value("Bluebeam", "BSIColumns 1 › Name"));
 
         var page = Assert.Single(details.Pages);
         Assert.Equal(("A301", 36d, 24d, "ARCH D", "1 in = 8 ft", 3), (page.Sheet, page.WidthIn, page.HeightIn, page.Paper, page.Scale, page.Markups));
         Assert.Contains(page.Properties, p => p is { Group: "Bluebeam", Name: "BSIBatesLabel", Value: "B-0007" });
+    }
+
+    /// <summary>A one-page PDF written by hand: text in a standard font, and optionally one hidden AutoCAD text comment.</summary>
+    private string TextPdf(string name, string content, bool shx = false, bool picture = false)
+    {
+        var objects = new List<string>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 792 612] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >>"
+                + (picture ? " /XObject << /Im1 6 0 R >>" : "") + " >>" + (shx ? " /Annots [6 0 R]" : "") + " >>",
+            $"<< /Length {content.Length} >>\nstream\n{content}\nendstream",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        };
+        if (picture) objects.Add("<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 1 >>\nstream\nA\nendstream");
+        if (shx) objects.Add("<< /Type /Annot /Subtype /Square /Rect [72 72 144 90] /T (AutoCAD SHX Text) /Contents (GRID LINE A) /F 2 >>");
+        var pdf = new System.Text.StringBuilder("%PDF-1.4\n");
+        var offsets = new List<int>();
+        for (int i = 0; i < objects.Count; i++)
+        {
+            offsets.Add(pdf.Length);
+            pdf.Append($"{i + 1} 0 obj\n{objects[i]}\nendobj\n");
+        }
+        int xref = pdf.Length;
+        pdf.Append($"xref\n0 {objects.Count + 1}\n0000000000 65535 f \n");
+        foreach (int offset in offsets) pdf.Append($"{offset:D10} 00000 n \n");
+        pdf.Append($"trailer\n<< /Size {objects.Count + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n");
+        string path = Path.Combine(_dir, name);
+        File.WriteAllText(path, pdf.ToString(), System.Text.Encoding.ASCII);
+        return path;
+    }
+
+    [Fact]
+    public void Text_on_the_page_is_read_in_pieces_with_its_position()
+    {
+        // A title near the top, a sheet number bottom right, and a line read upwards along the left edge.
+        string path = TextPdf("S-201.pdf",
+            "BT /F1 18 Tf 72 540 Td (FOUNDATION PLAN) Tj ET " +
+            "BT /F1 12 Tf 648 36 Td (S-201) Tj ET " +
+            "BT /F1 12 Tf 700 36 Td (REV 2) Tj ET " +
+            "BT /F1 10 Tf 0 1 -1 0 30 100 Tm (PLOT DATE) Tj ET", shx: true);
+        var details = PdfInspector.Read(path);
+        var texts = details.Text.Select(t => t.Text).ToList();
+        Assert.Contains("FOUNDATION PLAN", texts);
+        Assert.Contains("S-201", texts); // far enough from REV 2 to stay a piece of its own
+        Assert.Contains("REV 2", texts);
+        Assert.Contains("PLOT DATE", texts); // turned text reads the right way round
+        var title = details.Text.Single(t => t.Text == "FOUNDATION PLAN");
+        Assert.Equal((1d, 7.5, PdfText.PageText, "S-201"), (title.FromLeftIn, Math.Round(title.FromBottomIn, 1), title.Source, title.Sheet));
+
+        // AutoCAD's hidden text comments are text of the drawing, not markups.
+        Assert.Empty(details.Markups);
+        Assert.Equal(PdfText.AutoCadText, details.Text.Single(t => t.Text == "GRID LINE A").Source);
+        var page = Assert.Single(details.Pages);
+        Assert.Equal(("Text", 5), (page.Content, page.TextPieces));
+        Assert.Empty(details.ScannedPages);
+    }
+
+    [Fact]
+    public void A_page_without_text_is_told_apart_from_a_page_of_text()
+    {
+        var details = PdfInspector.Read(TextPdf("Blank.pdf", "0 0 m 100 100 l S"));
+        Assert.Empty(details.Text);
+        Assert.Equal("No text", Assert.Single(details.Pages).Content);
+        Assert.Contains(details.Document, p => p is { Group: "Structure", Name: "Text", Value: "None" });
+    }
+
+    [Fact]
+    public void A_page_that_is_only_a_picture_is_a_scan_to_be_recognised()
+    {
+        var details = PdfInspector.Read(TextPdf("Scan.pdf", "q 792 0 0 612 0 0 cm /Im1 Do Q", picture: true));
+        Assert.Equal(PdfInspector.Scan, Assert.Single(details.Pages).Content);
+        Assert.Equal(new[] { 1 }, details.ScannedPages);
+        Assert.Contains(details.Document, p => p is { Group: "Structure", Name: "Text", Value: "None: the pages are scans" });
     }
 
     [Fact]
