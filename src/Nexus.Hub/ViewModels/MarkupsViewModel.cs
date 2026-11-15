@@ -139,16 +139,13 @@ public sealed class MarkupsViewModel : Observable, IDisposable
         foreach (var f in main.MarkupPdfs.Where(p => File.Exists(p) || Directory.Exists(p))) Files.Add(f);
         View = CollectionViewSource.GetDefaultView(Rows);
         View.Filter = o => o is MarkupRow r && Shows(r);
-        View.GroupDescriptions.Add(new PropertyGroupDescription(nameof(MarkupRow.Group)));
         PagesView = CollectionViewSource.GetDefaultView(Pages);
         PagesView.Filter = o => o is PageRow r && Found(r.File, r.Sheet, r.Label, r.Bookmark, r.Paper, r.Scale, r.Content);
         TextView = CollectionViewSource.GetDefaultView(Text);
         TextView.Filter = o => o is TextRow r && Found(r.Text, r.Sheet, r.File);
         DocumentView = CollectionViewSource.GetDefaultView(Document);
         DocumentView.Filter = o => o is DocumentRow r && Found(r.File, r.Group, r.Name, r.Value);
-        DocumentView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(DocumentRow.File)));
         DetailsView = CollectionViewSource.GetDefaultView(Details);
-        DetailsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(PdfProperty.Group)));
         AddCommand = new RelayCommand(AddAsync);
         AddFolderCommand = new RelayCommand(AddFolderAsync);
         RemoveCommand = new RelayCommand(() => { Remove(); return Task.CompletedTask; }, () => SelectedFile is not null);

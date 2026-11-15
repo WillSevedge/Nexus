@@ -35,6 +35,15 @@ public partial class App : Application
     private void OnStartup(object sender, StartupEventArgs e)
     {
         var args = e.Args.Select(a => a.ToLowerInvariant()).ToHashSet();
+        // Every table in the hub looks like the main table (the hub's own cell, row and header styles, which are known
+        // to draw and size properly), unless it brings a look of its own.
+        Nexus.Common.GridAutoFit.Prepare = grid =>
+        {
+            if (grid.CellStyle is not null || grid.ColumnHeaderStyle is not null || grid.Resources.Contains(typeof(System.Windows.Controls.DataGridCell))) return;
+            if (TryFindResource("Nexus.GridCell") is Style cell) grid.CellStyle = cell;
+            if (TryFindResource("Nexus.GridRow") is Style row && grid.RowStyle is null) grid.RowStyle = row;
+            if (TryFindResource("Nexus.GridColumnHeader") is Style header) grid.ColumnHeaderStyle = header;
+        };
         // Every table in the hub fits its columns and rows to what is in them.
         EventManager.RegisterClassHandler(typeof(System.Windows.Controls.DataGrid), FrameworkElement.LoadedEvent,
             new RoutedEventHandler((s, _) => Nexus.Common.GridAutoFit.Apply((System.Windows.Controls.DataGrid)s)));
