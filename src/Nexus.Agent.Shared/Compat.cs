@@ -76,15 +76,26 @@ public static class Compat
     /// </summary>
     public static NamedPipeServerStream CreateUserOnlyServer(string name)
     {
-#if NETFRAMEWORK
+#if !NETFRAMEWORK
+        // Not Windows (the tests run anywhere): the ready-made option.
+        if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+            return new NamedPipeServerStream(name, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances,
+                PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+#endif
+        // Open to this Windows user and nobody else, named by the user's own id. (The ready-made "current user
+        // only" option names the token's owner instead, which for a program run as administrator is the
+        // Administrators group: the hub, running normally as the same user, would then be refused.)
         var security = new PipeSecurity();
         using var user = System.Security.Principal.WindowsIdentity.GetCurrent();
         security.AddAccessRule(new PipeAccessRule(user.User!, PipeAccessRights.FullControl, System.Security.AccessControl.AccessControlType.Allow));
+#if NETFRAMEWORK
         return new NamedPipeServerStream(name, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances,
             PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 0, 0, security);
 #else
-        return new NamedPipeServerStream(name, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances,
-            PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+#pragma warning disable CA1416 // Windows only: the add-ins run in Revit and AutoCAD
+        return NamedPipeServerStreamAcl.Create(name, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances,
+            PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 0, 0, security);
+#pragma warning restore CA1416
 #endif
     }
 

@@ -525,6 +525,12 @@
               <TextBlock Text="No programs connected" FontWeight="SemiBold" />
               <TextBlock Text="Open Revit, AutoCAD, Civil 3D or Plant 3D with the Nexus add-in. Nexus finds them by itself within a few seconds."
                          Style="{StaticResource Nexus.Text.Secondary}" Margin="0,2,0,0" />
+              <!-- What the hub can see, for when a running program does not show up. -->
+              <StackPanel Visibility="{Binding HasDiagnosis, Converter={StaticResource BoolToVis}}" Margin="0,12,0,0">
+                <TextBlock Text="What Nexus can see" FontWeight="SemiBold" />
+                <TextBox Text="{Binding Diagnosis, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent"
+                         Padding="0" Margin="0,4,0,0" FontFamily="Consolas" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+              </StackPanel>
             </StackPanel>
           </DockPanel>
         </Border>

@@ -332,6 +332,21 @@ public sealed partial class MainViewModel : Observable
         Status = $"No connected program offers '{readerId}'. Is its Nexus add-in up to date?";
     }
 
+    private string _diagnosis = "";
+    private string _loggedDiagnosis = "";
+
+    /// <summary>What the hub can see when no program is connected (registration files, pipes, running programs).</summary>
+    public string Diagnosis
+    {
+        get => _diagnosis;
+        private set
+        {
+            if (Set(ref _diagnosis, value)) Raise(nameof(HasDiagnosis));
+        }
+    }
+
+    public bool HasDiagnosis => _diagnosis.Length > 0;
+
     public async Task RefreshAsync()
     {
         var found = AgentDiscovery.Discover();
@@ -366,6 +381,10 @@ public sealed partial class MainViewModel : Observable
                 a.Refreshed();
             }
         }
+
+        // Nothing found: say what the hub can see, so the cause shows on the Connections page.
+        Diagnosis = found.Count == 0 ? await Task.Run(AgentDiscovery.Diagnose) : "";
+        if (found.Count == 0 && Diagnosis != _loggedDiagnosis) HubLog.Info("No programs found.\n" + (_loggedDiagnosis = Diagnosis));
 
         RebuildDatasets();
         if (Agents.Any(a => a.Connection.IsBusy)) RetryBusySoon();

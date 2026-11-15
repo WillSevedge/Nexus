@@ -25,11 +25,21 @@ public sealed class AgentClient : IAsyncDisposable
     private readonly CancellationTokenSource _cts = new();
     private Task? _readLoop;
 
-    private AgentClient(string pipeName)
+    private AgentClient(string pipeName, bool currentUserOnly = true)
     {
         PipeName = pipeName;
         _pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut,
-            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+            PipeOptions.Asynchronous | (currentUserOnly ? PipeOptions.CurrentUserOnly : PipeOptions.None));
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetNamedPipeServerProcessId(Microsoft.Win32.SafeHandles.SafePipeHandle pipe, out uint serverProcessId);
+
+    /// <summary>The process id at the end of an agent's pipe name ("Nexus.Agent.Revit.1234" → 1234), or -1.</summary>
+    public static int ProcessIdOf(string pipeName)
+    {
+        int dot = pipeName.LastIndexOf('.');
+        return dot >= 0 && int.TryParse(pipeName[(dot + 1)..], out int pid) ? pid : -1;
     }
 
     public string PipeName { get; }
@@ -37,10 +47,30 @@ public sealed class AgentClient : IAsyncDisposable
 
     public static async Task<AgentClient> ConnectAsync(string pipeName, TimeSpan? timeout = null, CancellationToken ct = default)
     {
+        int wait = (int)(timeout ?? TimeSpan.FromSeconds(3)).TotalMilliseconds;
         var client = new AgentClient(pipeName);
         try
         {
-            await client._pipe.ConnectAsync((int)(timeout ?? TimeSpan.FromSeconds(3)).TotalMilliseconds, ct).ConfigureAwait(false);
+            await client._pipe.ConnectAsync(wait, ct).ConfigureAwait(false);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // A program run "as administrator" owns its pipe as the Administrators group, not as the user, so the
+            // check that the pipe belongs to this user refuses it. Connect without that check, and make sure instead
+            // that the pipe is served by the very process its name says (the program the hub found).
+            await client.DisposeAsync().ConfigureAwait(false);
+            client = new AgentClient(pipeName, currentUserOnly: false);
+            try
+            {
+                await client._pipe.ConnectAsync(wait, ct).ConfigureAwait(false);
+                if (!GetNamedPipeServerProcessId(client._pipe.SafePipeHandle, out uint server) || server != (uint)ProcessIdOf(pipeName))
+                    throw new UnauthorizedAccessException($"The pipe {pipeName} is not served by the program it is named after.");
+            }
+            catch
+            {
+                await client.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
         }
         catch
         {
