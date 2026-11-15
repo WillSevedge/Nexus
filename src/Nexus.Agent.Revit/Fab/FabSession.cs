@@ -147,7 +147,8 @@ internal sealed class FabSession
             void Write(FabItem item, string spool)
             {
                 if (item.Tag is not ElementId id || Document.GetElement(id) is not { } e) return;
-                if (FabCollector.SpoolOf(e) == spool) return;
+                bool same = FabStore.Get(e, FabStore.SpoolId) == spool || e.get_Parameter(FabStore.SpoolId) is null;
+                if (same && FabCollector.SpoolOf(e) == spool) return;
                 bool ok = FabStore.Set(e, FabStore.SpoolId, spool);
                 // Fabrication parts keep a spool name of their own (it goes into the MAJ job).
                 if (e is FabricationPart part)

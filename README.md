@@ -168,6 +168,36 @@ authored in Fabrication CADmep/ESTmep. The **Fabrication** panel on the Nexus ta
   CADmep, ESTmep and CAMduct open.
 - **Parts in Nexus**: open the hub on the *Fabrication parts* view.
 
+**Spools & Packages (fabrication from the model).** The **Spools & Packages** button on the Fabrication panel
+opens one window for the whole fabrication workflow. It works on MEP Fabrication parts (ITM content) and on Revit's
+own pipe, duct, conduit, cable tray, fittings and accessories alike, for what is selected, the active view or the
+whole model. Everything is kept in the model: each piece gets three parameters (**Nexus Spool**, **Nexus Package**,
+**Nexus Status**) that tag, schedule and filter like any other, and the rules, steps, packages and history are stored
+with it. Every action is one undo step.
+- **Spools**: runs are cut into spools by rules. Pieces joined in the shop stay together; a spool ends at the joints
+  you tick as field joints (flanges, grooved couplings, unions… as found in the model), at a change of service or
+  level, at in-line items installed in the field, and where it would pass a limit (longest side for shipping, weight,
+  number of pieces). Names follow a pattern (`{Service}-{###}`). *Preview* shows the spools before anything
+  changes; *Apply to model* writes them (Fabrication parts also get their own spool name, which goes into the MAJ).
+  Spools already released to the shop are never re-cut.
+- **Packages**: groups of spools ordered, made, shipped or installed together, with a description, destination,
+  due date and step.
+- **Tracking**: your own list of steps (Design, Released, Cut, Fabricated, Checked, Shipped, Installed…) with
+  colours; set the step of spools or of a whole package; colour the active view by step, spool or package; scan a
+  label (or type a spool name) to move it to a step; a history of who changed what and when, saved as CSV.
+- **Cut list**: the straights grouped by material, size and length, and how to cut them from stock lengths with
+  the least waste (stock length by material and size, blade width counted), with the yield and the pieces longer
+  than their stock. Saved as CSV.
+- **Materials**: the bill of material of the selected spools or of everything read. Saved as CSV.
+- **Labels & sheets**: spool labels (4 × 2 in, one a page or ten to a Letter sheet) with a QR code any scanner
+  reads; spool sheets, one per spool: the spool becomes a Revit assembly with a 3D, a front and a top view scaled
+  to fit, a parts list, tags (from the tag families loaded) and end-to-end dimensions on straights.
+- **Hangers & sleeves**: hangers along straights by spacing rules (by service and size): Fabrication parts get the
+  hanger of their own service, Revit pipe and duct a hanger family type; risers are left out. Sleeves where
+  straights pass through walls and floors, in this model or a linked one, sized by clearance and a list of sleeve
+  sizes (round for round runs, a box for rectangular duct). Both add only what is missing when run again. *Layout
+  points* saves every hanger and sleeve as northing, easting and elevation for a total station.
+
 `revit.fabrication.parts` reads each part's fabrication data: item number, notes, spool name, part status,
 alias, item custom id, part type, service (name, abbreviation, type), specification, material, gauge, insulation
 specification, insulation/lining/double wall, product list entry and product data (code, name, descriptions, finish,

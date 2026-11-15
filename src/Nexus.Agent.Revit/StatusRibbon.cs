@@ -97,6 +97,14 @@ internal sealed class StatusRibbon : IDisposable
         });
         _tools.Add((database, Database));
 
+        var spools = (PushButton)panel.AddItem(new PushButtonData("NexusFabSpools", "Spools &\nPackages", assembly,
+            typeof(Fab.FabCommand).FullName)
+        {
+            ToolTip = "Fabrication for Fabrication parts and Revit pipe and duct alike: cut runs into spools by rules, group spools into packages, " +
+                      "track them through the shop and field, make cut lists, material lists, QR labels and spool sheets, and place hangers and sleeves.",
+        });
+        _tools.Add((spools, Spools));
+
         var reload = new PushButtonData("NexusFabReload", "Reload", assembly, typeof(Fabrication.FabricationReloadCommand).FullName)
         {
             ToolTip = "Reload the fabrication configuration: pull changes made in Fabrication CADmep (services, item files, custom data) into this model.",
@@ -120,6 +128,7 @@ internal sealed class StatusRibbon : IDisposable
     // Segoe Fluent Icons / MDL2 glyphs.
     private const string BulkRename = "\uE8AC";  // Rename
     private const string Database = "\uE8F1";   // Library
+    private const string Spools = "\uE7B8";     // Package
     private const string Reload = "\uE72C";     // Refresh
     private const string Export = "\uEDE1";     // Export
     private const string OpenInHub = "\uE8A7";  // Open in new window
