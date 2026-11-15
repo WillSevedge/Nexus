@@ -336,52 +336,25 @@
               </Grid>
             </RadioButton>
 
-            <Rectangle Height="1" Margin="16,10" Fill="{DynamicResource Nexus.Border}" />
-            <TextBlock Text="TOOLS" Style="{StaticResource Nexus.Text.Overline}" Margin="20,0,0,4"
+            <!--
+              Tools, in three groups by what they are for. Show in model is not here: it acts on the rows selected in
+              the table, so it lives in the table's right-click menu.
+            -->
+            <Rectangle Height="1" Margin="16,10,16,10" Fill="{DynamicResource Nexus.Border}" />
+            <TextBlock Text="SHEETS" Style="{StaticResource Nexus.Text.Overline}" Margin="20,0,0,4"
                        Visibility="{Binding IsRailExpanded, Converter={StaticResource BoolToVis}}" />
-
-            <Button Style="{StaticResource Nexus.RailButton}" Command="{Binding ShowInModelCommand}"
-                    ToolTip="Show in model: open the sheet, or select and zoom to the selected rows, in Revit / AutoCAD / Civil 3D / Plant 3D">
-              <StackPanel Orientation="Horizontal">
-                <TextBlock Text="&#xE8A7;" Style="{StaticResource RailGlyph}" />
-                <TextBlock Text="Show in model" Style="{StaticResource RailLabel}" />
-              </StackPanel>
-            </Button>
-            <Button Style="{StaticResource Nexus.RailButton}" Click="OnPrint" ToolTip="Print &amp; PDF: PDFs of the selected sheets (or every sheet shown), with a preview and printing">
-              <StackPanel Orientation="Horizontal">
-                <TextBlock Text="&#xE749;" Style="{StaticResource RailGlyph}" />
-                <TextBlock Text="Print &amp; PDF" Style="{StaticResource RailLabel}" />
-              </StackPanel>
-            </Button>
-            <Button Style="{StaticResource Nexus.RailButton}" Click="OnMarkups" ToolTip="PDFs &amp; markups: every Bluebeam markup by sheet, plus each PDF's pages and details">
-              <StackPanel Orientation="Horizontal">
-                <TextBlock Text="&#xE70F;" Style="{StaticResource RailGlyph}" />
-                <TextBlock Text="Markups" Style="{StaticResource RailLabel}" />
-              </StackPanel>
-            </Button>
-            <Button Style="{StaticResource Nexus.RailButton}" Click="OnRename" ToolTip="Rename &amp; Renumber the selected sheets (or every sheet shown)">
+            <Button Style="{StaticResource Nexus.RailButton}" Click="OnRename"
+                    ToolTip="Rename &amp; Renumber the selected sheets (or every sheet shown)">
               <StackPanel Orientation="Horizontal">
                 <TextBlock Text="&#xE8AC;" Style="{StaticResource RailGlyph}" />
                 <TextBlock Text="Rename &amp; Renumber" Style="{StaticResource RailLabel}" />
               </StackPanel>
             </Button>
-            <Button Style="{StaticResource Nexus.RailButton}" Command="{Binding SheetIndexCommand}" ToolTip="Sheet index: keep the Revit dummy sheets for CAD drawings matched to their DWGs">
+            <Button Style="{StaticResource Nexus.RailButton}" Command="{Binding SheetIndexCommand}"
+                    ToolTip="Sheet index: keep the Revit dummy sheets for CAD drawings matched to their DWGs">
               <StackPanel Orientation="Horizontal">
                 <TextBlock Text="&#xE8A5;" Style="{StaticResource RailGlyph}" />
                 <TextBlock Text="Sheet index" Style="{StaticResource RailLabel}" />
-              </StackPanel>
-            </Button>
-            <Button Style="{StaticResource Nexus.RailButton}" Click="OnHistory" ToolTip="History: snapshots and every change applied with Nexus">
-              <StackPanel Orientation="Horizontal">
-                <TextBlock Text="&#xE81C;" Style="{StaticResource RailGlyph}" />
-                <TextBlock Text="History" Style="{StaticResource RailLabel}" />
-              </StackPanel>
-            </Button>
-            <Button Style="{StaticResource Nexus.RailButton}" Command="{Binding CompareExcelCommand}"
-                    ToolTip="Deliverables: compare the Excel deliverables list with the models, and push the list into them">
-              <StackPanel Orientation="Horizontal">
-                <TextBlock Text="&#xE9F9;" Style="{StaticResource RailGlyph}" />
-                <TextBlock Text="Deliverables" Style="{StaticResource RailLabel}" />
               </StackPanel>
             </Button>
             <Button Style="{StaticResource Nexus.RailButton}" Click="OnOpenHealth"
@@ -390,6 +363,40 @@
               <StackPanel Orientation="Horizontal">
                 <TextBlock Text="&#xE95E;" Style="{StaticResource RailGlyph}" />
                 <TextBlock Text="Sheet health" Style="{StaticResource RailLabel}" />
+              </StackPanel>
+            </Button>
+            <Rectangle Height="1" Margin="16,8,16,8" Fill="{DynamicResource Nexus.Border}" />
+            <TextBlock Text="PDF" Style="{StaticResource Nexus.Text.Overline}" Margin="20,0,0,4"
+                       Visibility="{Binding IsRailExpanded, Converter={StaticResource BoolToVis}}" />
+            <Button Style="{StaticResource Nexus.RailButton}" Click="OnPrint"
+                    ToolTip="Print &amp; PDF: PDFs of the selected sheets (or every sheet shown), with a preview and printing">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE749;" Style="{StaticResource RailGlyph}" />
+                <TextBlock Text="Print &amp; PDF" Style="{StaticResource RailLabel}" />
+              </StackPanel>
+            </Button>
+            <Button Style="{StaticResource Nexus.RailButton}" Click="OnMarkups"
+                    ToolTip="PDFs &amp; markups: every Bluebeam markup by sheet, plus each PDF's pages, text and details">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE70F;" Style="{StaticResource RailGlyph}" />
+                <TextBlock Text="Markups" Style="{StaticResource RailLabel}" />
+              </StackPanel>
+            </Button>
+            <Rectangle Height="1" Margin="16,8,16,8" Fill="{DynamicResource Nexus.Border}" />
+            <TextBlock Text="PROJECT" Style="{StaticResource Nexus.Text.Overline}" Margin="20,0,0,4"
+                       Visibility="{Binding IsRailExpanded, Converter={StaticResource BoolToVis}}" />
+            <Button Style="{StaticResource Nexus.RailButton}" Command="{Binding CompareExcelCommand}"
+                    ToolTip="Deliverables: compare the Excel deliverables list with the models, and push the list into them">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE9F9;" Style="{StaticResource RailGlyph}" />
+                <TextBlock Text="Deliverables" Style="{StaticResource RailLabel}" />
+              </StackPanel>
+            </Button>
+            <Button Style="{StaticResource Nexus.RailButton}" Click="OnHistory"
+                    ToolTip="History: snapshots and every change applied with Nexus">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE81C;" Style="{StaticResource RailGlyph}" />
+                <TextBlock Text="History" Style="{StaticResource RailLabel}" />
               </StackPanel>
             </Button>
           </StackPanel>
@@ -878,7 +885,7 @@
             <TextBlock Text="{Binding Summary}" Foreground="{DynamicResource Nexus.TextSecondary}" VerticalAlignment="Center" />
             <Border Style="{StaticResource Nexus.Chip}" Background="{DynamicResource Nexus.AccentSubtle}" Margin="10,0,0,0"
                     Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}"
-                    ToolTip="Print, Rename and Show in model act on the selected rows">
+                    ToolTip="Print, Rename and Show in model (right-click) act on the selected rows">
               <TextBlock Text="{Binding SelectionText}" Foreground="{DynamicResource Nexus.Accent}" FontSize="{StaticResource Nexus.FontSize.Small}" FontWeight="SemiBold" />
             </Border>
             <Button Style="{StaticResource Nexus.CommandButton}" Click="OnMessages" Padding="6,0" Margin="6,0,0,0" MinHeight="24"
@@ -1162,12 +1169,6 @@
                 <TextBlock Text="{Binding SelectedTitle}" Style="{StaticResource Nexus.Text.Section}" TextWrapping="Wrap" Margin="0,4,0,0" />
                 <TextBlock Text="{Binding SelectedSubtitle}" TextWrapping="Wrap" Margin="0,2,0,10"
                            Foreground="{DynamicResource Nexus.TextSecondary}" />
-                <Button Command="{Binding ShowInModelCommand}" HorizontalAlignment="Left" Style="{StaticResource Nexus.SecondaryButton}" Padding="10,4">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="&#xE8A7;" Style="{StaticResource Glyph}" FontSize="13" />
-                    <TextBlock Text="Show in model" Margin="8,0,0,0" />
-                  </StackPanel>
-                </Button>
               </StackPanel>
               <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl ItemsSource="{Binding DetailGroups}">
