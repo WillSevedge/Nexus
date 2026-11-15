@@ -35,6 +35,9 @@ public partial class App : Application
     private void OnStartup(object sender, StartupEventArgs e)
     {
         var args = e.Args.Select(a => a.ToLowerInvariant()).ToHashSet();
+        // Every table in the hub fits its columns and rows to what is in them.
+        EventManager.RegisterClassHandler(typeof(System.Windows.Controls.DataGrid), FrameworkElement.LoadedEvent,
+            new RoutedEventHandler((s, _) => Nexus.Common.GridAutoFit.Apply((System.Windows.Controls.DataGrid)s)));
         // --dataset <reader id>: open that view (from a program's ribbon, e.g. Fabrication parts).
         int datasetArg = Array.FindIndex(e.Args, a => a.Equals("--dataset", StringComparison.OrdinalIgnoreCase));
         string? dataset = datasetArg >= 0 && datasetArg + 1 < e.Args.Length ? e.Args[datasetArg + 1] : null;

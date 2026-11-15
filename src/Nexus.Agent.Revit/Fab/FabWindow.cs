@@ -70,6 +70,7 @@ internal sealed class FabWindow
         _window = Load();
         try { new WindowInteropHelper(_window).Owner = uidoc.Application.MainWindowHandle; } catch { /* centre on screen */ }
         _window.Title = "Nexus - Fabrication - " + uidoc.Document.Title;
+        Nexus.Common.GridAutoFit.ApplyAll(_window);
 
         _scope = Find<ComboBox>("ScopeCombo");
         _packageCombo = Find<ComboBox>("PackageCombo");

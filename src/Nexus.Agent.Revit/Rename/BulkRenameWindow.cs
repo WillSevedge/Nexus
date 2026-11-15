@@ -68,6 +68,7 @@ internal sealed class BulkRenameWindow
 
         _window = LoadLayout();
         ApplyTheme(_window);
+        Nexus.Common.GridAutoFit.ApplyAll(_window);
         try { new WindowInteropHelper(_window).Owner = uidoc.Application.MainWindowHandle; } catch { /* centre on screen */ }
 
         T Find<T>(string name) where T : class => _window.FindName(name) as T ?? throw new InvalidOperationException($"Layout part '{name}' is missing.");

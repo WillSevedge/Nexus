@@ -56,6 +56,7 @@ internal sealed class FabricationWindow : Window
         _grid.Columns.Add(new DataGridTextColumn { Header = "Id", Binding = new Binding(nameof(Row.Id)), Width = DataGridLength.Auto });
         _grid.Columns.Add(new DataGridTextColumn { Header = "Details", Binding = new Binding(nameof(Row.Details)), Width = new DataGridLength(3, DataGridLengthUnitType.Star) });
 
+        Nexus.Common.GridAutoFit.Apply(_grid);
         _summary.ItemTemplate = SummaryTemplate();
         _kinds.SelectionChanged += (_, _) => ShowRows();
         _search.TextChanged += (_, _) => ShowRows();
