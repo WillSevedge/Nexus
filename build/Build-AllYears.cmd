@@ -33,6 +33,25 @@ for %%Y in (%YEARS%) do (
 
 copy /y "%ROOT%\deploy\Install-Addins.cmd" "%STAGE%\" >nul
 
+rem What is on this PC now, so there is no guessing which add-ins were updated.
+echo.
+echo ==== Nexus add-ins on this PC ====
+set ANY=
+for %%Y in (%YEARS%) do (
+  if exist "%APPDATA%\Autodesk\Revit\Addins\%%Y\Nexus\Nexus.Agent.Revit.dll" (
+    for %%F in ("%APPDATA%\Autodesk\Revit\Addins\%%Y\Nexus\Nexus.Agent.Revit.dll") do echo   Revit %%Y: installed, built %%~tF
+    set ANY=1
+  )
+)
+for %%Y in (%YEARS%) do (
+  if exist "%APPDATA%\Autodesk\ApplicationPlugins\Nexus.bundle\Contents\%%Y\Nexus.Agent.Acad.dll" (
+    for %%F in ("%APPDATA%\Autodesk\ApplicationPlugins\Nexus.bundle\Contents\%%Y\Nexus.Agent.Acad.dll") do echo   AutoCAD / Civil 3D / Plant 3D %%Y: installed, built %%~tF
+    set ANY=1
+  )
+)
+if not defined ANY echo   None. No Revit or AutoCAD 2024-2027 was found on this PC.
+echo   A time that is not from just now means that add-in was NOT updated ^(its program was open, or its build failed^).
+
 echo.
 if defined FAILED (
   echo Some builds failed: %FAILED%

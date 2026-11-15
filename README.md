@@ -185,6 +185,13 @@ with it. Every action is one undo step.
 - **Tracking**: your own list of steps (Design, Released, Cut, Fabricated, Checked, Shipped, Installed…) with
   colours; set the step of spools or of a whole package; colour the active view by step, spool or package; scan a
   label (or type a spool name) to move it to a step; a history of who changed what and when, saved as CSV.
+- **Parameters** (parameter mapping): fabrication values written into Revit parameters, so they can be tagged,
+  scheduled, filtered and exported. Each line of the mapping sends one value, or text built from several
+  (`{Service}-{Size}`), to a parameter by name. Values: spool, package, step, service, size, material, level,
+  length, weight, spool totals, package destination and due date; for Fabrication parts also item number, alias,
+  notes, product code, specifications, CID and every custom data field; any other name is read from the
+  parameter of that name on the piece or its type. A parameter the model does not have can be added (a text
+  parameter on the fabricated categories). The mapping is saved with the model; *Write to model* is one undo.
 - **Cut list**: the straights grouped by material, size and length, and how to cut them from stock lengths with
   the least waste (stock length by material and size, blade width counted), with the yield and the pieces longer
   than their stock. Saved as CSV.
@@ -351,7 +358,11 @@ one per Windows user, an **N** icon in the notification area (on Windows 11 new 
 hidden area behind **^** next to the clock; drag it onto the taskbar to keep it visible), and it
 starts when you sign in to Windows.
 
-- **Easiest:** double-click **`Install-Hub.cmd`** in the repository folder (`C:\Users\<you>\source\repos\Nexus`).
+- **Everything at once:** double-click **`Update-Nexus.cmd`** in the repository folder with Revit and AutoCAD
+  closed. It gets the latest code, builds and installs the add-ins for every year on the PC, then the hub, and
+  ends with a list of what is installed and when each add-in was built.
+- **Hub only:** double-click **`Install-Hub.cmd`** in the repository folder (`C:\Users\<you>\source\repos\Nexus`).
+  This does not update the add-ins in Revit and AutoCAD.
   It builds the hub and installs or updates it; run it again after pulling hub changes.
 - **Build it.** `build\Publish-Hub.cmd` makes one self-contained `artifacts\Nexus\Nexus.exe` (about 75 MB)
   plus `Install.cmd`. It runs on any 64-bit Windows 10/11 PC: no .NET, Visual Studio or Autodesk product needed.

@@ -55,15 +55,31 @@ internal static class FabStore
     /// Adds the three parameters to the model when they are not there (call inside a transaction). They are shared
     /// parameters with fixed ids, made through a throw-away shared parameter file: the user's own file is put back.
     /// </summary>
-    public static void EnsureParameters(Document doc)
+    public static void EnsureParameters(Document doc) => EnsureTextParameters(doc, new (string Name, Guid Id, string Tip)[]
     {
-        var wanted = new (string Name, Guid Id, string Tip)[]
-        {
-            (Spool, SpoolId, "The spool this piece is fabricated in (set by Nexus)."),
-            (Package, PackageId, "The package the spool is ordered, made and shipped in (set by Nexus)."),
-            (Status, StatusId, "Where the spool is: Design, Released, Cut, Shipped, Installed… (set by Nexus)."),
-        };
-        if (wanted.All(w => SharedParameterElement.Lookup(doc, w.Id) is not null)) return;
+        (Spool, SpoolId, "The spool this piece is fabricated in (set by Nexus)."),
+        (Package, PackageId, "The package the spool is ordered, made and shipped in (set by Nexus)."),
+        (Status, StatusId, "Where the spool is: Design, Released, Cut, Shipped, Installed… (set by Nexus)."),
+    });
+
+    /// <summary>
+    /// The id of a text parameter Nexus adds for the parameter mapping: made from its name, so the same name is the
+    /// same shared parameter in every model.
+    /// </summary>
+    public static Guid IdFor(string parameterName)
+    {
+        using var md5 = System.Security.Cryptography.MD5.Create();
+        return new Guid(md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes("Nexus parameter:" + parameterName.Trim().ToUpperInvariant())));
+    }
+
+    /// <summary>
+    /// Adds text instance parameters to the fabricated categories when the model does not have them (call inside a
+    /// transaction). Returns the names added.
+    /// </summary>
+    public static List<string> EnsureTextParameters(Document doc, IReadOnlyList<(string Name, Guid Id, string Tip)> wanted)
+    {
+        var added = new List<string>();
+        if (wanted.All(w => SharedParameterElement.Lookup(doc, w.Id) is not null)) return added;
 
         var app = doc.Application;
         string previous = app.SharedParametersFilename;
@@ -91,6 +107,7 @@ internal static class FabStore
                 var binding = app.Create.NewInstanceBinding(categories);
                 if (!doc.ParameterBindings.Insert(definition, binding, GroupTypeId.General))
                     doc.ParameterBindings.ReInsert(definition, binding, GroupTypeId.General);
+                added.Add(name);
             }
         }
         finally
@@ -98,6 +115,7 @@ internal static class FabStore
             try { app.SharedParametersFilename = previous ?? ""; } catch { /* Revit keeps the temporary path */ }
             try { File.Delete(temp); } catch { /* left in the temp folder */ }
         }
+        return added;
     }
 
     // ------------------------------------------------------------------ the project (rules, steps, packages, history)

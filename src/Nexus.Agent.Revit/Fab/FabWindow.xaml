@@ -278,6 +278,46 @@
         </Grid>
       </TabItem>
 
+      <!-- ===== Parameters ===== -->
+      <TabItem Header="Parameters">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Border Style="{StaticResource Card}">
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Top">
+                <TextBlock Text="Parameter mapping" Style="{StaticResource Head}" />
+                <TextBlock Style="{StaticResource Hint}" Text="Writes fabrication values into Revit parameters, so they can be tagged, scheduled, filtered and exported. Each line sends one value, or text built from several, to a parameter by name." />
+                <TextBlock Text="Values you can use (double-click to add a line)" Style="{StaticResource Label}" />
+              </StackPanel>
+              <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Hint}" Margin="0,8,0,0"
+                         Text="Any other name is read from the parameter of that name on the piece or its type. Put names in braces to build text: {Service}-{Size}." />
+              <ListBox x:Name="ValuesList" />
+            </DockPanel>
+          </Border>
+          <DockPanel Grid.Column="2">
+            <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+              <CheckBox x:Name="AddParamsBox" Content="Add a parameter the model does not have (a text parameter on pipe, duct and fabrication categories)" />
+              <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" Text="Writes to the spools selected on the Spools tab, or to everything read when none is selected. Run it again after spooling or packaging to bring the parameters up to date." />
+              <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                <Button x:Name="SaveMapButton" Content="Save mapping" />
+                <Button x:Name="WriteMapButton" Content="Write to model" Style="{StaticResource Primary}" />
+              </StackPanel>
+            </StackPanel>
+            <DataGrid x:Name="MapGrid" CanUserAddRows="True" CanUserDeleteRows="True">
+              <DataGrid.Columns>
+                <DataGridCheckBoxColumn Header="Write" Binding="{Binding Enabled}" Width="55" />
+                <DataGridTextColumn Header="Value" Binding="{Binding From}" Width="*" />
+                <DataGridTextColumn Header="Revit parameter" Binding="{Binding To}" Width="*" />
+              </DataGrid.Columns>
+            </DataGrid>
+          </DockPanel>
+        </Grid>
+      </TabItem>
+
       <!-- ===== Cut list ===== -->
       <TabItem Header="Cut list">
         <Grid>

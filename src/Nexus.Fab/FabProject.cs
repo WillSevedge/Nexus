@@ -94,6 +94,10 @@ public sealed class FabProject
     /// <summary>Spool sheets: the title block and view template names last used.</summary>
     public string SheetTitleBlock { get; set; } = "";
     public string SheetViewTemplate { get; set; } = "";
+    /// <summary>Parameter mapping: fabrication values written to Revit parameters.</summary>
+    public List<ParameterMap> Mappings { get; set; } = new();
+    /// <summary>Mapping to a parameter the model does not have adds it (a text parameter on fabricated categories).</summary>
+    public bool AddMissingParameters { get; set; } = true;
 
     public const int MaxHistory = 5000;
 
