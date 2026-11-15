@@ -28,8 +28,14 @@ public static class AgentDiscovery
 
             if (!IsAlive(reg.Host))
             {
-                HubLog.Info($"Agent pid {reg.Host.ProcessId} is no longer running; ignoring.");
-                if (removeStale)
+                // Removed only when the program is really gone. A registration that merely looks wrong (its process
+                // id is in use, but the start time differs) is left alone: deleting the file of a running program
+                // would hide it from the hub until it is restarted.
+                bool running = IsRunning(reg.Host.ProcessId);
+                HubLog.Info(running
+                    ? $"Registration of pid {reg.Host.ProcessId} ({reg.Host.Name}) does not match the running process and its pipe is not open; ignoring."
+                    : $"Agent pid {reg.Host.ProcessId} is no longer running; ignoring.");
+                if (removeStale && !running)
                 {
                     try { File.Delete(file); } catch { /* ignored */ }
                 }
@@ -40,6 +46,36 @@ public static class AgentDiscovery
         return found.OrderBy(r => r.Host.HostKind).ThenBy(r => r.Host.ProcessId).ToList();
     }
 
+    private static bool IsRunning(int processId)
+    {
+        try
+        {
+            using var p = Process.GetProcessById(processId);
+            return !p.HasExited;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>True when a named pipe of this name is open on this PC (listed, not opened: opening would take a connection).</summary>
+    public static bool PipeIsOpen(string pipeName)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(@"\\.\pipe\").Any(p => Path.GetFileName(p).Equals(pipeName, StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// The program that wrote the registration is still running: its process exists and started when the registration
+    /// says, or (when the times differ, e.g. the program could not read its own start time) its pipe is open.
+    /// </summary>
     public static bool IsAlive(HostInfo host)
     {
         try
@@ -51,7 +87,7 @@ public static class AgentDiscovery
                 // Guard against pid reuse: the start time must match the registration.
                 var start = p.StartTime.ToUniversalTime();
                 if (host.ProcessStartUtc != default && Math.Abs((start - host.ProcessStartUtc).TotalSeconds) > 5)
-                    return false;
+                    return PipeIsOpen(Protocol.PipeName(host.HostKind, host.ProcessId));
             }
             catch
             {

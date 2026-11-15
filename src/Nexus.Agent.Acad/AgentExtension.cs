@@ -42,7 +42,9 @@ public sealed class AgentExtension : IExtensionApplication
         // Started by the hub in AutoCAD's Core Console to make PDFs (Print & PDF): no agent, no ribbon
         // (Nexus.Agent.Acad.Console does the work there).
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable(HeadlessJob.EnvironmentVariable))) return;
-        StartAgent();
+        // Nothing else while AutoCAD starts: the agent and its ribbon tab are set up the first time AutoCAD is idle,
+        // so its start does not wait for Nexus.
+        AcApp.Idle += OnFirstIdle;
     }
 
     /// <summary>Kept out of <see cref="Initialize"/> so the Core Console never loads the ribbon's libraries.</summary>
@@ -80,10 +82,6 @@ public sealed class AgentExtension : IExtensionApplication
                 // The agent still works without the ribbon (e.g. AutoCAD Core Console).
                 Log.Warn("Could not set up the Nexus ribbon tab.", ex);
             }
-            Server.Start();
-
-            // Vertical products finish loading their own modules after us; detect on first idle.
-            AcApp.Idle += OnFirstIdle;
         }
         catch (System.Exception ex)
         {
@@ -94,22 +92,41 @@ public sealed class AgentExtension : IExtensionApplication
     private void OnFirstIdle(object? sender, EventArgs e)
     {
         AcApp.Idle -= OnFirstIdle;
+        var startup = System.Diagnostics.Stopwatch.StartNew();
+        StartAgent();
         try
         {
             if (_readers is null || _objects is null || _tools is null || Host is null || Server is null) return;
+            // Vertical products (Civil 3D, Plant 3D) have loaded their own modules by now.
             string dir = Path.GetDirectoryName(typeof(AgentExtension).Assembly.Location) ?? AppContext.BaseDirectory;
             var loaded = ModuleLoader.LoadAll(dir, new AcadModuleContext(Log, _readers, _objects, _moduleWriters, _tools));
-            if (loaded.Count == 0) return;
-
-            Host.Modules = loaded.Select(m => m.Name).ToList();
-            var product = loaded.Select(m => m.ProductName).FirstOrDefault(p => !string.IsNullOrEmpty(p));
-            if (product is not null) Host.Product = product;
-            Server.UpdateHost(Host);
+            if (loaded.Count > 0)
+            {
+                Host.Modules = loaded.Select(m => m.Name).ToList();
+                var product = loaded.Select(m => m.ProductName).FirstOrDefault(p => !string.IsNullOrEmpty(p));
+                if (product is not null) Host.Product = product;
+            }
         }
         catch (System.Exception ex)
         {
             Log.Error("Loading modules failed.", ex);
         }
+        // The pipe and the registration file are not AutoCAD's business: off its thread.
+        var server = Server;
+        long onAutoCadsThread = startup.ElapsedMilliseconds;
+        if (server is not null)
+            Task.Run(() =>
+            {
+                try
+                {
+                    server.Start();
+                    Log.Info($"Nexus add-in: nothing during AutoCAD's start; {onAutoCadsThread} ms at its first idle moment; ready for the hub after {startup.ElapsedMilliseconds} ms");
+                }
+                catch (System.Exception ex)
+                {
+                    Log.Error("Nexus agent failed to start.", ex);
+                }
+            });
     }
 
     public void Terminate()

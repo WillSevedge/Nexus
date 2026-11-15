@@ -29,10 +29,12 @@ public sealed class AgentApplication : IExternalApplication
         Compat.ResolveDependenciesFrom(System.IO.Path.GetDirectoryName(typeof(Compat).Assembly.Location) ?? AppContext.BaseDirectory);
         try
         {
+            // On Revit's own thread, while it starts: only what must be (the ribbon's buttons, with no pictures yet,
+            // and the event that brings hub requests onto this thread). Everything else starts in the background, so
+            // Revit's start does not wait for it.
             var app = application.ControlledApplication;
-            Host = HostInfoFactory.Create(HostKinds.Revit, "Revit", app.VersionNumber,
-                $"{app.SubVersionNumber} ({app.VersionBuild}) {app.Product}", Log);
-            Log.Info($"Starting in {app.VersionName} {app.SubVersionNumber}, build {app.VersionBuild}, {Host.Runtime}");
+            string version = app.VersionNumber, build = $"{app.SubVersionNumber} ({app.VersionBuild}) {app.Product}";
+            string started = $"Starting in {app.VersionName} {app.SubVersionNumber}, build {app.VersionBuild}";
 
             try
             {
@@ -43,15 +45,31 @@ public sealed class AgentApplication : IExternalApplication
                 // The agent still works without the ribbon.
                 Log.Error("Could not create the ribbon panel.", ex);
             }
-
             _dispatcher = new RevitDispatcher(Log);
-            Server = new AgentServer<Document>(Host, _dispatcher.Queue, new RevitDocumentProvider(_dispatcher),
-                RevitReaders.CreateRegistry(), Log, writer: new RevitWriter(), selector: new RevitSelector(_dispatcher),
-                pdf: new RevitPdfExporter(), sheets: new RevitSheetCreator());
-            if (_ribbon is not null) Server.StatusChanged += _ribbon.OnStatusChanged;
-            Server.Start();
-            // What Nexus adds to Revit's start (the ribbon and the pipe server): see the agent log.
-            Log.Info($"Nexus add-in ready in {startup.ElapsedMilliseconds} ms");
+            long onRevitsThread = startup.ElapsedMilliseconds;
+
+            var dispatcher = _dispatcher;
+            var ribbon = _ribbon;
+            Task.Run(() =>
+            {
+                try
+                {
+                    Host = HostInfoFactory.Create(HostKinds.Revit, "Revit", version, build, Log);
+                    Log.Info($"{started}, {Host.Runtime}");
+                    var server = new AgentServer<Document>(Host, dispatcher.Queue, new RevitDocumentProvider(dispatcher),
+                        RevitReaders.CreateRegistry(), Log, writer: new RevitWriter(), selector: new RevitSelector(dispatcher),
+                        pdf: new RevitPdfExporter(), sheets: new RevitSheetCreator());
+                    if (ribbon is not null) server.StatusChanged += ribbon.OnStatusChanged;
+                    Server = server;
+                    server.Start();
+                    // What Nexus adds to Revit's start is the first number; the rest ran beside it.
+                    Log.Info($"Nexus add-in: {onRevitsThread} ms of Revit's start; ready for the hub after {startup.ElapsedMilliseconds} ms");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("Nexus agent failed to start.", ex);
+                }
+            });
             return Result.Succeeded;
         }
         catch (Exception ex)

@@ -14,7 +14,7 @@ namespace Nexus.Agent.Revit;
 /// server reports changes from background threads; the ribbon is updated from
 /// Revit's Idling event (UI thread).
 /// </summary>
-internal sealed class StatusRibbon : IDisposable
+internal sealed class StatusRibbon : IExternalEventHandler, IDisposable
 {
     private const string TabName = "Nexus";
 
@@ -27,6 +27,9 @@ internal sealed class StatusRibbon : IDisposable
     private readonly List<(PushButton Button, string Glyph)> _tools = new();
     private volatile AgentStatus? _pending;
     private AgentState _state = AgentState.Stopped;
+    /// <summary>Raised when the status changes: Revit then calls <see cref="Execute"/> when it is idle. Nothing runs between changes.</summary>
+    private readonly ExternalEvent? _statusEvent;
+    private bool _iconsDrawn;
 
     public StatusRibbon(UIControlledApplication app, AgentLog log)
     {
@@ -37,14 +40,11 @@ internal sealed class StatusRibbon : IDisposable
         var panel = app.CreateRibbonPanel(TabName, "Hub Link");
         string assembly = Assembly.GetExecutingAssembly().Location;
 
-        BuildIcons();
-
+        // Nothing is drawn while Revit starts: the buttons get their pictures on Revit's first idle moment.
         var data = new PushButtonData("NexusStatus", "Hub:\nStarting", assembly, typeof(ShowStatusCommand).FullName)
         {
             AvailabilityClassName = typeof(AlwaysAvailable).FullName,
             ToolTip = "Nexus agent status. Click for details or to show the Nexus hub.",
-            LargeImage = _icons[AgentState.Stopped],
-            Image = _small[AgentState.Stopped],
         };
         _button = (PushButton)panel.AddItem(data);
 
@@ -66,8 +66,34 @@ internal sealed class StatusRibbon : IDisposable
             _log.Error("Could not create the Fabrication panel.", ex);
         }
 
-        app.Idling += OnIdling;
+        try { _statusEvent = ExternalEvent.Create(this); } catch (Exception ex) { _log.Warn("The ribbon will not show the hub status.", ex); }
+        app.Idling += OnFirstIdle;
         try { app.ThemeChanged += OnThemeChanged; } catch { /* older Revit */ }
+    }
+
+    /// <summary>Revit is up and idle for the first time: draw the buttons' pictures, then stop listening to Idling for good.</summary>
+    private void OnFirstIdle(object? sender, IdlingEventArgs e)
+    {
+        try { _app.Idling -= OnFirstIdle; } catch { /* ignored */ }
+        DrawIcons();
+        ApplyStatus();
+    }
+
+    private void DrawIcons()
+    {
+        if (_iconsDrawn) return;
+        _iconsDrawn = true;
+        try
+        {
+            BuildIcons();
+            _button.LargeImage = _icons[_state];
+            _button.Image = _small[_state];
+            ApplyToolIcons(IsDark());
+        }
+        catch (Exception ex)
+        {
+            _log.Warn("Could not draw the ribbon icons.", ex);
+        }
     }
 
     /// <summary>Tools: Bulk Rename.</summary>
@@ -81,15 +107,12 @@ internal sealed class StatusRibbon : IDisposable
                       "find and replace, capitals, remove and add text, numbering, parameter values ({Level}, {Sheet Number}...), with a live preview. One undo puts every name back.",
         });
         _tools.Add((rename, BulkRename));
-        ApplyToolIcons(IsDark());
     }
 
     /// <summary>Fabrication: browse the database, reload it, export parts to a MAJ job, open the parts in the hub.</summary>
     private void AddFabricationPanel(UIControlledApplication app, string assembly)
     {
         var panel = app.CreateRibbonPanel(TabName, "Fabrication");
-        bool dark = IsDark();
-
         var database = (PushButton)panel.AddItem(new PushButtonData("NexusFabDatabase", "Fabrication\nDatabase", assembly,
             typeof(Fabrication.FabricationDatabaseCommand).FullName)
         {
@@ -122,7 +145,6 @@ internal sealed class StatusRibbon : IDisposable
         _tools.Add(((PushButton)stacked[0], Reload));
         _tools.Add(((PushButton)stacked[1], Export));
         _tools.Add(((PushButton)stacked[2], OpenInHub));
-        ApplyToolIcons(dark);
     }
 
     // Segoe Fluent Icons / MDL2 glyphs.
@@ -161,23 +183,28 @@ internal sealed class StatusRibbon : IDisposable
 
     private void OnThemeChanged(object? sender, ThemeChangedEventArgs e)
     {
-        try
-        {
-            BuildIcons();
-            _button.LargeImage = _icons[_state];
-            _button.Image = _small[_state];
-            ApplyToolIcons(IsDark());
-        }
-        catch (Exception ex)
-        {
-            _log.Warn("Could not update the ribbon icon for the new theme.", ex);
-        }
+        if (!_iconsDrawn) return; // not drawn yet: they will be drawn for the theme in use
+        _iconsDrawn = false;
+        DrawIcons();
     }
 
     /// <summary>Called from any thread.</summary>
-    public void OnStatusChanged(AgentStatus status) => _pending = status;
+    public void OnStatusChanged(AgentStatus status)
+    {
+        _pending = status;
+        try { _statusEvent?.Raise(); } catch { /* shown with the next change */ }
+    }
 
-    private void OnIdling(object? sender, IdlingEventArgs e)
+    /// <summary>Revit calls this on its own thread, when idle, after a status change.</summary>
+    public void Execute(UIApplication app)
+    {
+        DrawIcons();
+        ApplyStatus();
+    }
+
+    public string GetName() => "Nexus hub status";
+
+    private void ApplyStatus()
     {
         var status = _pending;
         if (status is null) return;
@@ -194,6 +221,7 @@ internal sealed class StatusRibbon : IDisposable
             _button.ToolTip = $"State: {status.State}\nPipe: {status.PipeName}\nHub connections: {status.Clients}\nRequests: {status.RequestsHandled}"
                               + (status.LastError is null ? "" : $"\nLast error: {status.LastError}");
             _state = status.State;
+            if (!_iconsDrawn) return;
             _button.LargeImage = _icons[status.State];
             _button.Image = _small[status.State];
         }
@@ -205,7 +233,8 @@ internal sealed class StatusRibbon : IDisposable
 
     public void Dispose()
     {
-        try { _app.Idling -= OnIdling; } catch { /* ignored */ }
+        try { _app.Idling -= OnFirstIdle; } catch { /* ignored */ }
+        try { _statusEvent?.Dispose(); } catch { /* ignored */ }
         try { _app.ThemeChanged -= OnThemeChanged; } catch { /* ignored */ }
     }
 }
