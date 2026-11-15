@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Fabrication engine: spooling by rules, packages, tracking statuses, cut lists with stock nesting, bills of
+       material, and hanger and sleeve spacing. No host or UI code, so it is unit-tested and loaded inside Revit as is.
+       BCL only (System.Text.Json is part of .NET 8+; the net48 build gets it from Directory.Build.props). -->
+  <PropertyGroup>
+    <TargetFrameworks>$(SharedTargetFrameworks)</TargetFrameworks>
+    <RootNamespace>Nexus.Fab</RootNamespace>
+  </PropertyGroup>
+</Project>

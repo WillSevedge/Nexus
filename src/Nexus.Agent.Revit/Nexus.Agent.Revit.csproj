@@ -37,6 +37,7 @@
     <ProjectReference Include="..\Nexus.Agent.Shared\Nexus.Agent.Shared.csproj" />
     <ProjectReference Include="..\Nexus.Contracts\Nexus.Contracts.csproj" />
     <ProjectReference Include="..\Nexus.Rename\Nexus.Rename.csproj" />
+    <ProjectReference Include="..\Nexus.Fab\Nexus.Fab.csproj" />
   </ItemGroup>
 
   <Import Project="..\..\build\Revit.targets" />
