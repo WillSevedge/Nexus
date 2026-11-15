@@ -449,7 +449,7 @@ nothing changes in the files until **Review & apply**. The checks are in `Nexus.
 
 ### Rename & Renumber
 
-**Rename** (command bar, right-click, Ctrl+R) works on the selected rows, or every row shown, in the order shown.
+**Rename** (left menu, right-click, Ctrl+R) works on the selected rows, or every row shown, in the order shown.
 Pick **Sheet Number** or **Sheet Name** (the Revit parameter or the AutoCAD title block attribute) and how to change it:
 
 - **Renumber** from a pattern: `#` is the counter, padded to the number of `#`s (`A1##` → A101, A102…), with a
@@ -491,7 +491,7 @@ to Excel) use the hub's own dialogs.
 
 ### Print & PDF
 
-**Print & PDF** on the command bar (Sheets view) works on the selected sheets, or every sheet shown:
+**Print & PDF** (left menu or right-click, Sheets view) works on the selected sheets, or every sheet shown:
 
 - **Create PDFs**: made by the programs themselves — Revit's PDF export of the open model (each sheet at its
   title block size, unsaved changes included) and, for drawings, AutoCAD's *DWG To PDF* with each layout's own
@@ -510,7 +510,7 @@ to Excel) use the hub's own dialogs.
 
 ### PDFs & markups (Bluebeam Revu)
 
-**Markups** on the command bar reads PDFs: the markups made in Bluebeam Revu (Revu keeps them in the PDF as
+**Markups** (left menu or right-click) reads PDFs: the markups made in Bluebeam Revu (Revu keeps them in the PDF as
 standard annotations), each page, and what the file says about itself. The files are only read.
 
 - **Add files…**: PDFs (a set or single sheets). **Watch folder…** reads every PDF in a folder and its subfolders

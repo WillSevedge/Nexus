@@ -127,7 +127,15 @@ public partial class MainWindow : Window
 
     private void OnGoData(object sender, RoutedEventArgs e) => _vm.IsData = true;
 
-    private void OnOpenHealth(object sender, RoutedEventArgs e) => _vm.Health.IsOpen = true;
+    /// <summary>Sheet health works on the table: go to it, then open the pane.</summary>
+    private void OnOpenHealth(object sender, RoutedEventArgs e)
+    {
+        _vm.IsData = true;
+        _vm.Health.IsOpen = true;
+    }
+
+    /// <summary>View options (what the view includes): a panel under the search box.</summary>
+    private void OnViewOptions(object sender, RoutedEventArgs e) => OptionsToggle.IsChecked = true;
 
     /// <summary>Closing the inspector also unpins it (it stays closed next time).</summary>
     private void OnCloseInspector(object sender, RoutedEventArgs e)
