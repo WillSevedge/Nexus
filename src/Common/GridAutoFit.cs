@@ -22,6 +22,9 @@ internal static class GridAutoFit
 
     private static readonly ConditionalWeakTable<DataGrid, object> Done = new();
 
+    /// <summary>Set by the program to give a table its look before it is fitted (the hub gives every table its own table style).</summary>
+    public static Action<DataGrid>? Prepare { get; set; }
+
     /// <summary>Every table in the window (also those on tabs not opened yet).</summary>
     public static void ApplyAll(DependencyObject root)
     {
@@ -34,6 +37,7 @@ internal static class GridAutoFit
     {
         if (Done.TryGetValue(grid, out _)) return;
         Done.Add(grid, new object());
+        try { Prepare?.Invoke(grid); } catch { /* the table keeps the look it has */ }
 
         // Rows: as tall as their content, never shorter than the height the table was designed with.
         if (!double.IsNaN(grid.RowHeight))
