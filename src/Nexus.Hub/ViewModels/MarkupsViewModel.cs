@@ -42,11 +42,53 @@ public sealed class MarkupRow
     public string Replies => M.Replies == 0 ? "" : M.Replies.ToString();
     public string RepliesText => string.Join(Environment.NewLine, M.ReplyTexts);
     public string File => M.File;
+    public string Layer => M.Layer;
+    public string Colour => M.Colour;
+    /// <summary>"Cloud · A101 · J. Reviewer" for the details pane.</summary>
+    public string Title => string.Join(" · ", new[] { Type, Sheet, Author }.Where(v => v.Length > 0));
+    /// <summary>Every value of the markup, the sheet it is on first.</summary>
+    public IEnumerable<PdfProperty> Properties =>
+        new[]
+        {
+            new PdfProperty("Where", "File", File), new PdfProperty("Where", "Sheet", Sheet), new PdfProperty("Where", "Sheet name", SheetName),
+            new PdfProperty("Where", "Page", M.Page > 0 ? M.Page.ToString() : ""), new PdfProperty("Where", "Page label", M.PageLabel),
+        }.Where(p => p.Value.Length > 0).Concat(M.Properties);
 }
 
+/// <summary>One page of a PDF in the Pages list.</summary>
+public sealed class PageRow
+{
+    public PageRow(PdfPageDetails p) => P = p;
+
+    public PdfPageDetails P { get; }
+    public string File => P.File;
+    public int Page => P.Page;
+    public string Sheet => P.Sheet;
+    public string Label => P.Label;
+    public string Bookmark => P.Bookmark;
+    public string Size => P.Size;
+    public string Paper => P.Paper;
+    public string Rotation => P.Rotation == 0 ? "" : P.Rotation + "°";
+    public string Scale => P.Scale;
+    public string Markups => P.Markups == 0 ? "" : P.Markups.ToString();
+    public string Title => $"{File} · page {Page}" + (Sheet.Length > 0 ? $" · {Sheet}" : "");
+    public IEnumerable<PdfProperty> Properties =>
+        new[]
+        {
+            new PdfProperty("Page", "File", File), new PdfProperty("Page", "Page", Page.ToString()), new PdfProperty("Page", "Sheet", Sheet),
+            new PdfProperty("Page", "Label", Label), new PdfProperty("Page", "Bookmark", Bookmark), new PdfProperty("Page", "Size", Size),
+            new PdfProperty("Page", "Paper", Paper), new PdfProperty("Page", "Rotation", Rotation), new PdfProperty("Page", "Scale", Scale),
+            new PdfProperty("Page", "Markups", Markups),
+        }.Where(p => p.Value.Length > 0).Concat(P.Properties);
+}
+
+/// <summary>One value of a PDF in the Document list.</summary>
+public sealed record DocumentRow(string File, string Group, string Name, string Value);
+
 /// <summary>
-/// Markups from Bluebeam (or any PDF reviewer) next to the sheets: which drawings have open comments, who made
-/// them and what was answered. The PDFs are only read; they are read again whenever Bluebeam saves them.
+/// PDFs next to the sheets: every markup from Bluebeam (or any PDF reviewer) with every value stored on it, each page
+/// (sheet, size, scale) and what the file says about itself (document information, XMP, layers, security…). Markup
+/// lists exported from a Studio Session (CSV) are read the same way. Files are only read, and read again when saved.
 /// </summary>
 public sealed class MarkupsViewModel : Observable, IDisposable
 {
@@ -68,10 +110,18 @@ public sealed class MarkupsViewModel : Observable, IDisposable
         View = CollectionViewSource.GetDefaultView(Rows);
         View.Filter = o => o is MarkupRow r && Shows(r);
         View.GroupDescriptions.Add(new PropertyGroupDescription(nameof(MarkupRow.Group)));
+        PagesView = CollectionViewSource.GetDefaultView(Pages);
+        PagesView.Filter = o => o is PageRow r && Found(r.File, r.Sheet, r.Label, r.Bookmark, r.Paper, r.Scale);
+        DocumentView = CollectionViewSource.GetDefaultView(Document);
+        DocumentView.Filter = o => o is DocumentRow r && Found(r.File, r.Group, r.Name, r.Value);
+        DocumentView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(DocumentRow.File)));
+        DetailsView = CollectionViewSource.GetDefaultView(Details);
+        DetailsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(PdfProperty.Group)));
         AddCommand = new RelayCommand(AddAsync);
+        AddFolderCommand = new RelayCommand(AddFolderAsync);
         RemoveCommand = new RelayCommand(() => { Remove(); return Task.CompletedTask; }, () => SelectedFile is not null);
         RefreshCommand = new RelayCommand(RefreshAsync, () => !_busy && Files.Count > 0);
-        ExportCommand = new RelayCommand(() => { Export(); return Task.CompletedTask; }, () => Rows.Count > 0);
+        ExportCommand = new RelayCommand(() => { Export(); return Task.CompletedTask; }, () => Rows.Count + Pages.Count + Document.Count > 0);
         OpenPdfCommand = new RelayCommand(() => { OpenPdf(); return Task.CompletedTask; }, () => Files.Count > 0);
         ShowInModelCommand = new RelayCommand(ShowInModelAsync);
     }
@@ -79,7 +129,15 @@ public sealed class MarkupsViewModel : Observable, IDisposable
     public ObservableCollection<string> Files { get; } = new();
     public ObservableCollection<MarkupRow> Rows { get; } = new();
     public ICollectionView View { get; }
+    public ObservableCollection<PageRow> Pages { get; } = new();
+    public ICollectionView PagesView { get; }
+    public ObservableCollection<DocumentRow> Document { get; } = new();
+    public ICollectionView DocumentView { get; }
+    /// <summary>Every value of the markup or page selected last.</summary>
+    public ObservableCollection<PdfProperty> Details { get; } = new();
+    public ICollectionView DetailsView { get; }
     public RelayCommand AddCommand { get; }
+    public RelayCommand AddFolderCommand { get; }
     public RelayCommand RemoveCommand { get; }
     public RelayCommand RefreshCommand { get; }
     public RelayCommand ExportCommand { get; }
@@ -98,6 +156,33 @@ public sealed class MarkupsViewModel : Observable, IDisposable
 
     public bool HasFiles => Files.Count > 0;
 
+    private int _tab;
+    /// <summary>0 Markups, 1 Pages, 2 Document (Export saves the list shown).</summary>
+    public int Tab
+    {
+        get => _tab;
+        set
+        {
+            if (Set(ref _tab, value)) Raise(nameof(IsMarkupsTab));
+        }
+    }
+
+    public bool IsMarkupsTab => _tab == 0;
+
+    private string _detailsTitle = "Select a markup or a page to see everything stored on it.";
+    public string DetailsTitle
+    {
+        get => _detailsTitle;
+        private set => Set(ref _detailsTitle, value);
+    }
+
+    public void ShowDetails(string title, IEnumerable<PdfProperty> properties)
+    {
+        DetailsTitle = title;
+        Details.Clear();
+        foreach (var p in properties) Details.Add(p);
+    }
+
     public string Filter
     {
         get => _filter;
@@ -112,7 +197,10 @@ public sealed class MarkupsViewModel : Observable, IDisposable
         get => _search;
         set
         {
-            if (Set(ref _search, value ?? "")) View.Refresh();
+            if (!Set(ref _search, value ?? "")) return;
+            View.Refresh();
+            PagesView.Refresh();
+            DocumentView.Refresh();
         }
     }
 
@@ -145,8 +233,15 @@ public sealed class MarkupsViewModel : Observable, IDisposable
         };
         if (!kind) return false;
         string s = _search.Trim();
-        return s.Length == 0 || new[] { r.Sheet, r.SheetName, r.Comment, r.Subject, r.Author, r.Status, r.RepliesText }
-            .Any(v => v.Contains(s, StringComparison.OrdinalIgnoreCase));
+        return s.Length == 0
+               || Found(r.Sheet, r.SheetName, r.Comment, r.Subject, r.Author, r.Status, r.RepliesText, r.Layer, r.Type)
+               || r.M.Properties.Any(p => p.Value.Contains(s, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private bool Found(params string[] values)
+    {
+        string s = _search.Trim();
+        return s.Length == 0 || values.Any(v => v.Contains(s, StringComparison.OrdinalIgnoreCase));
     }
 
     // ------------------------------------------------------------------ files
@@ -155,8 +250,8 @@ public sealed class MarkupsViewModel : Observable, IDisposable
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Choose the reviewed PDFs (Bluebeam sets or single sheets)",
-            Filter = "PDF files (*.pdf)|*.pdf",
+            Title = "Choose PDFs (sets or single sheets) or markup lists exported from Bluebeam (CSV)",
+            Filter = "PDFs and Bluebeam markup lists (*.pdf;*.csv)|*.pdf;*.csv|PDF files (*.pdf)|*.pdf|Bluebeam markup list (*.csv)|*.csv",
             Multiselect = true,
         };
         if (dialog.ShowDialog() != true) return;
@@ -165,6 +260,33 @@ public sealed class MarkupsViewModel : Observable, IDisposable
         Remember();
         await RefreshAsync();
     }
+
+    /// <summary>Every PDF in a folder and its subfolders (an issued set, or the folder a Studio Session was saved to).</summary>
+    private async Task AddFolderAsync()
+    {
+        var dialog = new OpenFolderDialog { Title = "Choose a folder of PDFs (subfolders included)" };
+        if (dialog.ShowDialog() != true) return;
+        List<string> found;
+        try
+        {
+            var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, MaxRecursionDepth = 8 };
+            found = await Task.Run(() => Directory.EnumerateFiles(dialog.FolderName, "*.pdf", options).Take(MaxFolderFiles + 1).ToList());
+        }
+        catch (Exception ex)
+        {
+            Message = "Could not read the folder: " + ex.Message;
+            return;
+        }
+        bool tooMany = found.Count > MaxFolderFiles;
+        foreach (var f in found.Take(MaxFolderFiles).OrderBy(f => f, NaturalComparer.Instance))
+            if (!Files.Contains(f, StringComparer.OrdinalIgnoreCase)) Files.Add(f);
+        Remember();
+        await RefreshAsync();
+        if (found.Count == 0) Message = "No PDFs in that folder.";
+        else if (tooMany) Message = $"That folder has more than {MaxFolderFiles} PDFs: the first {MaxFolderFiles} were added. Add a subfolder for the rest.";
+    }
+
+    private const int MaxFolderFiles = 2000;
 
     private void Remove()
     {
@@ -190,29 +312,44 @@ public sealed class MarkupsViewModel : Observable, IDisposable
             var paths = Files.ToList();
             var results = await Task.Run(() => paths.Select(p =>
             {
-                try { return (Path: p, Markups: PdfMarkups.Read(p), Error: (string?)null); }
-                catch (Exception ex) { return (Path: p, Markups: new List<PdfMarkup>(), Error: ex.Message); }
+                try
+                {
+                    if (System.IO.Path.GetExtension(p).Equals(".csv", StringComparison.OrdinalIgnoreCase))
+                        return (Path: p, Details: new PdfDetails { Path = p, Markups = BluebeamCsv.Read(p) }, Error: (string?)null);
+                    return (Path: p, Details: PdfInspector.Read(p), Error: (string?)null);
+                }
+                catch (Exception ex)
+                {
+                    return (Path: p, Details: new PdfDetails { Path = p }, Error: ex.Message);
+                }
             }).ToList());
 
             var sheets = _main.SheetsByNumber();
             Rows.Clear();
-            foreach (var (path, markups, _) in results)
-                foreach (var m in markups.OrderBy(m => m.Sheet, NaturalComparer.Instance).ThenBy(m => m.Page).ThenBy(m => m.Date))
+            Pages.Clear();
+            Document.Clear();
+            foreach (var (path, details, _) in results)
+            {
+                foreach (var m in details.Markups.OrderBy(m => m.Sheet, NaturalComparer.Instance).ThenBy(m => m.Page).ThenBy(m => m.Date))
                     Rows.Add(new MarkupRow(m, path, m.Sheet.Length > 0 && sheets.TryGetValue(ExcelCompare.NormalizeKey(m.Sheet), out var row) ? row : null));
+                foreach (var page in details.Pages) Pages.Add(new PageRow(page));
+                foreach (var p in details.Document) Document.Add(new DocumentRow(details.File, p.Group, p.Name, p.Value));
+            }
+            ShowDetails("Select a markup or a page to see everything stored on it.", Array.Empty<PdfProperty>());
 
             int open = Rows.Count(r => r.IsOpen);
             int onSheets = Rows.Select(r => r.Sheet).Distinct(StringComparer.OrdinalIgnoreCase).Count();
             int notInModel = Rows.Count(r => !r.InModel);
             Summary = Rows.Count == 0
-                ? (Files.Count == 0 ? "Add the reviewed PDFs to see their markups." : "No markups in these PDFs.")
-                : $"{Rows.Count} markup(s) on {onSheets} sheet(s) · {open} open · {Rows.Count - open} closed" +
+                ? (Files.Count == 0 ? "Add PDFs to read them." : $"{Files.Count} file(s) · {Pages.Count} page(s) · no markups")
+                : $"{Files.Count} file(s) · {Pages.Count} page(s) · {Rows.Count} markup(s) on {onSheets} sheet(s) · {open} open · {Rows.Count - open} closed" +
                   (notInModel > 0 ? $" · {notInModel} on sheets not in the loaded models" : "");
             var errors = results.Where(r => r.Error is not null).Select(r => $"{Path.GetFileName(r.Path)}: {r.Error}").ToList();
             Message = errors.Count > 0
                 ? "Could not read " + string.Join("; ", errors)
                 : sheets.Count == 0 && Rows.Count > 0
                     ? "Show Sheets in the main window to see each sheet's name and to open sheets in Revit or AutoCAD."
-                    : Rows.Count > 0 ? $"Read {DateTime.Now:t}. Saves in Bluebeam show up here by themselves." : "";
+                    : Files.Count > 0 ? $"Read {DateTime.Now:t}. Saves in Bluebeam show up here by themselves." : "";
         }
         finally
         {
@@ -230,7 +367,7 @@ public sealed class MarkupsViewModel : Observable, IDisposable
             if (folder is null || !Directory.Exists(folder)) continue;
             try
             {
-                var w = new FileSystemWatcher(folder, "*.pdf") { NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size };
+                var w = new FileSystemWatcher(folder) { NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size };
                 void OnEvent(string path)
                 {
                     if (Files.Contains(path, StringComparer.OrdinalIgnoreCase))
@@ -292,22 +429,41 @@ public sealed class MarkupsViewModel : Observable, IDisposable
         return _main.ShowInModelAsync(rows);
     }
 
+    /// <summary>The list shown (Markups, Pages or Document) as a workbook, with every value as a column.</summary>
     private void Export()
     {
+        string what = _tab switch { 1 => "Pages", 2 => "PDF details", _ => "Markups" };
         var dialog = new SaveFileDialog
         {
             Filter = "Excel workbook (*.xlsx)|*.xlsx",
-            FileName = $"Markups {DateTime.Now:yyyy-MM-dd}.xlsx",
+            FileName = $"{what} {DateTime.Now:yyyy-MM-dd}.xlsx",
         };
         if (dialog.ShowDialog() != true) return;
         try
         {
-            var headers = new[] { "Sheet", "Sheet Name", "Page", "Type", "Subject", "Comment", "Author", "Date", "Status", "Replies", "File" };
-            var rows = View.Cast<MarkupRow>().Select(r => (IReadOnlyList<string?>)new[]
+            if (_tab == 2)
             {
-                r.Sheet, r.SheetName, r.Page.ToString(), r.Type, r.Subject, r.Comment, r.Author, r.Date, r.Status, r.RepliesText, r.File,
-            });
-            ExcelWorkbook.Export(dialog.FileName, headers, rows, "Markups");
+                var rows = DocumentView.Cast<DocumentRow>().Select(r => (IReadOnlyList<string?>)new[] { r.File, r.Group, r.Name, r.Value });
+                ExcelWorkbook.Export(dialog.FileName, new[] { "File", "Group", "Name", "Value" }, rows, "Document");
+            }
+            else
+            {
+                // One column for each value found on any row, in the order first seen.
+                var shown = _tab == 1
+                    ? PagesView.Cast<PageRow>().Select(r => r.Properties.ToList()).ToList()
+                    : View.Cast<MarkupRow>().Select(r => r.Properties.ToList()).ToList();
+                var first = _tab == 1 ? "Page" : "Where";
+                static string Header(PdfProperty p, string plain) => p.Group == plain || p.Group == "Markup" ? p.Name : $"{p.Group}: {p.Name}";
+                var headers = shown.SelectMany(l => l.Select(p => Header(p, first))).Distinct(StringComparer.Ordinal).ToList();
+                var index = headers.Select((h, i) => (h, i)).ToDictionary(x => x.h, x => x.i, StringComparer.Ordinal);
+                var rows = shown.Select(l =>
+                {
+                    var cells = new string?[headers.Count];
+                    foreach (var p in l) cells[index[Header(p, first)]] ??= p.Value;
+                    return (IReadOnlyList<string?>)cells;
+                });
+                ExcelWorkbook.Export(dialog.FileName, headers, rows, what);
+            }
             Message = $"Saved {Path.GetFileName(dialog.FileName)}.";
         }
         catch (Exception ex)

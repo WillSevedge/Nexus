@@ -455,22 +455,34 @@ to Excel) use the hub's own dialogs.
 - If AutoCAD asks whether to load the Nexus add-in (SECURELOAD), add the `Nexus.bundle\Contents\<year>` folder to
   *Options › Files › Trusted Locations*.
 
-### Markups (Bluebeam Revu)
+### PDFs & markups (Bluebeam Revu)
 
-**Markups** on the command bar reads the markups from PDFs reviewed in Bluebeam Revu (Revu keeps them in the PDF
-as standard annotations; the PDFs are only read):
+**Markups** on the command bar reads PDFs: the markups made in Bluebeam Revu (Revu keeps them in the PDF as
+standard annotations), each page, and what the file says about itself. The files are only read.
 
-- **Add PDFs…**: a set or single sheets. Each page is matched to its sheet by page label, else by bookmark
-  ("A101 - Floor Plan"), else, for a one-sheet PDF, by its file name (`A101 - Floor Plan.pdf`). Sets made with
-  Print & PDF have labels and bookmarks.
-- Markups are grouped by sheet, with the sheet name from the loaded models: status, page, type (cloud, callout,
-  text box, pen…), subject, comment, author, date and replies (hover to read them). *Show* filters open, closed
-  or on sheets not in the model; the search box looks through comments, authors and replies.
+- **Add files…**: PDFs (a set or single sheets). **Add folder…** adds every PDF in a folder and its subfolders.
+  Each page is matched to its sheet by page label, else by bookmark ("A101 - Floor Plan"), else, for a one-sheet
+  PDF, by its file name (`A101 - Floor Plan.pdf`). Sets made with Print & PDF have labels and bookmarks.
+- **Markups** tab: grouped by sheet, with the sheet name from the loaded models: status, page, type (cloud,
+  callout, text box, length, area, count…), subject, comment, author, date, replies and layer. Markups grouped in
+  Revu are each listed; replies to replies are kept. *Show* filters open, closed or on sheets not in the model.
+- **All values** (right): select a markup to see everything stored on it: created and modified dates, status
+  history, replies, layer, lock, colours, line, position and size, measurement scale, custom columns, and any
+  value Bluebeam or another program added, under the name the PDF gives it (Bluebeam's start with `BSI`).
+- **Pages** tab: sheet, label, bookmark, size and paper (ARCH D, ANSI B, A1…), rotation, the scale set in Revu and
+  the number of markups. Select a page for its other values.
+- **Document** tab: file facts, the document information (title, author, producer, dates and custom entries),
+  XMP, PDF version, layers, bookmarks, attachments, form fields, signatures, password protection, and Bluebeam's
+  own document values.
+- **Studio Sessions**: a running session's PDFs are on Bluebeam's servers, not in a file. Either save a copy of
+  the session PDF from Revu and add it, or export the Markups list as CSV (Markups list › Summary › CSV) and add
+  the CSV with **Add files…**: every column of the export is read. After the session is finished, its PDFs hold
+  the markups and are read like any other.
 - **Status**: the review status set in Revu (Accepted, Completed, Rejected, Cancelled… or a custom status). A
   markup without one, or with a status that doesn't close it, is *Open*.
-- When Revu saves the PDF, the list reads it again by itself.
+- The search box looks through every list and every value. When Revu saves a file, the lists read it again.
 - **Show sheet in model** (or double-click) opens the sheet in Revit or AutoCAD; **Open PDF** opens it in your
-  PDF program; **Export to Excel…** saves the markups shown.
+  PDF program; **Export to Excel…** saves the list shown, with every value as a column.
 
 ### AI assistants in AutoCAD (MCP)
 

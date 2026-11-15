@@ -346,7 +346,7 @@
                 <TextBlock Text="Print &amp; PDF" Style="{StaticResource RailLabel}" />
               </StackPanel>
             </Button>
-            <Button Style="{StaticResource Nexus.RailButton}" Click="OnMarkups" ToolTip="Markups: the comments made in Bluebeam on the PDFs, by sheet">
+            <Button Style="{StaticResource Nexus.RailButton}" Click="OnMarkups" ToolTip="PDFs &amp; markups: every Bluebeam markup by sheet, plus each PDF's pages and details">
               <StackPanel Orientation="Horizontal">
                 <TextBlock Text="&#xE70F;" Style="{StaticResource RailGlyph}" />
                 <TextBlock Text="Markups" Style="{StaticResource RailLabel}" />
@@ -827,7 +827,7 @@
                 <TextBlock Text="&#xE8AC;" Style="{StaticResource Glyph}" />
               </Button>
               <Button Style="{StaticResource Nexus.IconButton}" Click="OnMarkups"
-                      ToolTip="Markups: the comments made in Bluebeam on the PDFs, by sheet">
+                      ToolTip="PDFs &amp; markups: every Bluebeam markup by sheet, plus each PDF's pages and details">
                 <TextBlock Text="&#xE70F;" Style="{StaticResource Glyph}" />
               </Button>
               <Button Style="{StaticResource Nexus.IconButton}" Click="OnHistory"
