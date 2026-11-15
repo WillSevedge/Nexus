@@ -38,6 +38,10 @@
     <EmbeddedResource Include="..\Nexus.Agent.Revit\Rename\BulkRenameWindow.xaml" Link="Rename\BulkRenameWindow.xaml" LogicalName="BulkRenameWindow.xaml" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Auto-fit for every table (shared with the Revit add-in's windows). -->
+    <Compile Include="..\Common\GridAutoFit.cs" Link="Common\GridAutoFit.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Nexus.Hub.Core\Nexus.Hub.Core.csproj" />
     <!-- Rename & Renumber: the same rules engine and layout as Bulk Rename in Revit (Bulk Rename Utility style). -->
     <ProjectReference Include="..\Nexus.Rename\Nexus.Rename.csproj" />
