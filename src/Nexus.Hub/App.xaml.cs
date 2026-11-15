@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Threading;
 using Nexus.Hub.Core;
@@ -20,6 +21,9 @@ namespace Nexus.Hub;
 public partial class App : Application
 {
     private static readonly TimeSpan HostPollInterval = TimeSpan.FromSeconds(3);
+    /// <summary>While the window is hidden the hub only counts the programs that are running (for the tray icon).</summary>
+    private static readonly TimeSpan HiddenPollInterval = TimeSpan.FromSeconds(20);
+    private bool _started;
 
     private HubInstance? _instance;
     private TrayIcon? _tray;
@@ -106,15 +110,13 @@ public partial class App : Application
         HubLog.Info($"Hub started ({(args.Contains("--background") ? "background" : "window")}). Log: {HubLog.FilePath}");
         StartupRegistration.Apply();
 
-        _vm = new MainViewModel();
-        _window = new MainWindow(_vm);
-        _window.Closing += (_, ce) =>
-        {
-            if (_exiting) return;
-            ce.Cancel = true;
-            _window.Hide();
-            _tray?.NotifyStillRunning();
-        };
+        // Started with Windows (--background): stay out of the way. The hub runs at low priority, builds no window
+        // and asks Revit and AutoCAD nothing until its window is opened, so it costs their start nothing.
+        bool background = args.Contains("--background");
+        if (background)
+            try { Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.BelowNormal; } catch { /* stays normal */ }
+
+        _vm = new MainViewModel { IsActive = false };
 
         _tray = new TrayIcon(ShowWindow, () => _vm.RefreshCommand.Execute(null), () => ExitHub(ask: true));
         _vm.HostsChanged += summary => _tray?.SetStatus(summary);
@@ -124,7 +126,7 @@ public partial class App : Application
             switch (command)
             {
                 case "show": ShowWindow(); break;
-                case "refresh": _vm.RefreshCommand.Execute(null); break;
+                case "refresh": if (_vm.IsActive) _vm.RefreshCommand.Execute(null); break;
                 case "exit": ExitHub(ask: false); break;
                 case var c when c.StartsWith("dataset ", StringComparison.Ordinal):
                     ShowWindow();
@@ -133,19 +135,57 @@ public partial class App : Application
             }
         }));
 
-        // Pick up hosts as they start and stop, even while the window is hidden.
-        _poll = new DispatcherTimer { Interval = HostPollInterval };
+        // Pick up programs as they start and stop. Hidden: a look at the registration files now and then, nothing more.
+        _poll = new DispatcherTimer { Interval = HiddenPollInterval };
         _poll.Tick += async (_, _) => await _vm.RefreshIfHostsChangedAsync();
         _poll.Start();
-        _ = _vm.StartAsync();
+        _ = _vm.RefreshIfHostsChangedAsync();
 
-        if (!args.Contains("--background")) ShowWindow();
-        if (dataset is not null) _ = _vm.ShowReaderAsync(dataset);
+        if (!background) ShowWindow();
+        if (dataset is not null)
+        {
+            ShowWindow();
+            _ = _vm.ShowReaderAsync(dataset);
+        }
+    }
+
+    /// <summary>The window is built the first time it is shown (not at sign-in, when nobody is looking at it).</summary>
+    private MainWindow EnsureWindow()
+    {
+        if (_window is not null) return _window;
+        _window = new MainWindow(_vm!);
+        _window.Closing += (_, ce) =>
+        {
+            if (_exiting) return;
+            ce.Cancel = true;
+            _window.Hide();
+            SetActive(false);
+            _tray?.NotifyStillRunning();
+        };
+        return _window;
+    }
+
+    /// <summary>Shown: connect to the programs and read. Hidden: leave them alone.</summary>
+    private void SetActive(bool active)
+    {
+        if (_vm is null || _vm.IsActive == active) return;
+        _vm.IsActive = active;
+        if (_poll is not null) _poll.Interval = active ? HostPollInterval : HiddenPollInterval;
+        if (!active) return;
+        try { Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.Normal; } catch { /* stays as it is */ }
+        if (_started) _ = _vm.RefreshIfHostsChangedAsync(force: true);
+        else
+        {
+            _started = true;
+            _ = _vm.StartAsync();
+        }
     }
 
     private void ShowWindow()
     {
-        if (_window is null) return;
+        if (_vm is null) return;
+        var _window = EnsureWindow();
+        SetActive(true);
         if (!_window.IsVisible) _window.Show();
         if (_window.WindowState == WindowState.Minimized) _window.WindowState = WindowState.Normal;
         _window.Activate();

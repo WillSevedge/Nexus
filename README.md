@@ -208,6 +208,18 @@ Editable from the hub (one transaction, one undo): **item number, notes, spool n
 description), **specification, material, insulation specification** (by name or `Group: Name`; Revit refuses
 values that are not valid for the part) and **custom data** (text, or numbers parsed by the configuration's rules).
 
+**Start-up cost.** Nexus is built to add nothing you can notice to the start of Revit, AutoCAD or Windows:
+- *Revit add-in*: while Revit starts it only adds its ribbon buttons (no pictures) and one event. The pictures are
+  drawn at Revit's first idle moment; the pipe server and the registration file start on a background thread.
+  It listens to no Revit event afterwards (no Idling, no document events): it runs only when the hub asks.
+- *AutoCAD add-in*: nothing while AutoCAD starts; the agent and its ribbon tab are set up at AutoCAD's first idle
+  moment, the pipe server on a background thread.
+- *Hub*: started with Windows it runs at low priority, builds no window and asks the programs nothing. While its
+  window is hidden it only looks at the registration files every 20 seconds (for the tray icon); it connects to
+  Revit and AutoCAD and reads from them only once its window is opened, and stops again when it is closed.
+  *Start with Windows* can be turned off from the tray icon's menu: the Nexus button in Revit or AutoCAD starts it.
+- Each add-in writes what it cost to its log (`%LOCALAPPDATA%\Nexus\logs`): "Nexus add-in: N ms of Revit's start".
+
 **Threading.** Pipe requests never touch the Revit API. They are queued and run by an
 `IExternalEventHandler` on Revit's main thread. If Revit cannot run them within 30 s
 (for example a modal dialog is open or you are in an edit mode), the hub gets a `HostBusy`

@@ -89,7 +89,23 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
         WriteRegistration();
         SetState(AgentState.Listening);
         _acceptLoop = Task.Run(AcceptLoopAsync);
+        // The hub finds this program by its registration file. If the file goes missing while the program runs (the
+        // hub took it for a leftover, a clean-up tool removed it), put it back: a look every 15 seconds on a
+        // background thread, which costs nothing the program can notice.
+        if (_options.WriteRegistration)
+            _keeper = new Timer(_ =>
+            {
+                try
+                {
+                    if (_stop.IsCancellationRequested || File.Exists(NexusPaths.RegistrationFile(_host.ProcessId))) return;
+                    _log.Info("The registration file was gone: writing it again.");
+                    WriteRegistration();
+                }
+                catch { /* tried again in 15 seconds */ }
+            }, null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
     }
+
+    private Timer? _keeper;
 
     /// <summary>Update host info (e.g. after optional modules load) and re-publish the registration.</summary>
     public void UpdateHost(HostInfo host)
@@ -461,6 +477,7 @@ public sealed class AgentServer<TDoc> : IDisposable where TDoc : class
         try
         {
             _stop.Cancel();
+            try { _keeper?.Dispose(); } catch { /* ignored */ }
             try { _acceptLoop?.Wait(TimeSpan.FromSeconds(2)); } catch { /* ignored */ }
             if (_options.WriteRegistration) AgentRegistrationFile.Delete(_host.ProcessId);
             SetState(AgentState.Stopped);

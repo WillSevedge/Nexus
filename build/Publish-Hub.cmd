@@ -23,8 +23,9 @@ if exist "%OUT%" (
 
 echo Building the Nexus hub (the first build downloads packages and takes a minute)...
 rem All publish settings are on the command line (no publish profile needed).
+rem Not compressed: a compressed single file unpacks all of itself into memory at every start, which is slow at sign-in.
 dotnet publish "%ROOT%\src\Nexus.Hub\Nexus.Hub.csproj" -c Release -r win-x64 --self-contained true ^
-  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true ^
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=false ^
   -p:DebugType=embedded -p:AllowedReferenceRelatedFileExtensions=none ^
   -o "%ROOT%\artifacts\Nexus" -nologo -v:minimal
 if errorlevel 1 (

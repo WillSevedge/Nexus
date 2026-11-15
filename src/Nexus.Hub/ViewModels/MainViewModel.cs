@@ -377,11 +377,29 @@ public sealed partial class MainViewModel : Observable
         int docs = Agents.Sum(a => a.Documents.Count);
         if (!_busy)
             Status = found.Count == 0
-                ? "Waiting for Revit, AutoCAD, Civil 3D or Plant 3D (with the Nexus add-in). They appear here automatically."
+                ? RunningWithoutAddIn() is { } program
+                    ? $"{program} is running but its Nexus add-in has not answered yet. It shows up within 15 seconds; if it does not, the add-in is missing or older than this hub: close {program}, run Install-Nexus.cmd, and start it again."
+                    : "Waiting for Revit, AutoCAD, Civil 3D or Plant 3D (with the Nexus add-in). They appear here automatically."
                 : $"Connected to {found.Count} program(s) with {docs} open file(s).";
         HostsChanged?.Invoke(found.Count == 0
             ? "waiting for Revit, AutoCAD, Civil 3D or Plant 3D"
             : string.Join(", ", Agents.Select(a => a.Title)));
+    }
+
+    /// <summary>"Revit" or "AutoCAD" when one is running on this PC although no add-in has registered; else null.</summary>
+    private static string? RunningWithoutAddIn()
+    {
+        foreach (var (process, name) in new[] { ("Revit", "Revit"), ("acad", "AutoCAD") })
+        {
+            try
+            {
+                var running = Process.GetProcessesByName(process);
+                foreach (var p in running) p.Dispose();
+                if (running.Length > 0) return name;
+            }
+            catch { /* not allowed to look: say nothing */ }
+        }
+        return null;
     }
 
     private async Task RefreshAgentAsync(AgentNode node, AgentRegistration reg)
@@ -406,8 +424,22 @@ public sealed partial class MainViewModel : Observable
     /// Cheap poll (registration files): refreshes only when a program started or stopped, or always
     /// with <paramref name="force"/> (re-lists open files). Reloads when the ticked files changed.
     /// </summary>
+    /// <summary>
+    /// False while the hub's window is hidden (in the tray): the hub then asks the programs nothing, so it never
+    /// makes Revit or AutoCAD work while they start or while someone is drawing. It only counts them for the tray.
+    /// </summary>
+    public bool IsActive { get; set; } = true;
+
     public async Task RefreshIfHostsChangedAsync(bool force = false)
     {
+        if (!IsActive)
+        {
+            var running = await Task.Run(() => AgentDiscovery.Discover());
+            HostsChanged?.Invoke(running.Count == 0
+                ? "waiting for Revit, AutoCAD, Civil 3D or Plant 3D"
+                : string.Join(", ", running.Select(r => r.Host.Name).Distinct()) + " (open Nexus to connect)");
+            return;
+        }
         if (_busy || _refreshing) return;
         if (!force)
         {
