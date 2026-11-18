@@ -47,6 +47,19 @@ internal sealed class FabWindow
 
     private sealed record Choice(string Name, ElementId Id);
 
+    private sealed class LineRow
+    {
+        public PipeLine Line { get; init; } = null!;
+        public string Name => Line.Name;
+        public string State => Line.Existing ? "In model" : "New";
+        public string Service => Line.Service;
+        public string Size => Line.Size;
+        public string Material => Line.Material;
+        public string Level => Line.Level;
+        public int Pieces => Line.Items.Count;
+        public string Length => Line.LengthFt > 0 ? FabMeasure.FeetInches(Line.LengthFt) : "";
+    }
+
     private readonly FabSession _session;
     private readonly AgentLog _log;
     private readonly Window _window;
@@ -130,6 +143,15 @@ internal sealed class FabWindow
         Click("HistoryButton", () => SaveCsv("Fabrication history", FabCsv.Write(new[] { "When", "Who", "What", "Changed", "From", "To" },
             _session.Project.History.Select(h => new[] { h.When, h.Who, h.What, h.Field, h.From, h.To }))));
 
+        Click("LinePreviewButton", PreviewLines);
+        Click("LineApplyButton", ApplyLines);
+        Click("LineSelectButton", () =>
+        {
+            var rows = Find<DataGrid>("LinesGrid").SelectedItems.OfType<LineRow>().ToList();
+            Say(rows.Count == 0 ? "Select lines in the list first." : $"Selected {_session.SelectItems(rows.SelectMany(r => r.Line.Items))} piece(s) in Revit.");
+        });
+        Find<ComboBox>("LineDataCombo").ItemsSource = _session.CustomDataNames();
+
         Find<DataGrid>("MapGrid").ItemsSource = _maps;
         var values = Find<ListBox>("ValuesList");
         values.MouseDoubleClick += (_, _) =>
@@ -145,6 +167,20 @@ internal sealed class FabWindow
             Say($"{_session.Project.Mappings.Count} mapping line(s) saved in the model.");
         });
         Click("WriteMapButton", WriteMapping);
+        var modelParams = Find<DataGrid>("ModelParamsGrid");
+        Find<CheckBox>("FabParamsOnlyBox").Checked += (_, _) => Do(ShowModelParameters);
+        Find<CheckBox>("FabParamsOnlyBox").Unchecked += (_, _) => Do(ShowModelParameters);
+        modelParams.MouseDoubleClick += (_, _) =>
+        {
+            if (modelParams.SelectedItem is not ModelParameter parameter) return;
+            var mapGrid = Find<DataGrid>("MapGrid");
+            mapGrid.CommitEdit(DataGridEditingUnit.Row, true);
+            if (mapGrid.SelectedItem is ParameterMap line) line.To = parameter.Name;
+            else _maps.Add(new ParameterMap { From = "", To = parameter.Name });
+            mapGrid.Items.Refresh();
+            Say($"Mapping to \"{parameter.Name}\". Fill in the value it gets, then Write to model.");
+        };
+        ShowModelParameters();
 
         Find<DataGrid>("StockGrid").ItemsSource = _stock;
         Click("CutButton", MakeCutList);
@@ -251,6 +287,17 @@ internal sealed class FabWindow
         Find<CheckBox>("LooseBox").IsChecked = r.AccessoriesAreLoose;
         Find<CheckBox>("ServicesBox").IsChecked = r.KeepServicesApart;
         Find<CheckBox>("LevelsBox").IsChecked = r.KeepLevelsApart;
+        Find<CheckBox>("LinesBox").IsChecked = r.KeepLinesApart;
+        var l = p.Lines;
+        Find<ComboBox>("LineParamCombo").Text = l.Parameter;
+        Find<ComboBox>("LineDataCombo").Text = l.CustomData;
+        Find<TextBox>("LinePatternBox").Text = l.Pattern;
+        Find<TextBox>("LineStartBox").Text = l.Start.ToString(CultureInfo.CurrentCulture);
+        Find<CheckBox>("LineBranchBox").IsChecked = l.BreakAtBranches;
+        Find<CheckBox>("LineSizeBox").IsChecked = l.BreakAtSizeChange;
+        Find<CheckBox>("LinePipeBox").IsChecked = l.PipeOnly;
+        Find<CheckBox>("LinePerServiceBox").IsChecked = l.CountPerService;
+        Find<CheckBox>("LineKeepBox").IsChecked = l.KeepExisting;
         Find<CheckBox>("HangersBox").IsChecked = r.IncludeHangers;
         Find<CheckBox>("KeepBox").IsChecked = r.KeepExisting;
         Find<TextBox>("KerfBox").Text = Text(p.KerfIn);
@@ -308,6 +355,17 @@ internal sealed class FabWindow
         r.AccessoriesAreLoose = Find<CheckBox>("LooseBox").IsChecked == true;
         r.KeepServicesApart = Find<CheckBox>("ServicesBox").IsChecked == true;
         r.KeepLevelsApart = Find<CheckBox>("LevelsBox").IsChecked == true;
+        r.KeepLinesApart = Find<CheckBox>("LinesBox").IsChecked == true;
+        var l = p.Lines;
+        l.Parameter = Find<ComboBox>("LineParamCombo").Text.Trim();
+        l.CustomData = Find<ComboBox>("LineDataCombo").Text.Trim();
+        l.Pattern = Find<TextBox>("LinePatternBox").Text.Trim();
+        l.Start = (int)Math.Max(0, Number(Find<TextBox>("LineStartBox"), 1));
+        l.BreakAtBranches = Find<CheckBox>("LineBranchBox").IsChecked == true;
+        l.BreakAtSizeChange = Find<CheckBox>("LineSizeBox").IsChecked == true;
+        l.PipeOnly = Find<CheckBox>("LinePipeBox").IsChecked == true;
+        l.CountPerService = Find<CheckBox>("LinePerServiceBox").IsChecked == true;
+        l.KeepExisting = Find<CheckBox>("LineKeepBox").IsChecked == true;
         r.IncludeHangers = Find<CheckBox>("HangersBox").IsChecked == true;
         r.KeepExisting = Find<CheckBox>("KeepBox").IsChecked == true;
         p.KerfIn = Math.Max(0, Number(Find<TextBox>("KerfBox"), 0.125));
@@ -488,6 +546,39 @@ internal sealed class FabWindow
         Say($"{steps.Count} step(s) saved in the model.");
     }
 
+    // ------------------------------------------------------------------ line numbers
+
+    private void ShowLines(IEnumerable<PipeLine> lines) =>
+        Find<DataGrid>("LinesGrid").ItemsSource = lines.OrderBy(l => l.Name, NaturalOrder.Instance).Select(l => new LineRow { Line = l }).ToList();
+
+    private void PreviewLines()
+    {
+        ReadRules();
+        if (_session.Project.Lines.Parameter.Length == 0)
+        {
+            Say("Choose the parameter the line number goes in.");
+            return;
+        }
+        var lines = _session.PlanLines();
+        ShowLines(lines);
+        int fresh = lines.Count(l => !l.Existing);
+        Say(lines.Count == 0 ? "No pipe in what was read." : $"{fresh} new line(s), {lines.Count - fresh} kept from the model. Nothing is changed until Apply to model.");
+    }
+
+    private void ApplyLines()
+    {
+        ReadRules();
+        _session.SaveProject();
+        if (_session.LinePlan is null) PreviewLines();
+        var (changed, refused, added) = _session.ApplyLines();
+        ShowLines(_session.PlanLines());
+        ShowSpools();
+        ShowModelParameters();
+        Say($"Line numbers written to {changed} piece(s)" + (added is not null ? $"; added the parameter \"{added}\" to the model" : "") +
+            (refused > 0 ? $"; {refused} could not take it (read-only or not a text parameter, or a workset owned by someone else)" : "") +
+            ". One undo in Revit puts them back.", bad: changed == 0 && refused > 0);
+    }
+
     // ------------------------------------------------------------------ parameter mapping
 
     private void WriteMapping()
@@ -510,6 +601,19 @@ internal sealed class FabWindow
         Say($"Wrote {result.Written} value(s) to {what}; {result.Unchanged} were already right." + (notes.Count > 0 ? "  " + string.Join("; ", notes) + "." : "") +
             " One undo in Revit puts them back.", bad: result.Written + result.Unchanged == 0);
         Read();
+    }
+
+    private void ShowModelParameters()
+    {
+        var all = SharedParameters.InModel(_session.Document);
+        // The line number can go in any text parameter the model has on pipe (MSUITE BIMPro's, your tags').
+        var lineParam = Find<ComboBox>("LineParamCombo");
+        string chosen = lineParam.Text;
+        lineParam.ItemsSource = all.Where(p => p.OnFabricated && (p.Type.Length == 0 || p.Type.IndexOf("Text", StringComparison.OrdinalIgnoreCase) >= 0))
+            .Select(p => p.Name).Prepend(FabProject.DefaultLineParameter).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        lineParam.Text = chosen;
+        bool fabOnly = Find<CheckBox>("FabParamsOnlyBox").IsChecked == true;
+        Find<DataGrid>("ModelParamsGrid").ItemsSource = fabOnly ? all.Where(p => p.OnFabricated).ToList() : all;
     }
 
     // ------------------------------------------------------------------ cut list, materials, labels

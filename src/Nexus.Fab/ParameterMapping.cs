@@ -27,7 +27,7 @@ public static class ParameterMapper
     /// <summary>Values every piece has, whichever way it was modelled.</summary>
     public static readonly string[] Standard =
     {
-        "Spool", "Package", "Step", "Service", "Size", "Material", "Level", "Category", "Description", "Part Type",
+        "Spool", "Package", "Step", "Line", "Service", "Size", "Material", "Level", "Category", "Description", "Part Type",
         "Length", "Length Ft", "Weight", "Spool Pieces", "Spool Weight", "Spool Longest Side",
         "Package Description", "Package Destination", "Package Due",
     };

@@ -110,6 +110,7 @@
                 <CheckBox x:Name="LooseBox" Content="Valves and in-line items are installed in the field" ToolTip="They end a spool and are not part of one." />
                 <CheckBox x:Name="ServicesBox" Content="Never mix services in a spool" />
                 <CheckBox x:Name="LevelsBox" Content="Never cross levels in a spool" />
+                <CheckBox x:Name="LinesBox" Content="Never cross line numbers in a spool" />
                 <CheckBox x:Name="HangersBox" Content="Hangers travel with their spool" />
 
                 <TextBlock Text="Limits (0 = none)" Style="{StaticResource Head}" Margin="0,14,0,0" />
@@ -147,7 +148,7 @@
                   </Grid.ColumnDefinitions>
                   <StackPanel>
                     <TextBlock Text="Pattern" Style="{StaticResource Label}" />
-                    <TextBox x:Name="NameBox" ToolTip="{}{Service} and {Level} are the spool's own; # is the counter, padded to the number of #. Each service counts from the start." />
+                    <TextBox x:Name="NameBox" ToolTip="{}{Service}, {Level} and {Line} are the spool's own; # is the counter, padded to the number of #. Each name before the counter counts from the start, so {Line}-SP{##} numbers the spools of each line 01, 02…" />
                   </StackPanel>
                   <StackPanel Grid.Column="2">
                     <TextBlock Text="Start at" Style="{StaticResource Label}" />
@@ -185,6 +186,73 @@
                 <DataGridTextColumn Header="Weight" Binding="{Binding Weight}" Width="75" />
                 <DataGridTextColumn Header="Package" Binding="{Binding Package}" Width="110" />
                 <DataGridTextColumn Header="Step" Binding="{Binding Status}" Width="95" />
+              </DataGrid.Columns>
+            </DataGrid>
+          </DockPanel>
+        </Grid>
+      </TabItem>
+
+      <!-- ===== Line numbers ===== -->
+      <TabItem Header="Line numbers">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="340" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Border Style="{StaticResource Card}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <StackPanel Margin="0,0,6,0">
+                <TextBlock Text="Where the line number goes" Style="{StaticResource Head}" />
+                <TextBlock Style="{StaticResource Hint}" Text="A parameter the model already has (MSUITE BIMPro's, your tags'), or a new name: Nexus then adds a text parameter of that name." />
+                <TextBlock Text="Parameter" Style="{StaticResource Label}" />
+                <ComboBox x:Name="LineParamCombo" IsEditable="True" />
+                <TextBlock Text="Fabrication parts: also in custom data field (optional)" Style="{StaticResource Label}" />
+                <ComboBox x:Name="LineDataCombo" IsEditable="True" ToolTip="So the line number goes into the MAJ for CADmep, ESTmep and CAMduct too." />
+
+                <TextBlock Text="Where a line ends" Style="{StaticResource Head}" Margin="0,14,0,0" />
+                <TextBlock Style="{StaticResource Hint}" Text="A line is connected pipe of one service, from equipment to equipment." />
+                <CheckBox x:Name="LineBranchBox" Content="The branch of a tee is a new line" />
+                <CheckBox x:Name="LineSizeBox" Content="A size change is a new line" />
+                <CheckBox x:Name="LinePipeBox" Content="Pipe only (no duct, conduit or cable tray)" />
+
+                <TextBlock Text="Numbers" Style="{StaticResource Head}" Margin="0,14,0,0" />
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel>
+                    <TextBlock Text="Pattern" Style="{StaticResource Label}" />
+                    <TextBox x:Name="LinePatternBox" ToolTip="{}{Size}, {Service}, {Level} and {Material} are the line's own (its largest size); # is the counter, padded to the number of #." />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2">
+                    <TextBlock Text="Start at" Style="{StaticResource Label}" />
+                    <TextBox x:Name="LineStartBox" />
+                  </StackPanel>
+                </Grid>
+                <CheckBox x:Name="LinePerServiceBox" Content="Each service counts from the start" />
+                <CheckBox x:Name="LineKeepBox" Content="Keep line numbers already in the model" ToolTip="Only pipe without a line number is numbered (new pipe, or numbers cleared)." />
+                <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                  <Button x:Name="LinePreviewButton" Content="Preview lines" />
+                  <Button x:Name="LineApplyButton" Content="Apply to model" Style="{StaticResource Primary}" />
+                </StackPanel>
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+          <DockPanel Grid.Column="2">
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+              <Button x:Name="LineSelectButton" Content="Select in Revit" ToolTip="Select the pipe of the selected lines in the model." />
+            </StackPanel>
+            <DataGrid x:Name="LinesGrid" IsReadOnly="True" SelectionMode="Extended" CanUserAddRows="False">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Line number" Binding="{Binding Name}" Width="170" />
+                <DataGridTextColumn Header="State" Binding="{Binding State}" Width="90" />
+                <DataGridTextColumn Header="Service" Binding="{Binding Service}" Width="*" />
+                <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="80" />
+                <DataGridTextColumn Header="Material" Binding="{Binding Material}" Width="*" />
+                <DataGridTextColumn Header="Level" Binding="{Binding Level}" Width="90" />
+                <DataGridTextColumn Header="Pieces" Binding="{Binding Pieces}" Width="60" />
+                <DataGridTextColumn Header="Length" Binding="{Binding Length}" Width="90" />
               </DataGrid.Columns>
             </DataGrid>
           </DockPanel>
@@ -299,6 +367,27 @@
             </DockPanel>
           </Border>
           <DockPanel Grid.Column="2">
+            <!-- Shared parameters the model already has (MSUITE BIMPro, other add-ins): targets for the mapping, and a file for tag families. -->
+            <Border DockPanel.Dock="Bottom" Style="{StaticResource Card}" Margin="0,12,0,0" Height="290">
+              <DockPanel>
+                <StackPanel DockPanel.Dock="Top">
+                  <TextBlock Text="Shared parameters in this model" Style="{StaticResource Head}" />
+                  <TextBlock Style="{StaticResource Hint}" Text="Parameters MSUITE BIMPro or other add-ins have added. Double-click one to write to it from the selected mapping line (or a new one): tags and schedules made for it show the value." />
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                  <CheckBox x:Name="FabParamsOnlyBox" Content="Only those on pipe, duct and fabrication" IsChecked="True" Margin="0,5,16,0" />
+                </StackPanel>
+                <DataGrid x:Name="ModelParamsGrid" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Extended" Margin="0,8,0,0">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="Parameter" Binding="{Binding Name}" Width="*" />
+                    <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="90" />
+                    <DataGridTextColumn Header="On" Binding="{Binding Binding}" Width="70" />
+                    <DataGridTextColumn Header="Categories" Binding="{Binding Categories}" Width="*" />
+                    <DataGridTextColumn Header="Id" Binding="{Binding IdText}" Width="*" />
+                  </DataGrid.Columns>
+                </DataGrid>
+              </DockPanel>
+            </Border>
             <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
               <CheckBox x:Name="AddParamsBox" Content="Add a parameter the model does not have (a text parameter on pipe, duct and fabrication categories)" />
               <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" Text="Writes to the spools selected on the Spools tab, or to everything read when none is selected. Run it again after spooling or packaging to bring the parameters up to date." />
