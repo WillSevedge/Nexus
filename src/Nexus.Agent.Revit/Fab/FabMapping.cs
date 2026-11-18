@@ -164,6 +164,7 @@ internal static class FabMapping
             case "SPOOL": return item.Spool;
             case "PACKAGE": return item.Package;
             case "STEP" or "STATUS": return item.Status;
+            case "LINE" or "LINE NUMBER": return item.Line;
             case "SERVICE": return item.Service;
             case "SIZE": return item.Size;
             case "MATERIAL": return item.Material;

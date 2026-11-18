@@ -270,6 +270,89 @@ public sealed class FabTests
         Assert.Equal(2, FabProject.FromJson(project.ToJson()).Mappings.Count);
     }
 
+    /// <summary>A tee at (x, 0) with a header along X and a branch along Y; each leg is one pipe.</summary>
+    private static List<FabItem> Tee(string service, string headerSize, string branchSize)
+    {
+        FabItem Pipe(string key, string size, double x0, double y0, double x1, double y1) => new()
+        {
+            Key = key, Kind = FabKind.Pipe, Service = service, Size = size, LengthFt = Math.Max(Math.Abs(x1 - x0), Math.Abs(y1 - y0)),
+            MinX = Math.Min(x0, x1), MaxX = Math.Max(x0, x1), MinY = Math.Min(y0, y1), MaxY = Math.Max(y0, y1),
+        };
+        var left = Pipe("L", headerSize, -10, -0.2, -0.5, 0.2);
+        var right = Pipe("R", headerSize, 0.5, -0.2, 10, 0.2);
+        var branch = Pipe("B", branchSize, -0.2, 0.5, 0.2, 10);
+        var tee = new FabItem { Key = "T", Kind = FabKind.Fitting, Service = service, Size = headerSize, MinX = -0.5, MaxX = 0.5, MinY = -0.5, MaxY = 0.5 };
+        tee.Joints.AddRange(new[] { new FabJoint { OtherKey = "L" }, new FabJoint { OtherKey = "R" }, new FabJoint { OtherKey = "B" } });
+        return new List<FabItem> { left, right, branch, tee };
+    }
+
+    [Fact]
+    public void The_branch_of_a_tee_is_a_line_of_its_own_and_the_run_goes_straight_through()
+    {
+        var lines = LinePlanner.Plan(Tee("CHWS", "4\"", "4\""), new LineRules { Pattern = "{Size}-{Service}-{###}" });
+        Assert.Equal(2, lines.Count);
+        var header = lines.Single(l => l.Items.Any(i => i.Key == "L"));
+        Assert.Equal(new[] { "L", "R", "T" }, header.Items.Select(i => i.Key).OrderBy(k => k));
+        Assert.Equal(new[] { "4in-CHWS-001", "4in-CHWS-002" }, lines.Select(l => l.Name).OrderBy(n => n));
+
+        var together = LinePlanner.Plan(Tee("CHWS", "4\"", "4\""), new LineRules { BreakAtBranches = false });
+        Assert.Single(together);
+    }
+
+    [Fact]
+    public void A_smaller_branch_is_the_branch_whatever_the_angles()
+    {
+        // The smaller leg is the branch even when it is not the odd one out by direction.
+        var items = Tee("HWS", "6\"", "2\"");
+        var lines = LinePlanner.Plan(items, new LineRules());
+        Assert.Contains(lines, l => l.Items.Count == 1 && l.Items[0].Key == "B" && l.Size == "2\"");
+    }
+
+    [Fact]
+    public void Lines_break_at_size_changes_when_asked_and_existing_numbers_are_kept()
+    {
+        var items = Run("CW", new[] { 5d, 5, 5 });
+        items[0].Size = items[1].Size = items[2].Size = "4\""; // pipe, coupling, pipe
+        items[3].Size = "4\"x3\"";                            // the reducer
+        items[4].Size = "3\"";                                 // pipe
+        Assert.Single(LinePlanner.Plan(items, new LineRules()));
+        var split = LinePlanner.Plan(items, new LineRules { BreakAtSizeChange = true, Pattern = "{Service}-{Size}-{#}" });
+        Assert.Equal(new[] { "CW-3in-2", "CW-4in-1" }, split.Select(l => l.Name).OrderBy(n => n));
+        Assert.Contains("F1", split.Single(l => l.Size == "4\"").Items.Select(i => i.Key)); // the reducer goes with the larger side
+
+        foreach (var i in items) i.Line = "CW-100";
+        var kept = LinePlanner.Plan(items, new LineRules { BreakAtSizeChange = true });
+        Assert.True(Assert.Single(kept).Existing);
+    }
+
+    [Fact]
+    public void Each_service_counts_on_its_own_and_duct_gets_no_line_number()
+    {
+        var items = Run("CHWS", new[] { 5d }, prefix: "s").Concat(Run("CHWR", new[] { 5d }, startX: 20, prefix: "r")).ToList();
+        items.Add(new FabItem { Key = "D", Kind = FabKind.Duct, Service = "SA", Size = "12x10", LengthFt = 5 });
+        var lines = LinePlanner.Plan(items, new LineRules { Pattern = "{Service}-{##}" });
+        Assert.Equal(new[] { "CHWR-01", "CHWS-01" }, lines.Select(l => l.Name).OrderBy(n => n));
+        var shared = LinePlanner.Plan(items, new LineRules { Pattern = "{Service}-{##}", CountPerService = false });
+        Assert.Equal(new[] { "CHWR-01", "CHWS-02" }, shared.Select(l => l.Name).OrderBy(n => n));
+    }
+
+    [Theory]
+    [InlineData("4\"", 4)]
+    [InlineData("1 1/2\"", 1.5)]
+    [InlineData("3/4\"", 0.75)]
+    [InlineData("100 mm", 100)]
+    [InlineData("", 0)]
+    public void Sizes_read_as_numbers(string size, double value) => Assert.Equal(value, LinePlanner.SizeValue(size), 6);
+
+    [Fact]
+    public void Spools_can_be_named_by_their_line_and_never_cross_lines()
+    {
+        var items = Run("CHWS", new[] { 5d, 5, 5, 5 });
+        for (int i = 0; i < items.Count; i++) items[i].Line = i < 4 ? "4in-CHWS-001" : "4in-CHWS-002";
+        var plan = SpoolPlanner.Plan(items, Rules(r => { r.KeepLinesApart = true; r.Name = "{Line}-SP{##}"; }));
+        Assert.Equal(new[] { "4in-CHWS-001-SP01", "4in-CHWS-002-SP01" }, plan.Spools.Select(s => s.Name).OrderBy(n => n));
+    }
+
     [Fact]
     public void Csv_is_quoted_where_needed_and_never_runs_as_a_formula()
     {

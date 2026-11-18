@@ -51,6 +51,99 @@ internal sealed class FabSession
     {
         Items = FabCollector.Collect(_uidoc, scope);
         Plan = null;
+        LinePlan = null;
+        ReadLines();
+    }
+
+    // ------------------------------------------------------------------ line numbers
+
+    public List<PipeLine>? LinePlan { get; private set; }
+
+    /// <summary>Each piece's line number, from the line number parameter (e.g. MSUITE BIMPro's).</summary>
+    private void ReadLines()
+    {
+        string name = Project.Lines.Parameter.Trim();
+        foreach (var item in Items)
+        {
+            item.Line = "";
+            if (name.Length == 0 || item.Tag is not ElementId id || Document.GetElement(id) is not { } e) continue;
+            var p = e.LookupParameter(name);
+            if (p is not null) item.Line = (p.StorageType == StorageType.String ? p.AsString() : p.AsValueString())?.Trim() ?? "";
+        }
+    }
+
+    public List<PipeLine> PlanLines()
+    {
+        ReadLines();
+        LinePlan = LinePlanner.Plan(Items, Project.Lines);
+        return LinePlan;
+    }
+
+    /// <summary>
+    /// Writes the planned line numbers into the line number parameter (added to the model as a text parameter when it
+    /// has none of that name), and, for Fabrication parts, into a custom data field when one is named.
+    /// </summary>
+    public (int Changed, int Refused, string? Added) ApplyLines()
+    {
+        if (LinePlan is null) PlanLines();
+        var rules = Project.Lines;
+        string name = rules.Parameter.Trim();
+        if (name.Length == 0) throw new InvalidOperationException("Choose the parameter the line number goes in.");
+        int changed = 0, refused = 0;
+        string? added = null;
+        var config = Safe(() => FabricationConfiguration.GetFabricationConfiguration(Document));
+        int customData = -1;
+        if (config is not null && rules.CustomData.Trim().Length > 0)
+            foreach (int id in Safe(() => config.GetAllPartCustomData()) ?? new List<int>())
+                if (string.Equals(Safe(() => config.GetPartCustomDataName(id)), rules.CustomData.Trim(), StringComparison.OrdinalIgnoreCase)) customData = id;
+
+        Run("line numbers", () =>
+        {
+            var elements = LinePlan!.Where(l => !l.Existing).SelectMany(l => l.Items.Select(i => (Line: l.Name, Element: i.Tag is ElementId id ? Document.GetElement(id) : null)))
+                .Where(x => x.Element is not null).ToList();
+            if (elements.Count > 0 && elements.All(x => x.Element!.LookupParameter(name) is null))
+            {
+                FabStore.EnsureTextParameters(Document, new[] { (name, FabStore.IdFor(name), "The P&ID line number (written by Nexus).") });
+                Document.Regenerate();
+                added = name;
+            }
+            foreach (var (line, e) in elements)
+            {
+                var p = e!.LookupParameter(name);
+                bool ok = false;
+                if (p is { IsReadOnly: false, StorageType: StorageType.String })
+                    ok = (p.AsString() ?? "") == line || p.Set(line);
+                if (customData >= 0 && e is FabricationPart part)
+                    try
+                    {
+                        if (!part.HasCustomData(customData)) part.AddPartCustomData(customData);
+                        part.SetPartCustomDataText(customData, line);
+                        ok = true;
+                    }
+                    catch { /* a field that does not hold text */ }
+                if (ok) changed++; else refused++;
+            }
+            Project.Record(User, $"{LinePlan.Count(l => !l.Existing)} line(s)", "Line numbers", "", "Applied");
+            FabStore.Save(Document, Project);
+        });
+        ReadLines();
+        return (changed, refused, added);
+    }
+
+    /// <summary>The custom data fields of the Fabrication database (for the line number field choice).</summary>
+    public List<string> CustomDataNames()
+    {
+        var config = Safe(() => FabricationConfiguration.GetFabricationConfiguration(Document));
+        if (config is null) return new List<string>();
+        return (Safe(() => config.GetAllPartCustomData()) ?? new List<int>()).Select(id => Safe(() => config.GetPartCustomDataName(id)) ?? "")
+            .Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    public int SelectItems(IEnumerable<FabItem> items)
+    {
+        var ids = items.Select(i => i.Tag).OfType<ElementId>().ToList();
+        _uidoc.Selection.SetElementIds(ids);
+        return ids.Count;
     }
 
     /// <summary>The kinds of joint in what was read, with how many there are: the choices for field joints.</summary>

@@ -86,6 +86,7 @@ public sealed class FabProject
     public List<FabPackage> Packages { get; set; } = new();
     public List<FabChange> History { get; set; } = new();
     public SpoolRules Spooling { get; set; } = new();
+    public LineRules Lines { get; set; } = new();
     public List<StockLength> Stock { get; set; } = new() { new StockLength() };
     /// <summary>Lost to each cut, in inches (the blade).</summary>
     public double KerfIn { get; set; } = 0.125;
@@ -100,6 +101,8 @@ public sealed class FabProject
     public bool AddMissingParameters { get; set; } = true;
 
     public const int MaxHistory = 5000;
+    /// <summary>The parameter Nexus adds for line numbers when the model has none to use.</summary>
+    public const string DefaultLineParameter = "Nexus Line Number";
 
     public static List<FabStatus> DefaultStatuses() => new()
     {

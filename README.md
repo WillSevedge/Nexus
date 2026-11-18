@@ -180,6 +180,13 @@ with it. Every action is one undo step.
   number of pieces). Names follow a pattern (`{Service}-{###}`). *Preview* shows the spools before anything
   changes; *Apply to model* writes them (Fabrication parts also get their own spool name, which goes into the MAJ).
   Spools already released to the shop are never re-cut.
+- **Line numbers**: P&ID line numbers for pipe runs, written into a parameter the model already has (MSUITE
+  BIMPro's, or the one your tags use) or into a new text parameter of the name you give, and optionally into a
+  Fabrication custom data field so it reaches the MAJ. A line is connected pipe of one service from equipment to
+  equipment; it can also end at the branch of a tee (the run goes straight through; a smaller leg is always the
+  branch) and at size changes (a reducer goes with the larger side). Numbers follow a pattern
+  (`{Size}-{Service}-{###}`, the line's largest size), each service counting on its own; numbers already in the
+  model can be kept. Spools can be named by line (`{Line}-SP{##}`, counted per line) and kept from crossing lines.
 - **Packages**: groups of spools ordered, made, shipped or installed together, with a description, destination,
   due date and step.
 - **Tracking**: your own list of steps (Design, Released, Cut, Fabricated, Checked, Shipped, Installed…) with
@@ -190,8 +197,9 @@ with it. Every action is one undo step.
   (`{Service}-{Size}`), to a parameter by name. Values: spool, package, step, service, size, material, level,
   length, weight, spool totals, package destination and due date; for Fabrication parts also item number, alias,
   notes, product code, specifications, CID and every custom data field; any other name is read from the
-  parameter of that name on the piece or its type. A parameter the model does not have can be added (a text
-  parameter on the fabricated categories). The mapping is saved with the model; *Write to model* is one undo.
+  parameter of that name on the piece or its type. The shared parameters the model already has (MSUITE BIMPro's,
+  other add-ins') are listed; double-click one to write to it. A parameter the model does not have can be added (a
+  text parameter on the fabricated categories). The mapping is saved with the model; *Write to model* is one undo.
 - **Cut list**: the straights grouped by material, size and length, and how to cut them from stock lengths with
   the least waste (stock length by material and size, blade width counted), with the yield and the pieces longer
   than their stock. Saved as CSV.

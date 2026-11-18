@@ -61,6 +61,8 @@ public sealed class FabItem
     public string Spool { get; set; } = "";
     public string Package { get; set; } = "";
     public string Status { get; set; } = "";
+    /// <summary>The line number, as read from the line number parameter.</summary>
+    public string Line { get; set; } = "";
 
     /// <summary>The host's own object (element id…), for applying.</summary>
     public object? Tag { get; set; }

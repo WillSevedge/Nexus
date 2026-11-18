@@ -20,11 +20,13 @@ public sealed class SpoolRules
     public bool KeepServicesApart { get; set; } = true;
     /// <summary>A spool never crosses levels.</summary>
     public bool KeepLevelsApart { get; set; }
+    /// <summary>A spool never crosses from one line number to another.</summary>
+    public bool KeepLinesApart { get; set; }
     /// <summary>Hangers travel with the spool they hold.</summary>
     public bool IncludeHangers { get; set; }
     /// <summary>A group smaller than this is left loose (no spool): a lone fitting is not a spool.</summary>
     public int MinParts { get; set; } = 2;
-    /// <summary>"{Service}-{###}": {Service} and {Level} are the spool's own, # the counter (padded to the number of #).</summary>
+    /// <summary>"{Service}-{###}": {Service}, {Level} and {Line} are the spool's own, # the counter (padded to the number of #).</summary>
     public string Name { get; set; } = "{Service}-{###}";
     public int Start { get; set; } = 1;
     /// <summary>Pieces that already have a spool keep it; only loose pieces are spooled.</summary>
@@ -38,6 +40,7 @@ public sealed class Spool
     public List<FabItem> Items { get; } = new();
     public string Service { get; set; } = "";
     public string Level { get; set; } = "";
+    public string Line { get; set; } = "";
     /// <summary>Longest side of the box around it, in feet.</summary>
     public double LongestSideFt { get; set; }
     public double WeightLb { get; set; }
@@ -98,6 +101,7 @@ public static class SpoolPlanner
             if (IsFieldJoint(joint.Type, rules.FieldJoints)) return false;
             if (rules.KeepServicesApart && !Same(a.Service, b.Service) && a.Kind != FabKind.Hanger && b.Kind != FabKind.Hanger) return false;
             if (rules.KeepLevelsApart && !Same(a.Level, b.Level)) return false;
+            if (rules.KeepLinesApart && !Same(a.Line, b.Line) && a.Kind != FabKind.Hanger && b.Kind != FabKind.Hanger) return false;
             return true;
         }
 
@@ -207,6 +211,7 @@ public static class SpoolPlanner
         var main = spool.Items.Where(i => i.Kind != FabKind.Hanger).DefaultIfEmpty(spool.Items[0]).ToList();
         spool.Service = main.GroupBy(i => i.Service, StringComparer.OrdinalIgnoreCase).OrderByDescending(g => g.Count()).First().Key;
         spool.Level = main.GroupBy(i => i.Level, StringComparer.OrdinalIgnoreCase).OrderByDescending(g => g.Count()).First().Key;
+        spool.Line = main.GroupBy(i => i.Line, StringComparer.OrdinalIgnoreCase).OrderByDescending(g => g.Count()).First().Key;
         spool.LongestSideFt = FabMeasure.LongestSideFt(spool.Items);
         spool.WeightLb = spool.Items.Sum(i => i.WeightLb);
         spool.PipeFt = spool.Items.Where(i => i.IsStraight).Sum(i => i.LengthFt);
@@ -225,8 +230,12 @@ public static class SpoolPlanner
     public static string Fill(string pattern, Spool spool, int number, bool numbered)
     {
         if (string.IsNullOrWhiteSpace(pattern)) pattern = "SP-{###}";
-        string text = Regex.Replace(pattern, @"\{\s*(Service|Level)\s*\}", m =>
-            Clean(m.Groups[1].Value.Equals("Service", StringComparison.OrdinalIgnoreCase) ? spool.Service : spool.Level), RegexOptions.IgnoreCase);
+        string text = Regex.Replace(pattern, @"\{\s*(Service|Level|Line)\s*\}", m => Clean(m.Groups[1].Value.ToUpperInvariant() switch
+        {
+            "SERVICE" => spool.Service,
+            "LEVEL" => spool.Level,
+            _ => spool.Line,
+        }), RegexOptions.IgnoreCase);
         var counter = Regex.Match(text, @"\{?(#+)\}?");
         if (!numbered) return counter.Success ? text.Remove(counter.Index, counter.Length) : text;
         string digits = number.ToString(CultureInfo.InvariantCulture);
